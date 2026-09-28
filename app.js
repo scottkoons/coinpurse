@@ -25,6 +25,8 @@
   let editorAccent = 0;
   /** @type {Blob|null} */
   let draftImage = null;
+  /** In-flight setDraftImage so Save waits for paste/compress to finish. */
+  let draftImageTask = Promise.resolve();
   /** @type {string|null} */
   let draftPreviewUrl = null;
   /** @type {string|null} */
@@ -301,6 +303,20 @@
     await txDone(tx);
   }
 
+  /** Mirror cloud purse into IDB so offline fallback cannot resurrect deleted coins. */
+  async function replaceLocalPasses(list) {
+    if (!db) return;
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    store.clear();
+    for (const p of list || []) {
+      if (!p || !p.id) continue;
+      const { image, ...rest } = p;
+      store.put({ ...rest, image: null });
+    }
+    await txDone(tx);
+  }
+
   function uid() {
     if (crypto.randomUUID) return crypto.randomUUID();
     return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -362,23 +378,30 @@
   }
 
   async function setDraftImage(blob, { quiet } = {}) {
-    if (!blob) {
-      clearDraftImage();
-      return;
-    }
-    try {
-      const compressed = await compressImage(blob);
-      clearDraftImage();
-      draftImage = compressed;
-      draftPreviewUrl = URL.createObjectURL(compressed);
-      editorImageIndex = 0;
-      renderEditorThumbs();
-      setEditorPreviewFromIndex(0, { resetSlide: true });
-      if (!quiet) toast('Image ready');
-    } catch (e) {
-      console.error(e);
-      toast('Couldn’t use that image');
-    }
+    const run = async () => {
+      if (!blob) {
+        clearDraftImage();
+        return;
+      }
+      try {
+        const compressed = await compressImage(blob);
+        clearDraftImage();
+        draftImage = compressed;
+        draftPreviewUrl = URL.createObjectURL(compressed);
+        editorImageIndex = 0;
+        renderEditorThumbs();
+        setEditorPreviewFromIndex(0, { resetSlide: true });
+        if (!quiet) toast('Image ready');
+      } catch (e) {
+        console.error(e);
+        toast('Couldn’t use that image');
+        throw e;
+      }
+    };
+    const task = run();
+    // Save must await the latest paste/compress even if it fails
+    draftImageTask = task.catch(() => {});
+    await task;
   }
 
   function clearDraftImage() {
@@ -1955,6 +1978,8 @@
       $('#field-title').focus();
       return;
     }
+    // Wait for in-flight paste/compress so Save after Paste keeps the image
+    try { await draftImageTask; } catch {}
     const notes = $('#field-notes').value.trim();
     const accent = editorAccent;
     const now = Date.now();
@@ -2687,7 +2712,9 @@
   }
 
   async function readClipboardImageBlob() {
-    if (!(navigator.clipboard && navigator.clipboard.read)) return null;
+    if (!(navigator.clipboard && navigator.clipboard.read)) {
+      throw new Error('Clipboard API unavailable');
+    }
     const items = await navigator.clipboard.read();
     let fallback = null;
     for (const item of items) {
@@ -2710,17 +2737,21 @@
     return fallback;
   }
 
-  /** Last-resort fallback when clipboard.read is unavailable; may fire the document paste handler. */
-  function tryExecCommandPaste() {
-    try {
-      return document.execCommand && document.execCommand('paste');
-    } catch {
-      return false;
+  function clipboardReadErrorMessage(err) {
+    const name = err && err.name ? String(err.name) : '';
+    const msg = err && err.message ? String(err.message) : '';
+    if (name === 'NotAllowedError' || /not allowed|permission|denied/i.test(msg)) {
+      return 'Clipboard permission denied — tap Paste again and allow paste';
     }
+    if (/unavailable|undefined|not a function/i.test(msg)) {
+      return 'Clipboard not available here — use Choose file or Camera';
+    }
+    return 'Could not read clipboard — copy a screenshot and tap Paste again';
   }
 
   async function pasteAttachmentImage() {
-    // Button click is the user gesture Safari needs for clipboard.read()
+    // One-tap: clipboard.read() in this click gesture only.
+    // Never focus contenteditable or execCommand('paste') — those summon iOS Paste UI.
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
@@ -2728,17 +2759,16 @@
         return;
       }
       toast('No image on clipboard');
-      return;
     } catch (e) {
       console.warn('clipboard.read failed', e);
+      toast(clipboardReadErrorMessage(e));
     }
-    if (tryExecCommandPaste()) return;
-    toast('Could not read clipboard — copy a screenshot and tap Paste again');
   }
 
   // ---------- Clipboard paste ----------
   async function pasteImage() {
-    // Button click is the user gesture Safari needs for clipboard.read()
+    // One-tap: clipboard.read() in this click gesture only.
+    // Never focus contenteditable or execCommand('paste') — those summon iOS Paste UI.
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
@@ -2746,12 +2776,10 @@
         return;
       }
       toast('No image on clipboard');
-      return;
     } catch (e) {
       console.warn('clipboard.read failed', e);
+      toast(clipboardReadErrorMessage(e));
     }
-    if (tryExecCommandPaste()) return;
-    toast('Could not read clipboard — copy a screenshot and tap Paste again');
   }
 
 
@@ -3624,6 +3652,11 @@
       passes = sortPassesByOrder(await fetchCloudCoins());
       for (const p of passes) ensureAccent(p);
       await rebalanceAccents();
+      // Cloud is source of truth: replace IDB so hard refresh / offline
+      // fallback cannot resurrect coins deleted in the cloud.
+      try { await replaceLocalPasses(passes); } catch (err) {
+        console.warn('IDB mirror failed', err);
+      }
       passRing = passes.map((p) => p.id);
       syncPassRing();
       if (passes.length) {

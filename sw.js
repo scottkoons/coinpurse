@@ -1,6 +1,6 @@
 /* CoinPurse service worker — cache app shell for offline use of saved UI.
    Pass images live in IndexedDB on the device and do not go through the network. */
-const CACHE = 'coinpurse-v152';
+const CACHE = 'coinpurse-v153';
 const SHELL = [
   './',
   './index.html',

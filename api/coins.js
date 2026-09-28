@@ -1,6 +1,11 @@
 const crypto = require('crypto');
 const { requireUser, json } = require('./lib/auth');
-const { readIndex, upsertCoin, migrateLegacyToUser, nextFrontSortOrder } = require('./lib/store');
+const {
+  readIndexDocument,
+  upsertCoin,
+  migrateLegacyToUser,
+  nextFrontSortOrder,
+} = require('./lib/store');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -8,11 +13,21 @@ module.exports = async function handler(req, res) {
   if (!user) return;
 
   if (req.method === 'GET') {
-    let coins = await readIndex(user.id);
-    if (!coins.length) {
-      coins = await migrateLegacyToUser(user.id);
+    try {
+      const doc = await readIndexDocument(user.id);
+      if (doc.status === 'ok') {
+        return json(res, 200, { coins: doc.coins, email: user.email });
+      }
+      if (doc.status === 'error') {
+        return json(res, 503, { error: 'Could not read coin index' });
+      }
+      // Index blob missing → one-time legacy migrate (or claim empty purse).
+      const coins = await migrateLegacyToUser(user.id);
+      return json(res, 200, { coins, email: user.email });
+    } catch (e) {
+      console.error('GET /api/coins', e);
+      return json(res, 503, { error: e.message || 'Could not load coins' });
     }
-    return json(res, 200, { coins, email: user.email });
   }
 
   if (req.method === 'POST') {
@@ -25,7 +40,11 @@ module.exports = async function handler(req, res) {
     const title = String(data.title || '').trim();
     if (!title) return json(res, 400, { error: 'Title required' });
     const now = Date.now();
-    const existing = await readIndex(user.id);
+    const doc = await readIndexDocument(user.id);
+    if (doc.status === 'error') {
+      return json(res, 503, { error: 'Could not read coin index' });
+    }
+    const existing = doc.coins;
     const sortOrder =
       typeof data.sortOrder === 'number'
         ? data.sortOrder
