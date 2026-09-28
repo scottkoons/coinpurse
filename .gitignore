@@ -1,0 +1,9 @@
+.vercel
+.env*
+.auth_secret
+.coinpurse_*
+.resend_key*
+token.js
+node_modules/
+.DS_Store
+*.log

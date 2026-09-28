@@ -1,0 +1,16 @@
+{
+  "name": "qr-locker",
+  "version": "1.0.0",
+  "description": "Phone-first PWA for Scott: a wallet-like stack of temporary passes — conference QR screenshots, haircut cards, loyalty barcodes, etc.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "resend": "^6.28.1"
+  }
+}
