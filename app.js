@@ -2680,28 +2680,47 @@
   }
 
 
-  function focusPasteZone(which) {
-    const id = which === 'attach' ? 'attach-paste-zone' : 'editor-paste-zone';
-    const zone = $('#' + id);
-    if (!zone) return;
-    zone.classList.add('paste-zone-armed');
-    zone.focus({ preventScroll: true });
-    // Keep armed briefly so iOS long-press Paste lands on this target
-    setTimeout(() => zone.classList.remove('paste-zone-armed'), 8000);
+  function isLikelyClipboardImage(type) {
+    const t = (type || '').toLowerCase();
+    // Safari often sends empty MIME or application/octet-stream for screenshots
+    return !t || t.startsWith('image/') || t === 'application/octet-stream';
   }
 
   async function readClipboardImageBlob() {
     if (!(navigator.clipboard && navigator.clipboard.read)) return null;
     const items = await navigator.clipboard.read();
+    let fallback = null;
     for (const item of items) {
-      const type = item.types.find((t) => t.startsWith('image/'));
-      if (!type) continue;
-      return await item.getType(type);
+      const types = item.types || [];
+      const imageType = types.find((t) => (t || '').toLowerCase().startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        if (blob && blob.size > 0) return blob;
+      }
+      for (const type of types) {
+        const t = (type || '').toLowerCase();
+        if (t.startsWith('text/')) continue;
+        if (!isLikelyClipboardImage(t)) continue;
+        try {
+          const blob = await item.getType(type);
+          if (blob && blob.size > 0 && !fallback) fallback = blob;
+        } catch {}
+      }
     }
-    return null;
+    return fallback;
+  }
+
+  /** Last-resort fallback when clipboard.read is unavailable; may fire the document paste handler. */
+  function tryExecCommandPaste() {
+    try {
+      return document.execCommand && document.execCommand('paste');
+    } catch {
+      return false;
+    }
   }
 
   async function pasteAttachmentImage() {
+    // Button click is the user gesture Safari needs for clipboard.read()
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
@@ -2709,30 +2728,30 @@
         return;
       }
       toast('No image on clipboard');
+      return;
     } catch (e) {
       console.warn('clipboard.read failed', e);
     }
-    focusPasteZone('attach');
-    toast('Long-press the paste box → Paste');
+    if (tryExecCommandPaste()) return;
+    toast('Could not read clipboard — copy a screenshot and tap Paste again');
   }
 
   // ---------- Clipboard paste ----------
   async function pasteImage() {
+    // Button click is the user gesture Safari needs for clipboard.read()
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
         await setDraftImage(blob);
         return;
       }
-      // API worked but no image — still arm the zone for a manual paste
-      focusPasteZone('editor');
-      toast('No image on clipboard — long-press the paste box');
+      toast('No image on clipboard');
       return;
     } catch (e) {
       console.warn('clipboard.read failed', e);
     }
-    focusPasteZone('editor');
-    toast('Long-press the paste box → Paste');
+    if (tryExecCommandPaste()) return;
+    toast('Could not read clipboard — copy a screenshot and tap Paste again');
   }
 
 
@@ -3265,16 +3284,6 @@
       if (f) await setDraftImage(f);
     });
     $('#btn-paste').addEventListener('click', pasteImage);
-    for (const id of ['editor-paste-zone', 'attach-paste-zone']) {
-      const zone = $('#' + id);
-      if (!zone) continue;
-      zone.addEventListener('keydown', (e) => {
-        // Allow paste shortcuts only; block typing into the catcher
-        const isPaste = (e.key === 'v' || e.key === 'V') && (e.metaKey || e.ctrlKey);
-        if (!isPaste) e.preventDefault();
-      });
-      zone.addEventListener('input', () => { zone.textContent = ''; });
-    }
 
     $('#btn-crop-image')?.addEventListener('click', () => openCropper());
     $('#btn-crop-cancel')?.addEventListener('click', () => closeCropper());
@@ -3317,13 +3326,11 @@
       if (editorOpen) {
         e.preventDefault();
         await setDraftImage(imageBlob);
-        $('#editor-paste-zone')?.classList.remove('paste-zone-armed');
         return;
       }
       if (attachOpen) {
         e.preventDefault();
         await addAttachmentFromBlob(imageBlob);
-        $('#attach-paste-zone')?.classList.remove('paste-zone-armed');
       }
     });
 
