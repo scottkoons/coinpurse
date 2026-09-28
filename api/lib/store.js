@@ -26,7 +26,10 @@ async function readJsonBlobStatus(pathname) {
     const result = await list({ prefix: pathname.replace(/\/[^/]+$/, '/'), limit: 1000 });
     const hit = (result.blobs || []).find((b) => b.pathname === pathname);
     if (!hit) return { status: 'missing', data: null };
-    const r = await fetch(hit.url, { cache: 'no-store' });
+    // Bust CDN (blob URLs are Cache-Control: public, max-age=30d).
+    // Stale index reads caused Untitled ghosts + wiped titles after Save.
+    const bust = hit.url + (hit.url.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const r = await fetch(bust, { cache: 'no-store' });
     if (!r.ok) return { status: 'error', data: null };
     return { status: 'ok', data: await r.json() };
   } catch (e) {
@@ -173,10 +176,11 @@ async function migrateLegacyToUser(userId) {
     // Do not overwrite a possibly-valid index with legacy on a transient failure.
     throw new Error('Could not read coin index');
   }
-  // missing
-  const legacy = await readLegacyIndex();
-  const deletedIds = {};
-  const coins = filterTombstoned(legacy, deletedIds);
+  // missing — inherit legacy coins + any legacy tombstones (neutralized index = []).
+  const legacyRaw = await readJsonBlob(LEGACY_INDEX);
+  const deletedIds = normalizeDeletedIds(legacyRaw && legacyRaw.deletedIds);
+  const legacyCoins = Array.isArray(legacyRaw && legacyRaw.coins) ? legacyRaw.coins : [];
+  const coins = filterTombstoned(sortCoinsByOrder(legacyCoins), deletedIds);
   await writeIndexDocument(userId, {
     coins,
     deletedIds,
@@ -189,8 +193,13 @@ async function upsertCoin(userId, coin) {
   const doc = await readIndexDocument(userId);
   if (doc.status === 'error') throw new Error('Could not read coin index');
   const deletedIds = { ...doc.deletedIds };
-  // Creating/updating a coin clears its tombstone (explicit re-add wins).
-  if (coin && coin.id && deletedIds[coin.id]) delete deletedIds[coin.id];
+  // Tombstones win: never revive a deleted id via image upload, accent PUT,
+  // or stale-client sync. New coins always use fresh UUIDs.
+  if (coin && coin.id && deletedIds[coin.id]) {
+    const err = new Error('Coin was deleted');
+    err.code = 'TOMBSTONED';
+    throw err;
+  }
 
   const coins = doc.coins.slice();
   const i = coins.findIndex((c) => c.id === coin.id);
@@ -198,7 +207,8 @@ async function upsertCoin(userId, coin) {
     if (typeof coin.sortOrder !== 'number') {
       coin.sortOrder = coins[i].sortOrder;
     }
-    coins[i] = coin;
+    // Merge into existing so a partial payload cannot wipe title/notes/image.
+    coins[i] = { ...coins[i], ...coin, id: coins[i].id };
   } else {
     if (typeof coin.sortOrder !== 'number') {
       coin.sortOrder = nextFrontSortOrder(coins);
@@ -207,7 +217,36 @@ async function upsertCoin(userId, coin) {
   }
   sortCoinsByOrder(coins);
   await writeIndexDocument(userId, { coins, deletedIds });
-  return coin;
+  return coins.find((c) => c.id === coin.id) || coin;
+}
+
+/**
+ * Patch image fields on an existing non-tombstoned coin only.
+ * Never creates an index entry (prevents Untitled draft ghosts).
+ */
+async function patchCoinImage(userId, id, { imageUrl, imagePath }) {
+  const doc = await readIndexDocument(userId);
+  if (doc.status === 'error') throw new Error('Could not read coin index');
+  if (doc.deletedIds[id]) {
+    const err = new Error('Coin was deleted');
+    err.code = 'TOMBSTONED';
+    throw err;
+  }
+  const coins = doc.coins.slice();
+  const i = coins.findIndex((c) => c.id === id);
+  if (i < 0) {
+    const err = new Error('Coin not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+  coins[i] = {
+    ...coins[i],
+    imageUrl: imageUrl != null ? imageUrl : coins[i].imageUrl,
+    imagePath: imagePath != null ? imagePath : coins[i].imagePath,
+    updatedAt: Date.now(),
+  };
+  await writeIndexDocument(userId, { coins, deletedIds: doc.deletedIds });
+  return coins[i];
 }
 
 /** Rewrite sortOrder 0..n-1 from ordered id list. Unknown ids ignored. */
@@ -262,6 +301,7 @@ module.exports = {
   writeIndex,
   writeIndexDocument,
   upsertCoin,
+  patchCoinImage,
   removeCoin,
   reorderCoins,
   sortCoinsByOrder,

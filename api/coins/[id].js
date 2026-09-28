@@ -1,5 +1,5 @@
 const { requireUser, json } = require('../lib/auth');
-const { readIndex, upsertCoin, removeCoin } = require('../lib/store');
+const { readIndexDocument, upsertCoin, removeCoin } = require('../lib/store');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -15,8 +15,14 @@ module.exports = async function handler(req, res) {
     try { data = JSON.parse(body || '{}'); } catch {
       return json(res, 400, { error: 'Invalid JSON' });
     }
-    const coins = await readIndex(user.id);
-    const existing = coins.find((c) => c.id === id);
+    const doc = await readIndexDocument(user.id);
+    if (doc.status === 'error') {
+      return json(res, 503, { error: 'Could not read coin index' });
+    }
+    if (doc.deletedIds[id]) {
+      return json(res, 410, { error: 'Coin was deleted' });
+    }
+    const existing = doc.coins.find((c) => c.id === id);
     if (!existing) return json(res, 404, { error: 'Not found' });
     const coin = {
       ...existing,
@@ -32,8 +38,15 @@ module.exports = async function handler(req, res) {
       updatedAt: Date.now(),
     };
     if (!coin.title) return json(res, 400, { error: 'Title required' });
-    await upsertCoin(user.id, coin);
-    return json(res, 200, { coin });
+    try {
+      const saved = await upsertCoin(user.id, coin);
+      return json(res, 200, { coin: saved });
+    } catch (e) {
+      if (e.code === 'TOMBSTONED') {
+        return json(res, 410, { error: 'Coin was deleted' });
+      }
+      throw e;
+    }
   }
 
   if (req.method === 'DELETE') {

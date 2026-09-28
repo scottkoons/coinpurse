@@ -1,6 +1,10 @@
-const { put } = require('@vercel/blob');
+const { put, del } = require('@vercel/blob');
 const { requireUser, json } = require('../../lib/auth');
-const { readIndex, upsertCoin, userImagePath } = require('../../lib/store');
+const {
+  readIndexDocument,
+  patchCoinImage,
+  userImagePath,
+} = require('../../lib/store');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -10,6 +14,19 @@ module.exports = async function handler(req, res) {
 
   const id = req.query.id;
   if (!id) return json(res, 400, { error: 'Missing id' });
+
+  // Require an intentional saved coin first — never invent "Untitled" drafts.
+  const doc = await readIndexDocument(user.id);
+  if (doc.status === 'error') {
+    return json(res, 503, { error: 'Could not read coin index' });
+  }
+  if (doc.deletedIds[id]) {
+    return json(res, 410, { error: 'Coin was deleted' });
+  }
+  const existing = doc.coins.find((c) => c.id === id);
+  if (!existing) {
+    return json(res, 404, { error: 'Save the coin before uploading an image' });
+  }
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -27,21 +44,22 @@ module.exports = async function handler(req, res) {
     contentType: ctype,
   });
 
-  const coins = await readIndex(user.id);
-  let coin = coins.find((c) => c.id === id);
-  if (!coin) {
-    coin = {
-      id,
-      title: 'Untitled',
-      notes: '',
-      accent: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  try {
+    const coin = await patchCoinImage(user.id, id, {
+      imageUrl: blob.url,
+      imagePath: pathname,
+    });
+    return json(res, 200, { coin, url: blob.url });
+  } catch (e) {
+    // Avoid leaving an orphan blob if the coin disappeared mid-upload.
+    try { await del(pathname); } catch (_) {}
+    if (e.code === 'NOT_FOUND') {
+      return json(res, 404, { error: 'Save the coin before uploading an image' });
+    }
+    if (e.code === 'TOMBSTONED') {
+      return json(res, 410, { error: 'Coin was deleted' });
+    }
+    console.error('image upload patch', e);
+    return json(res, 503, { error: e.message || 'Could not save image' });
   }
-  coin.imageUrl = blob.url;
-  coin.imagePath = pathname;
-  coin.updatedAt = Date.now();
-  await upsertCoin(user.id, coin);
-  return json(res, 200, { coin, url: blob.url });
 };

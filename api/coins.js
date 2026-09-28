@@ -45,12 +45,17 @@ module.exports = async function handler(req, res) {
       return json(res, 503, { error: 'Could not read coin index' });
     }
     const existing = doc.coins;
+    const id = data.id || crypto.randomUUID();
+    // Never revive a deleted id (stale client / retry after toss).
+    if (doc.deletedIds[id]) {
+      return json(res, 409, { error: 'Coin was deleted — create a new coin' });
+    }
     const sortOrder =
       typeof data.sortOrder === 'number'
         ? data.sortOrder
         : nextFrontSortOrder(existing);
     const coin = {
-      id: data.id || crypto.randomUUID(),
+      id,
       title,
       notes: String(data.notes || '').trim(),
       accent: Number.isInteger(data.accent) ? data.accent : Math.floor(Math.random() * 6),

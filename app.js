@@ -94,7 +94,14 @@
       },
       body: blob,
     });
-    if (!res.ok) throw new Error('Image upload failed');
+    if (!res.ok) {
+      let msg = 'Image upload failed';
+      try {
+        const j = await res.json();
+        if (j.error) msg = j.error;
+      } catch {}
+      throw new Error(msg);
+    }
     return res.json();
   }
 
@@ -3649,11 +3656,12 @@
     }
 
     try {
+      // Cloud index (post-tombstone filter) is the intentional saved set.
       passes = sortPassesByOrder(await fetchCloudCoins());
       for (const p of passes) ensureAccent(p);
       await rebalanceAccents();
-      // Cloud is source of truth: replace IDB so hard refresh / offline
-      // fallback cannot resurrect coins deleted in the cloud.
+      // Cloud is source of truth: replace IDB so hard refresh / SW update /
+      // offline fallback cannot resurrect drafts or deleted coins.
       try { await replaceLocalPasses(passes); } catch (err) {
         console.warn('IDB mirror failed', err);
       }
