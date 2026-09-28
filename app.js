@@ -1947,7 +1947,12 @@
     show($('#editor'));
     const panel = $('#editor .sheet-panel');
     if (panel) panel.scrollTop = 0;
-    setTimeout(() => $('#field-title').focus(), 50);
+    // Desktop: focus title for typing. On iPhone, autofocusing an empty text
+    // field immediately summons the native Paste|Scan Text edit menu, which
+    // sits over our Paste button and looks like "native Paste" is still in use.
+    if (!isCoarsePointerDevice()) {
+      setTimeout(() => $('#field-title').focus(), 50);
+    }
   }
 
   function closeEditor() {
@@ -2712,6 +2717,25 @@
   }
 
 
+  function isCoarsePointerDevice() {
+    try {
+      if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+        return true;
+      }
+    } catch {}
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  }
+
+  /** Blur inputs/textareas/contenteditable so iOS does not show Paste|Scan Text. */
+  function blurActiveEditable() {
+    const el = document.activeElement;
+    if (!el || el === document.body || el === document.documentElement) return;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || el.isContentEditable) {
+      try { el.blur(); } catch {}
+    }
+  }
+
   function isLikelyClipboardImage(type) {
     const t = (type || '').toLowerCase();
     // Safari often sends empty MIME or application/octet-stream for screenshots
@@ -2722,6 +2746,7 @@
     if (!(navigator.clipboard && navigator.clipboard.read)) {
       throw new Error('Clipboard API unavailable');
     }
+    // Must be the first await in the click gesture — do not await blur/timers first.
     const items = await navigator.clipboard.read();
     let fallback = null;
     for (const item of items) {
@@ -2756,9 +2781,30 @@
     return 'Could not read clipboard — copy a screenshot and tap Paste again';
   }
 
+  /**
+   * Wire Paste so pointerdown blurs any focused field (kills Paste|Scan Text)
+   * before click runs clipboard.read(). Never preventDefault on touchstart —
+   * that suppresses click on iOS Safari.
+   */
+  function bindPasteButton(btn, handler) {
+    if (!btn) return;
+    btn.addEventListener('pointerdown', () => {
+      blurActiveEditable();
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      blurActiveEditable();
+      // clipboard.read must stay in this synchronous gesture turn
+      handler(e);
+    });
+  }
+
   async function pasteAttachmentImage() {
-    // One-tap: clipboard.read() in this click gesture only.
-    // Never focus contenteditable or execCommand('paste') — those summon iOS Paste UI.
+    // Clipboard API only — never focus editable or execCommand('paste').
+    // Cross-origin screenshots: WebKit may show its own Allow Paste callout;
+    // that is required by Safari and is not the text-field Paste|Scan Text menu.
+    blurActiveEditable();
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
@@ -2774,8 +2820,10 @@
 
   // ---------- Clipboard paste ----------
   async function pasteImage() {
-    // One-tap: clipboard.read() in this click gesture only.
-    // Never focus contenteditable or execCommand('paste') — those summon iOS Paste UI.
+    // Clipboard API only — never focus editable or execCommand('paste').
+    // Cross-origin screenshots: WebKit may show its own Allow Paste callout;
+    // that is required by Safari and is not the text-field Paste|Scan Text menu.
+    blurActiveEditable();
     try {
       const blob = await readClipboardImageBlob();
       if (blob) {
@@ -3318,7 +3366,7 @@
       const f = e.target.files?.[0];
       if (f) await setDraftImage(f);
     });
-    $('#btn-paste').addEventListener('click', pasteImage);
+    bindPasteButton($('#btn-paste'), () => { pasteImage(); });
 
     $('#btn-crop-image')?.addEventListener('click', () => openCropper());
     $('#btn-crop-cancel')?.addEventListener('click', () => closeCropper());
@@ -3389,7 +3437,7 @@
     });
     $('#attach-sheet-backdrop')?.addEventListener('click', () => closeAttachSheet());
     $('#btn-attach-cancel')?.addEventListener('click', () => closeAttachSheet());
-    $('#btn-attach-paste')?.addEventListener('click', () => pasteAttachmentImage());
+    bindPasteButton($('#btn-attach-paste'), () => { pasteAttachmentImage(); });
     $('#attach-file')?.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) await addAttachmentFromBlob(file);

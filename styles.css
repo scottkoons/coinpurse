@@ -137,6 +137,16 @@ body {
 
 .file-btn { display: inline-flex; align-items: center; }
 
+/* Paste: never show iOS text callout / selection on the control itself */
+.btn-paste,
+#btn-paste,
+#btn-attach-paste {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
 /* Stack / Apple Wallet-style deck */
 .stack-view {
   padding: 8px 16px calc(24px + var(--safe-bottom));

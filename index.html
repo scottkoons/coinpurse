@@ -138,7 +138,7 @@
                 Camera
                 <input type="file" id="field-camera" accept="image/*" capture="environment" hidden />
               </label>
-              <button type="button" class="btn-secondary" id="btn-paste">Paste</button>
+              <button type="button" class="btn-secondary btn-paste" id="btn-paste" tabindex="0">Paste</button>
               <button type="button" class="btn-secondary danger-outline hidden" id="btn-clear-image">Clear</button>
             </div>
             <div id="image-preview-wrap" class="image-preview-wrap hidden">
@@ -152,7 +152,7 @@
                 <button type="button" class="btn-secondary" id="btn-rotate-cw" aria-label="Rotate right">↻ 90°</button>
               </div>
             </div>
-            <p class="hint" id="paste-hint">Tip: copy a screenshot, then tap Paste (one tap — no system Paste menu).</p>
+            <p class="hint" id="paste-hint">Tip: copy a screenshot, then tap Paste. On iPhone, if Allow Paste appears, tap it once (iOS requires this for screenshots).</p>
           </div>
         </form>
       </div>
@@ -207,7 +207,7 @@
         <h3 id="attach-sheet-title">Add image</h3>
         <p>Attach another photo to this coin. The wallet card still shows the main image.</p>
         <div class="attach-actions">
-          <button type="button" class="btn-secondary" id="btn-attach-paste">Paste</button>
+          <button type="button" class="btn-secondary btn-paste" id="btn-attach-paste" tabindex="0">Paste</button>
           <label class="btn-secondary file-btn" id="btn-attach-file-label">
             Photo library
             <input type="file" id="attach-file" accept="image/*" hidden />
