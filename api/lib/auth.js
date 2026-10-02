@@ -1,4 +1,4 @@
-const { verifySigned } = require('./crypto');
+const { verifySigned, signPayload } = require('./crypto');
 const { findUserById } = require('./users');
 
 function readBearer(req) {
@@ -14,15 +14,32 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+/** Session tokens last a year; bumping user.sessionVersion signs out every device. */
+function issueSession(user) {
+  return signPayload({
+    typ: 'session',
+    uid: user.id,
+    email: user.email,
+    sv: user.sessionVersion || 0,
+  });
+}
+
 async function requireUser(req, res) {
   const token = readBearer(req);
-  const payload = verifySigned(token);
-  if (!payload || payload.typ !== 'session' || !payload.uid) {
-    json(res, 401, { error: 'Unauthorized' });
+  let payload = null;
+  let user = null;
+  try {
+    payload = verifySigned(token);
+    if (payload && payload.typ === 'session' && payload.uid) {
+      user = await findUserById(payload.uid);
+    }
+  } catch (e) {
+    console.error('requireUser', e);
+    json(res, 503, { error: 'Could not check sign-in' });
     return null;
   }
-  const user = await findUserById(payload.uid);
-  if (!user) {
+  // Tokens from before session versions existed carry no sv; treat as 0.
+  if (!user || (payload.sv || 0) !== (user.sessionVersion || 0)) {
     json(res, 401, { error: 'Unauthorized' });
     return null;
   }
@@ -34,4 +51,21 @@ async function requireAuth(req, res) {
   return requireUser(req, res);
 }
 
-module.exports = { requireAuth, requireUser, json, readBearer };
+async function readJsonBody(req, res, limit = 64 * 1024) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > limit) {
+      json(res, 413, { error: 'Request too large' });
+      return null;
+    }
+  }
+  try {
+    const data = JSON.parse(body || '{}');
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+  } catch {}
+  json(res, 400, { error: 'Invalid JSON' });
+  return null;
+}
+
+module.exports = { requireAuth, requireUser, issueSession, readJsonBody, json, readBearer };

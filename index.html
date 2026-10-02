@@ -16,11 +16,11 @@
 </head>
 <body>
   <div id="app">
-    <!-- Sign-in: email magic link + PIN once per device -->
+    <!-- Sign-in: email + 6-digit code -->
     <section id="unlock-screen" class="unlock-screen hidden" aria-hidden="true">
       <div class="unlock-card">
         <h1>CoinPurse</h1>
-        <p id="unlock-copy">Sign in with email. We'll send a 6-digit code, then you set a PIN once on this device.</p>
+        <p id="unlock-copy">Sign in with email. We'll send you a 6-digit code.</p>
 
         <form id="email-form" autocomplete="email">
           <input type="email" id="unlock-email" name="email" placeholder="you@example.com" required autofocus />
@@ -40,15 +40,21 @@
         <p id="unlock-status" class="unlock-status hidden"></p>
         <p id="unlock-error" class="unlock-error hidden" role="alert"></p>
         <button type="button" id="btn-auth-reset" class="btn-text hidden">Use a different email</button>
+        <p class="unlock-links"><a href="/privacy">Privacy</a> · <a href="/support">Support</a></p>
       </div>
     </section>
 
     <!-- Home: card stack -->
     <header class="top-bar" id="home-header">
       <h1>CoinPurse</h1>
-      <button type="button" class="btn-icon" id="btn-add" aria-label="Add coin">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
+      <div class="top-bar-actions">
+        <button type="button" class="btn-icon" id="btn-account" aria-label="Account">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        </button>
+        <button type="button" class="btn-icon" id="btn-add" aria-label="Add coin">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
     </header>
 
     <main id="stack-view" class="stack-view">
@@ -220,6 +226,22 @@
             <input type="file" id="attach-camera" accept="image/*" capture="environment" hidden />
           </label>
           <button type="button" class="btn-text" id="btn-attach-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account sheet -->
+    <div id="account-sheet" class="confirm hidden" aria-hidden="true" role="dialog" aria-labelledby="account-sheet-title">
+      <div class="confirm-backdrop" id="account-sheet-backdrop"></div>
+      <div class="confirm-panel attach-panel">
+        <h3 id="account-sheet-title">Account</h3>
+        <p id="account-email">Signed in</p>
+        <div class="attach-actions">
+          <button type="button" class="btn-secondary" id="btn-sign-out">Sign out</button>
+          <button type="button" class="btn-secondary" id="btn-sign-out-all">Sign out of all devices</button>
+          <button type="button" class="btn-danger" id="btn-delete-account">Delete account</button>
+          <p class="unlock-links"><a href="/privacy">Privacy</a> · <a href="/support">Support</a></p>
+          <button type="button" class="btn-text" id="btn-account-close">Close</button>
         </div>
       </div>
     </div>

@@ -1,10 +1,10 @@
 {
   "name": "qr-locker",
   "version": "1.0.0",
-  "description": "Phone-first PWA for Scott: a wallet-like stack of temporary passes — conference QR screenshots, haircut cards, loyalty barcodes, etc.",
+  "description": "CoinPurse: a private, synced wallet of pictures (QR codes, passes, cards). Web app, iOS app and Vercel API.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/server.test.js"
   },
   "keywords": [],
   "author": "",

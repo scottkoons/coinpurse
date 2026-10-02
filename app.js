@@ -2841,10 +2841,10 @@
       if (!quiet) toast('Saving…');
       const compressed = await compressImage(blob);
       const up = await replaceCoinAttachment(pass.id, target.id, compressed);
+      // Keep signed-link parameters (/api/img?p=..&e=..&s=..); just add a version.
       const bust = (url) => {
         if (!url) return url;
-        const base = url.split('?')[0];
-        return base + '?v=' + Date.now();
+        return url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
       };
       if (up?.attachment?.imageUrl) up.attachment.imageUrl = bust(up.attachment.imageUrl);
       if (up?.coin) {
@@ -3698,6 +3698,7 @@
   function bindEvents() {
     bindEditorPreviewSlide();
     $('#btn-add').addEventListener('click', () => openEditor(null));
+    bindAccountSheet();
     $('#btn-empty-add').addEventListener('click', () => openEditor(null));
     $('#btn-editor-cancel').addEventListener('click', () => {
       if (!editorSaving) closeEditor();
@@ -3900,7 +3901,7 @@
     $('#pin-form')?.classList.add('hidden');
     $('#btn-auth-reset')?.classList.add('hidden');
     $('#unlock-copy').textContent =
-      "Sign in with email. We'll send a 6-digit code, then you set a PIN once on this device.";
+      "Sign in with email. We'll send you a 6-digit code.";
     setUnlockStatus('');
     setUnlockError('');
     showUnlockScreen();
@@ -3915,7 +3916,7 @@
     $('#btn-auth-reset')?.classList.remove('hidden');
     $('#unlock-copy').textContent =
       'Enter the 6-digit code we emailed to ' + email + '.';
-    setUnlockStatus('Code expires in 15 minutes. You do not need to remember it after this.');
+    setUnlockStatus('Code expires in 15 minutes.');
     setUnlockError('');
     if ($('#unlock-code')) $('#unlock-code').value = '';
     showUnlockScreen();
@@ -3950,17 +3951,6 @@
     return data;
   }
 
-  async function verifyMagicToken(token) {
-    const res = await fetch('/api/auth/verify-link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Link expired or invalid');
-    return data;
-  }
-
   async function verifySignInCode(email, code) {
     const res = await fetch('/api/auth/verify-code', {
       method: 'POST',
@@ -3984,15 +3974,6 @@
     if (!data.token) throw new Error('No session returned');
     setSessionToken(data.token);
     return data;
-  }
-
-  function consumeAuthHash() {
-    const hash = location.hash || '';
-    const m = hash.match(/[#&?]auth=([^&]+)/);
-    if (!m) return null;
-    const token = decodeURIComponent(m[1]);
-    history.replaceState(null, '', location.pathname + location.search);
-    return token;
   }
 
   function bindUnlock() {
@@ -4028,11 +4009,18 @@
         setUnlockError('');
         try {
           const data = await verifySignInCode(email, code);
-          showPinStep({
-            setupToken: data.setupToken,
-            needsPinSetup: !!data.needsPinSetup,
-            email: data.email || email,
-          });
+          if (data.token) {
+            // The emailed code is enough; no PIN step.
+            setSessionToken(data.token);
+            hideUnlockScreen();
+            await bootPurse();
+          } else {
+            showPinStep({
+              setupToken: data.setupToken,
+              needsPinSetup: !!data.needsPinSetup,
+              email: data.email || email,
+            });
+          }
         } catch (err) {
           setUnlockError(err.message || 'Wrong code');
           $('#unlock-code')?.select();
@@ -4072,6 +4060,108 @@
     }
   }
 
+  // ---------- Account ----------
+  function signedInEmail() {
+    try {
+      const body = getSessionToken().split('.')[0];
+      const json = atob(body.replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(json).email || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function openAccountSheet() {
+    const email = signedInEmail();
+    $('#account-email').textContent = email ? 'Signed in as ' + email : 'Signed in';
+    show($('#account-sheet'));
+  }
+
+  function closeAccountSheet() {
+    hide($('#account-sheet'));
+  }
+
+  /** Forget this device's session and local copy, then show sign-in. */
+  async function signOutLocally() {
+    clearSessionToken();
+    try { if (db) await replaceLocalPasses([]); } catch {}
+    revokeAllUrls();
+    passes = [];
+    passRing = [];
+    expandedId = null;
+    frontIndex = 0;
+    renderStack();
+    showEmailStep();
+  }
+
+  async function deleteAccount() {
+    closeAccountSheet();
+    const ok = await askConfirm({
+      title: 'Delete your account?',
+      message:
+        'Your account, every coin and every picture will be permanently deleted from CoinPurse on all of your devices. This cannot be undone.',
+      okLabel: 'Delete account',
+    });
+    if (!ok) return;
+    try {
+      await api('/api/account', { method: 'DELETE' });
+    } catch (e) {
+      toast(e.message || 'Could not delete the account');
+      return;
+    }
+    await signOutLocally();
+    toast('Account deleted');
+  }
+
+  function bindAccountSheet() {
+    $('#btn-account').addEventListener('click', openAccountSheet);
+    $('#account-sheet-backdrop').addEventListener('click', closeAccountSheet);
+    $('#btn-account-close').addEventListener('click', closeAccountSheet);
+    $('#btn-sign-out').addEventListener('click', async () => {
+      closeAccountSheet();
+      await signOutLocally();
+    });
+    $('#btn-sign-out-all').addEventListener('click', async () => {
+      closeAccountSheet();
+      const ok = await askConfirm({
+        title: 'Sign out of all devices?',
+        message: 'Every phone and browser signed in to this account will need a new email code. This one stays signed in.',
+        okLabel: 'Sign out all',
+      });
+      if (!ok) return;
+      try {
+        const data = await api('/api/account/signout-all', { method: 'POST' });
+        if (data && data.token) setSessionToken(data.token);
+        toast('Signed out everywhere else');
+      } catch (e) {
+        toast(e.message || 'Could not sign out other devices');
+      }
+    });
+    $('#btn-delete-account').addEventListener('click', deleteAccount);
+  }
+
+  /**
+   * Picture links from the server expire after a day or two, so reload the
+   * coin list when the app comes back after a long time in the background.
+   */
+  let lastCloudFetch = 0;
+  async function refreshIfStale() {
+    if (document.visibilityState !== 'visible' || !getSessionToken()) return;
+    if (Date.now() - lastCloudFetch < 1000 * 60 * 60 * 6) return;
+    if (viewingId || isEditorOpen()) return;
+    try {
+      passes = sortPassesByOrder(await fetchCloudCoins());
+      lastCloudFetch = Date.now();
+      for (const p of passes) ensureAccent(p);
+      try { if (db) await replaceLocalPasses(passes); } catch {}
+      passRing = passes.map((p) => p.id);
+      syncPassRing();
+      renderStack();
+    } catch (e) {
+      console.warn('refreshIfStale', e);
+    }
+  }
+
   async function bootPurse() {
     try {
       db = await openDb();
@@ -4083,6 +4173,7 @@
     try {
       // Cloud index (post-tombstone filter) is the intentional saved set.
       passes = sortPassesByOrder(await fetchCloudCoins());
+      lastCloudFetch = Date.now();
       for (const p of passes) ensureAccent(p);
       await rebalanceAccents();
       // Cloud is source of truth: replace IDB so hard refresh / SW update /
@@ -4126,24 +4217,7 @@
     bindEvents();
     bindUnlock();
     registerSW();
-
-    const magic = consumeAuthHash();
-    if (magic) {
-      showUnlockScreen();
-      setUnlockStatus('Confirming your email…');
-      try {
-        const data = await verifyMagicToken(magic);
-        showPinStep({
-          setupToken: data.setupToken,
-          needsPinSetup: !!data.needsPinSetup,
-          email: data.email,
-        });
-      } catch (err) {
-        showEmailStep();
-        setUnlockError(err.message || 'Link expired — request a new one');
-      }
-      return;
-    }
+    document.addEventListener('visibilitychange', refreshIfStale);
 
     if (!getSessionToken()) {
       showEmailStep();

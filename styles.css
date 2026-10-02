@@ -63,6 +63,21 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
+.top-bar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.unlock-links {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.unlock-links a {
+  color: var(--text-muted, #9a9aa8);
+}
+
 .top-bar h1 {
   margin: 0;
   font-size: 1.35rem;
@@ -990,6 +1005,7 @@ body {
   gap: 8px;
 }
 .attach-panel .attach-actions .btn-secondary,
+.attach-panel .attach-actions .btn-danger,
 .attach-panel .attach-actions .file-btn {
   width: 100%;
   justify-content: center;

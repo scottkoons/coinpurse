@@ -1,8 +1,16 @@
-const { json } = require('../lib/auth');
-const { randomId, hashPin } = require('../lib/crypto');
-const { findUserByEmail, upsertUser } = require('../lib/users');
+const { json, readJsonBody } = require('../lib/auth');
+const { hashPin, randomId } = require('../lib/crypto');
+const { normalizeEmail, writeLogin, claimSlot, pruneSlots } = require('../lib/users');
+const { reviewCode } = require('../lib/review');
 const { sendSignInCodeEmail } = require('../lib/mail');
 const crypto = require('crypto');
+
+const CODE_TTL_MS = 1000 * 60 * 15;
+// Per email address: at most 3 codes per 15 minutes and 10 per day.
+const SHORT_WINDOW_MS = 1000 * 60 * 15;
+const SHORT_LIMIT = 3;
+const DAY_MS = 1000 * 60 * 60 * 24;
+const DAY_LIMIT = 10;
 
 function sixDigitCode() {
   // 000000–999999, crypto-strong
@@ -10,48 +18,49 @@ function sixDigitCode() {
   return String(n).padStart(6, '0');
 }
 
+function isEmail(email) {
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
-  let body = '';
-  for await (const chunk of req) body += chunk;
-  let data = {};
-  try { data = JSON.parse(body || '{}'); } catch { return json(res, 400, { error: 'Invalid JSON' }); }
+  const data = await readJsonBody(req, res);
+  if (!data) return;
 
-  const email = String(data.email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return json(res, 400, { error: 'Valid email required' });
+  const email = normalizeEmail(data.email);
+  if (!isEmail(email)) return json(res, 400, { error: 'Valid email required' });
 
-  let user = await findUserByEmail(email);
-  if (!user) {
-    user = {
-      id: randomId(),
-      email,
-      pinSalt: null,
-      pinHash: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  const ok = { ok: true, message: 'Check your email for a 6-digit code.' };
+  // The reviewer account never gets an email; it uses its fixed code.
+  if (reviewCode(email)) return json(res, 200, ok);
+
+  const now = Date.now();
+  const window = `send-w${Math.floor(now / SHORT_WINDOW_MS)}`;
+  const day = `send-d${Math.floor(now / DAY_MS)}`;
+  if (!(await claimSlot(email, window, SHORT_LIMIT)) || !(await claimSlot(email, day, DAY_LIMIT))) {
+    return json(res, 429, { error: 'Too many codes requested. Wait a few minutes and try again.' });
   }
 
   const code = sixDigitCode();
+  const codeId = randomId();
   const { salt, hash } = hashPin(code);
-  user.loginCodeSalt = salt;
-  user.loginCodeHash = hash;
-  user.loginCodeExp = Date.now() + 1000 * 60 * 15;
-  user.loginCodeAttempts = 0;
-  user.updatedAt = Date.now();
-  await upsertUser(user);
+  // No account is created here; that waits until the code is verified.
+  // A new code replaces the old one, and its guesses are counted afresh.
+  await writeLogin(email, {
+    codeId,
+    codeSalt: salt,
+    codeHash: hash,
+    codeExp: now + CODE_TTL_MS,
+  });
+  await pruneSlots(email, [window, day, `try-${codeId}`]);
 
   try {
     await sendSignInCodeEmail({ to: email, code });
   } catch (e) {
     console.error('sendSignInCodeEmail', e);
-    return json(res, 502, { error: e.message || 'Could not send email' });
+    return json(res, 502, { error: 'Could not send email. Try again.' });
   }
-
-  const payload = { ok: true, message: 'Check your email for a 6-digit code.' };
-  // Dev/debug only — never put the code in the email client path for prod UX.
-  if (process.env.COINPURSE_RETURN_CODE === '1') payload.code = code;
-  return json(res, 200, payload);
+  return json(res, 200, ok);
 };

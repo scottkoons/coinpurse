@@ -29,33 +29,4 @@ async function sendSignInCodeEmail({ to, code }) {
   return data;
 }
 
-/** @deprecated Prefer sendSignInCodeEmail — Gmail often drops long magic-link URLs. */
-async function sendMagicLinkEmail({ to, url }) {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY not configured');
-  const from = process.env.RESEND_FROM || 'CoinPurse <onboarding@resend.dev>';
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + key,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: 'CoinPurse sign-in',
-      html: `<p>Open CoinPurse with this link (expires in 30 minutes):</p>
-<p><a href="${url}">${url}</a></p>
-<p>If you did not ask for this, ignore the email.</p>`,
-      text: `Open CoinPurse: ${url}\n\nLink expires in 30 minutes.`,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data.message || data.error || ('Email failed ' + res.status);
-    throw new Error(msg);
-  }
-  return data;
-}
-
-module.exports = { sendSignInCodeEmail, sendMagicLinkEmail };
+module.exports = { sendSignInCodeEmail };
