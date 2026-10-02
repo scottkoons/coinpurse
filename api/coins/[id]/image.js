@@ -49,6 +49,12 @@ module.exports = async function handler(req, res) {
       imageUrl: blob.url,
       imagePath: pathname,
     });
+    // Each upload has a unique path; drop the image it replaced.
+    if (existing.imagePath && existing.imagePath !== pathname) {
+      try { await del(existing.imagePath); } catch (_) {}
+    } else if (existing.imageUrl && existing.imageUrl !== blob.url) {
+      try { await del(existing.imageUrl); } catch (_) {}
+    }
     return json(res, 200, { coin, url: blob.url });
   } catch (e) {
     // Avoid leaving an orphan blob if the coin disappeared mid-upload.

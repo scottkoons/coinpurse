@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { put, del } = require('@vercel/blob');
 const { requireUser, json } = require('../../lib/auth');
 const {
-  readIndex,
+  readIndexDocument,
   upsertCoin,
   userAttachmentPath,
   MAX_ATTACHMENTS,
@@ -16,9 +16,13 @@ module.exports = async function handler(req, res) {
   const id = req.query.id;
   if (!id) return json(res, 400, { error: 'Missing id' });
 
-  const coins = await readIndex(user.id);
-  const coin = coins.find((c) => c.id === id);
-  if (!coin) return json(res, 404, { error: 'Not found' });
+  const doc = await readIndexDocument(user.id);
+  if (doc.status === 'error') {
+    return json(res, 503, { error: 'Could not read coin index' });
+  }
+  if (doc.deletedIds[id]) return json(res, 410, { error: 'Coin was deleted' });
+  const coin = doc.coins.find((c) => c.id === id);
+  if (!coin) return json(res, 404, { error: 'Save the coin before adding images' });
   if (!Array.isArray(coin.attachments)) coin.attachments = [];
 
   if (req.method === 'POST') {
@@ -74,18 +78,16 @@ module.exports = async function handler(req, res) {
     });
 
     const prev = coin.attachments[idx];
-    // Drop old blob if path/url changed (ext change)
-    if (prev?.imagePath && prev.imagePath !== pathname) {
-      try { await del(prev.imagePath); } catch (_) {}
-    }
-    if (prev?.imageUrl && prev.imageUrl !== blob.url) {
-      try { await del(prev.imageUrl); } catch (_) {}
-    }
-
     const att = { id: attId, imageUrl: blob.url, imagePath: pathname };
     coin.attachments[idx] = att;
     coin.updatedAt = Date.now();
     await upsertCoin(user.id, coin);
+    // Each upload has a unique path; drop the image it replaced.
+    if (prev?.imagePath && prev.imagePath !== pathname) {
+      try { await del(prev.imagePath); } catch (_) {}
+    } else if (prev?.imageUrl && prev.imageUrl !== blob.url) {
+      try { await del(prev.imageUrl); } catch (_) {}
+    }
     return json(res, 200, { coin, attachment: att });
   }
 

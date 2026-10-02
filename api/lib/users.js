@@ -1,16 +1,18 @@
-const { list, put } = require('@vercel/blob');
+const { readJsonDocument, writeJsonDocument } = require('./blobjson');
 
 const USERS_PATH = 'coinpurse/users.json';
 
+/** Read-your-writes user list. Throws on storage errors (never pretend empty). */
+async function readUsersStrict() {
+  const { status, data } = await readJsonDocument(USERS_PATH);
+  if (status === 'error') throw new Error('Could not read users');
+  if (status === 'missing') return { users: [] };
+  return { users: Array.isArray(data && data.users) ? data.users : [] };
+}
+
 async function readUsers() {
   try {
-    const result = await list({ prefix: 'coinpurse/', limit: 1000 });
-    const hit = (result.blobs || []).find((b) => b.pathname === USERS_PATH);
-    if (!hit) return { users: [] };
-    const r = await fetch(hit.url, { cache: 'no-store' });
-    if (!r.ok) return { users: [] };
-    const data = await r.json();
-    return { users: Array.isArray(data.users) ? data.users : [] };
+    return await readUsersStrict();
   } catch (e) {
     console.error('readUsers', e);
     return { users: [] };
@@ -18,12 +20,7 @@ async function readUsers() {
 }
 
 async function writeUsers(users) {
-  await put(USERS_PATH, JSON.stringify({ users, updatedAt: Date.now() }), {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-  });
+  await writeJsonDocument(USERS_PATH, { users, updatedAt: Date.now() });
 }
 
 async function findUserByEmail(email) {
@@ -38,7 +35,8 @@ async function findUserById(id) {
 }
 
 async function upsertUser(user) {
-  const { users } = await readUsers();
+  // Strict read: a transient read failure must not rewrite the list as [user].
+  const { users } = await readUsersStrict();
   const i = users.findIndex((u) => u.id === user.id);
   if (i >= 0) users[i] = user;
   else users.push(user);

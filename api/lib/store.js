@@ -1,4 +1,5 @@
-const { list, put, del } = require('@vercel/blob');
+const { del } = require('@vercel/blob');
+const { readJsonDocument, writeJsonDocument } = require('./blobjson');
 
 const LEGACY_INDEX = 'coinpurse/index.json';
 const MAX_ATTACHMENTS = 5;
@@ -9,33 +10,29 @@ function userIndexPath(userId) {
   return `coinpurse/users/${userId}/index.json`;
 }
 
+/**
+ * Image paths carry a version stamp so replacing an image (crop, rotate,
+ * new paste) gets a fresh URL instead of a stale CDN copy of the old one.
+ */
+function imageVersion() {
+  return Date.now().toString(36);
+}
+
 function userImagePath(userId, coinId, ext) {
-  return `coinpurse/users/${userId}/images/${coinId}.${ext}`;
+  return `coinpurse/users/${userId}/images/${coinId}-${imageVersion()}.${ext}`;
 }
 
 function userAttachmentPath(userId, coinId, attId, ext) {
-  return `coinpurse/users/${userId}/images/${coinId}-att-${attId}.${ext}`;
+  return `coinpurse/users/${userId}/images/${coinId}-att-${attId}-${imageVersion()}.${ext}`;
 }
 
 /**
- * Read a JSON blob with explicit status so callers can tell missing vs empty vs error.
+ * Read a JSON document with explicit status so callers can tell missing vs empty vs error.
  * status: 'ok' | 'missing' | 'error'
+ * Versioned (read-your-writes) storage: see ./blobjson.js.
  */
 async function readJsonBlobStatus(pathname) {
-  try {
-    const result = await list({ prefix: pathname.replace(/\/[^/]+$/, '/'), limit: 1000 });
-    const hit = (result.blobs || []).find((b) => b.pathname === pathname);
-    if (!hit) return { status: 'missing', data: null };
-    // Bust CDN (blob URLs are Cache-Control: public, max-age=30d).
-    // Stale index reads caused Untitled ghosts + wiped titles after Save.
-    const bust = hit.url + (hit.url.includes('?') ? '&' : '?') + 't=' + Date.now();
-    const r = await fetch(bust, { cache: 'no-store' });
-    if (!r.ok) return { status: 'error', data: null };
-    return { status: 'ok', data: await r.json() };
-  } catch (e) {
-    console.error('readJsonBlobStatus', pathname, e);
-    return { status: 'error', data: null };
-  }
+  return readJsonDocument(pathname);
 }
 
 async function readJsonBlob(pathname) {
@@ -45,12 +42,7 @@ async function readJsonBlob(pathname) {
 }
 
 async function writeJsonBlob(pathname, data) {
-  return put(pathname, JSON.stringify(data), {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-  });
+  return writeJsonDocument(pathname, data);
 }
 
 /** Ascending sortOrder (lower = closer to front). Migrate legacy updatedAt-desc if needed. */
