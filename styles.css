@@ -352,7 +352,20 @@ body {
   z-index: 2;
 }
 
-.viewer-actions { display: flex; gap: 4px; }
+.viewer-actions { display: flex; align-items: center; gap: 4px; }
+
+/* Share sits in the top bar, never over the picture; see-through like Edit/Delete */
+.btn-share {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.btn-share:active { background: rgba(255, 255, 255, 0.18); }
+.btn-share.hidden { display: none; }
 
 .viewer-body {
   flex: 1;
