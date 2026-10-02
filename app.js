@@ -29,6 +29,19 @@
   let draftImageTask = Promise.resolve();
   /** @type {string|null} */
   let draftPreviewUrl = null;
+  /**
+   * Extra images staged in the editor (the "+" button). They are uploaded when
+   * the coin is saved, so a brand new coin can hold several images.
+   * @type {Array<{id:string, blob:Blob, url:string}>}
+   */
+  let draftAttachments = [];
+  /** In-flight compress tasks for staged extras (Save waits for them). */
+  const draftAttachTasks = new Set();
+  /** New coin being saved; reused on retry so a failed Save never duplicates it. */
+  let pendingNewPass = null;
+  /** Bumped on every editor open/close so late async work cannot leak across editors. */
+  let editorSession = 0;
+  let editorSaving = false;
   /** @type {string|null} */
   let expandedId = null;
   let frontIndex = 0;
@@ -234,7 +247,6 @@
           accent: pass.accent,
           imageUrl: pass.imageUrl,
           imagePath: pass.imagePath,
-          attachments: passAttachments(pass),
         },
       });
       if (updated?.coin) Object.assign(pass, updated.coin);
@@ -247,7 +259,6 @@
           accent: pass.accent,
           imageUrl: pass.imageUrl || null,
           imagePath: pass.imagePath || null,
-          attachments: passAttachments(pass),
         },
       });
       if (updated?.coin) Object.assign(pass, updated.coin);
@@ -346,6 +357,22 @@
     });
   }
 
+  /** Safari cannot encode WebP; detect once instead of on every image. */
+  let webpEncodeSupport = null;
+  function canEncodeWebp() {
+    if (webpEncodeSupport === null) {
+      try {
+        const c = document.createElement('canvas');
+        c.width = 1;
+        c.height = 1;
+        webpEncodeSupport = c.toDataURL('image/webp').startsWith('data:image/webp');
+      } catch {
+        webpEncodeSupport = false;
+      }
+    }
+    return webpEncodeSupport;
+  }
+
   async function compressImage(blob) {
     // iOS paste / clipboard often hands a File with an empty type.
     if (!blob) throw new Error('Not an image');
@@ -368,7 +395,7 @@
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
 
-    const preferWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+    const preferWebp = canEncodeWebp();
     const mime = preferWebp ? 'image/webp' : 'image/jpeg';
     const quality = preferWebp ? 0.8 : JPEG_QUALITY;
 
@@ -385,6 +412,7 @@
   }
 
   async function setDraftImage(blob, { quiet } = {}) {
+    const session = editorSession;
     const run = async () => {
       if (!blob) {
         clearDraftImage();
@@ -392,6 +420,7 @@
       }
       try {
         const compressed = await compressImage(blob);
+        if (session !== editorSession) return; // editor closed meanwhile
         clearDraftImage();
         draftImage = compressed;
         draftPreviewUrl = URL.createObjectURL(compressed);
@@ -566,6 +595,20 @@
         : formatDate(pass.updatedAt || pass.createdAt);
       meta.append(title, sub);
       peek.appendChild(meta);
+
+      // Quick delete without opening the coin (asks first)
+      const trash = document.createElement('button');
+      trash.type = 'button';
+      trash.className = 'pass-card-trash';
+      trash.setAttribute('aria-label', 'Delete ' + (pass.title || 'coin'));
+      trash.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+      trash.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // never open the coin
+        deleteCoin(pass.id);
+      });
+      peek.appendChild(trash);
       card.appendChild(peek);
 
       // Always build full body so under-card can show the whole pass
@@ -591,6 +634,7 @@
         onCardTap(i);
       });
       card.addEventListener('keydown', (e) => {
+        if (e.target !== card) return; // let the trash button handle its own keys
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onCardTap(i);
@@ -673,7 +717,7 @@
         try {
           await api('/api/coins/' + encodeURIComponent(p.id), {
             method: 'PUT',
-            json: { accent: p.accent, title: p.title, notes: p.notes || '', imageUrl: p.imageUrl || null, imagePath: p.imagePath || null, attachments: passAttachments(p) },
+            json: { accent: p.accent },
           });
         } catch (e) {
           console.warn('accent save failed', p.id, e);
@@ -1911,8 +1955,11 @@
   }
 
   function openEditor(id = null) {
+    editorSession += 1;
     editingId = id;
+    pendingNewPass = null;
     clearDraftImage();
+    clearDraftAttachments();
     editorImageIndex = 0;
     const heading = $('#editor-heading');
     // Hide crop/clear until we know there is an image
@@ -1922,7 +1969,10 @@
     $('#image-preview-wrap').classList.add('hidden');
     if (id) {
       const pass = passes.find((p) => p.id === id);
-      if (!pass) return;
+      if (!pass) {
+        editingId = null;
+        return;
+      }
       heading.textContent = 'Edit coin';
       $('#field-title').value = pass.title || '';
       $('#field-notes').value = pass.notes || '';
@@ -1957,10 +2007,25 @@
 
   function closeEditor() {
     hide($('#editor'));
+    editorSession += 1;
     editingId = null;
     editorImageIndex = 0;
     hideEditorSlidePeer();
     clearDraftImage();
+    clearDraftAttachments();
+    closeAttachSheet();
+    // A Save that created the coin but failed later (e.g. an extra image upload)
+    // still left a real, titled coin in the cloud. Show it instead of hiding it.
+    if (pendingNewPass && !pendingNewPass._isNew) {
+      const created = pendingNewPass;
+      if (!passes.some((p) => p.id === created.id)) {
+        passes.unshift(created);
+        passRing = [created.id, ...passRing.filter((x) => x !== created.id)];
+        frontIndex = 0;
+        deckScroll = 0;
+      }
+    }
+    pendingNewPass = null;
     const strip = $('#editor-thumbs');
     if (strip) {
       strip.innerHTML = '';
@@ -1983,23 +2048,56 @@
     }
   }
 
+  function setEditorSaving(busy) {
+    editorSaving = busy;
+    const btn = $('#btn-editor-save');
+    if (btn) {
+      btn.disabled = busy;
+      btn.textContent = busy ? 'Saving…' : 'Save';
+    }
+    const cancel = $('#btn-editor-cancel');
+    if (cancel) cancel.disabled = busy;
+  }
+
+  /** Upload "+" images staged in the editor. Each one leaves the queue only once stored. */
+  async function uploadDraftAttachments(pass) {
+    while (draftAttachments.length) {
+      const entry = draftAttachments[0];
+      const up = await uploadCoinAttachment(pass.id, entry.blob);
+      if (up?.coin) {
+        Object.assign(pass, up.coin);
+      } else if (up?.attachment) {
+        passAttachments(pass).push(up.attachment);
+      }
+      draftAttachments.shift();
+      URL.revokeObjectURL(entry.url);
+    }
+    passAttachments(pass);
+  }
+
   async function saveEditor() {
+    if (editorSaving) return;
     const title = $('#field-title').value.trim();
     if (!title) {
       toast('Title is required');
       $('#field-title').focus();
       return;
     }
-    // Wait for in-flight paste/compress so Save after Paste keeps the image
-    try { await draftImageTask; } catch {}
-    const notes = $('#field-notes').value.trim();
-    const accent = editorAccent;
-    const now = Date.now();
-
+    setEditorSaving(true);
     try {
+      // Wait for in-flight paste/compress so Save right after Paste keeps every image
+      await draftImageTask;
+      await Promise.all([...draftAttachTasks]);
+      const notes = $('#field-notes').value.trim();
+      const accent = editorAccent;
+      const now = Date.now();
+
       if (editingId) {
         const pass = passes.find((p) => p.id === editingId);
-        if (!pass) return;
+        if (!pass) {
+          toast('This coin no longer exists');
+          return;
+        }
         if (objectUrls.has(pass.id)) {
           URL.revokeObjectURL(objectUrls.get(pass.id));
           objectUrls.delete(pass.id);
@@ -2008,54 +2106,65 @@
         pass.notes = notes;
         pass.accent = accent;
         pass.updatedAt = now;
-        const imageBlob = draftImage; // may be null to keep existing cloud image
+        const imageBlob = draftImage; // null keeps the existing cloud image
         if (imageBlob) pass.image = imageBlob;
         await saveCloudCoin(pass, imageBlob || null);
-        // keep local IDB mirror best-effort
+        await uploadDraftAttachments(pass);
         try { await putPass({ ...pass, image: null }); } catch {}
         toast('Saved');
         closeEditor();
         if (!viewingId) renderStack();
       } else {
-        const id = uid();
-        const pass = {
-          id,
-          title,
-          notes,
-          image: draftImage,
+        // Reuse the same coin on retry so a failed Save never creates duplicates
+        const pass = pendingNewPass || {
+          id: uid(),
           imageUrl: null,
           attachments: [],
           createdAt: now,
-          updatedAt: now,
-          accent,
           sortOrder: nextFrontSortOrder(),
           _isNew: true,
         };
+        pendingNewPass = pass;
+        pass.title = title;
+        pass.notes = notes;
+        pass.accent = accent;
+        pass.updatedAt = now;
+        pass.image = draftImage;
         await saveCloudCoin(pass, draftImage || null);
+        await uploadDraftAttachments(pass);
         try { await putPass({ ...pass, image: null }); } catch {}
+        pendingNewPass = null;
+        passes = passes.filter((p) => p.id !== pass.id);
         passes.unshift(pass);
         passRing = [pass.id, ...passRing.filter((x) => x !== pass.id)];
         frontIndex = 0;
         deckScroll = 0;
         expandedId = pass.id;
-        toast('Coin added');
+        const count = viewerImages(pass).length;
+        toast(count > 1 ? 'Coin added with ' + count + ' images' : 'Coin added');
         closeEditor();
         renderStack();
       }
     } catch (e) {
       console.error(e);
       toast(e.message || 'Save failed');
+      // Staged extras that did upload are gone from the queue; refresh the strip
+      renderEditorThumbs();
+      setEditorPreviewFromIndex(editorImageIndex, { resetSlide: true });
+    } finally {
+      setEditorSaving(false);
     }
   }
 
   // ---------- Delete confirm ----------
   let confirmResolve = null;
 
+  const DELETE_TITLE = 'Are you sure you want to delete?';
+  const DELETE_MESSAGE = 'This coin and all of its images will be deleted. This cannot be undone.';
+
   function askConfirm(opts = {}) {
-    const title = opts.title || 'Toss this coin?';
-    const message =
-      opts.message ||
-      'This can’t be undone. The image stays only on this device until you delete it.';
+    const title = opts.title || DELETE_TITLE;
+    const message = opts.message || DELETE_MESSAGE;
     const okLabel = opts.okLabel || 'Delete';
     const t = $('#confirm-title');
     const p = $('#confirm .confirm-panel p');
@@ -2079,17 +2188,25 @@
     const t = $('#confirm-title');
     const p = $('#confirm .confirm-panel p');
     const ok = $('#btn-confirm-ok');
-    if (t) t.textContent = 'Toss this coin?';
-    if (p) p.textContent = 'This can’t be undone. The image stays only on this device until you delete it.';
+    if (t) t.textContent = DELETE_TITLE;
+    if (p) p.textContent = DELETE_MESSAGE;
     if (ok) ok.textContent = 'Delete';
   }
 
-  async function doDelete() {
-    if (!viewingId) return;
-    const ok = await askConfirm();
+  /** Confirm, then delete a coin. Used by the viewer Delete and the list trash can. */
+  async function deleteCoin(id) {
+    const pass = passes.find((p) => p.id === id);
+    if (!pass) return;
+    const name = (pass.title || '').trim();
+    const ok = await askConfirm({
+      title: DELETE_TITLE,
+      message: name
+        ? '“' + name + '” and all of its images will be deleted. This cannot be undone.'
+        : DELETE_MESSAGE,
+      okLabel: 'Delete',
+    });
     if (!ok) return;
-    const id = viewingId;
-    try { await deleteCloudCoin(id); } catch (e) { console.error(e); toast(e.message || "Delete failed"); return; }
+    try { await deleteCloudCoin(id); } catch (e) { console.error(e); toast(e.message || 'Delete failed'); return; }
     try { await deletePass(id); } catch {}
     if (objectUrls.has(id)) {
       URL.revokeObjectURL(objectUrls.get(id));
@@ -2097,30 +2214,69 @@
     }
     passes = passes.filter((p) => p.id !== id);
     syncPassRing();
-    if (expandedId === id) expandedId = null;
-    closeViewer();
-    if (history.state?.view === 'viewer') history.back();
+    if (expandedId === id) expandedId = passes[0]?.id || null;
+    if (frontIndex >= passes.length) frontIndex = 0;
+    if (viewingId === id) {
+      closeViewer();
+      if (history.state?.view === 'viewer') history.back();
+    }
     renderStack();
     toast('Deleted');
   }
 
+  function doDelete() {
+    if (viewingId) deleteCoin(viewingId);
+  }
+
 
   // ---------- Viewer / editor attachments ----------
-  function attachmentCoinId() {
-    return viewingId || editingId;
+  function isEditorOpen() {
+    const ed = $('#editor');
+    return !!ed && !ed.classList.contains('hidden');
+  }
+
+  /** Saved coin behind the editor: the coin being edited, or a new coin a failed Save already created. */
+  function editorPass() {
+    if (editingId) return passes.find((p) => p.id === editingId) || null;
+    if (pendingNewPass && !pendingNewPass._isNew) return pendingNewPass;
+    return null;
+  }
+
+  /** Extra images in the editor: saved + staged + still compressing. */
+  function editorAttachmentCount() {
+    const pass = editorPass();
+    const saved = pass ? passAttachments(pass).length : 0;
+    return saved + draftAttachments.length + draftAttachTasks.size;
+  }
+
+  function editorHasPrimary() {
+    return editorImages().some((e) => e.kind === 'primary');
+  }
+
+  function clearDraftAttachments() {
+    for (const entry of draftAttachments) URL.revokeObjectURL(entry.url);
+    draftAttachments = [];
+  }
+
+  function maxImagesToast() {
+    toast('Max ' + (MAX_ATTACHMENTS + 1) + ' images per coin');
   }
 
   function openAttachSheet() {
-    const id = attachmentCoinId();
-    if (!id) return;
-    const pass = passes.find((p) => p.id === id);
-    if (!pass) return;
-    if (passAttachments(pass).length >= MAX_ATTACHMENTS) {
-      toast('Max ' + (MAX_ATTACHMENTS + 1) + ' images per coin');
+    if (isEditorOpen()) {
+      // Editor (new or existing coin): extras are staged and uploaded on Save.
+      if (editorAttachmentCount() >= MAX_ATTACHMENTS) {
+        maxImagesToast();
+        return;
+      }
+      show($('#attach-sheet'));
       return;
     }
-    if (!pass.imageUrl && !pass.image && !draftImage) {
-      toast('Add a main image first');
+    if (!viewingId) return;
+    const pass = passes.find((p) => p.id === viewingId);
+    if (!pass) return;
+    if (passAttachments(pass).length >= MAX_ATTACHMENTS) {
+      maxImagesToast();
       return;
     }
     show($('#attach-sheet'));
@@ -2134,13 +2290,57 @@
     if (c) c.value = '';
   }
 
+  /** Stage an extra image in the editor (uploaded on Save). */
+  async function addDraftAttachment(blob) {
+    closeAttachSheet();
+    // No main image yet: the first image becomes the main one
+    if (!editorHasPrimary()) {
+      try { await setDraftImage(blob); } catch {}
+      return;
+    }
+    if (editorAttachmentCount() >= MAX_ATTACHMENTS) {
+      maxImagesToast();
+      return;
+    }
+    const session = editorSession;
+    const run = (async () => {
+      const compressed = await compressImage(blob);
+      if (session !== editorSession) return;
+      const entry = {
+        id: 'draft-' + uid(),
+        blob: compressed,
+        url: URL.createObjectURL(compressed),
+      };
+      draftAttachments.push(entry);
+      renderEditorThumbs();
+      const idx = editorImages().findIndex((e) => e.id === entry.id);
+      setEditorPreviewFromIndex(idx >= 0 ? idx : 0, { resetSlide: true });
+      toast('Image added · tap Save to keep it');
+    })();
+    const tracked = run.catch(() => {});
+    draftAttachTasks.add(tracked);
+    tracked.then(() => draftAttachTasks.delete(tracked));
+    try {
+      await run;
+    } catch (e) {
+      console.error(e);
+      toast('Couldn’t use that image');
+    }
+  }
+
   async function addAttachmentFromBlob(blob) {
-    const id = attachmentCoinId();
-    if (!id || !blob) return;
+    if (!blob) return;
+    if (isEditorOpen()) {
+      await addDraftAttachment(blob);
+      return;
+    }
+    // Viewer: upload straight to the saved coin
+    const id = viewingId;
+    if (!id) return;
     const pass = passes.find((p) => p.id === id);
     if (!pass) return;
     if (passAttachments(pass).length >= MAX_ATTACHMENTS) {
-      toast('Max ' + (MAX_ATTACHMENTS + 1) + ' images per coin');
+      maxImagesToast();
       return;
     }
     closeAttachSheet();
@@ -2158,12 +2358,6 @@
       const imgs = viewerImages(pass);
       viewerImageIndex = Math.max(0, imgs.length - 1);
       refreshViewerIfOpen();
-      renderEditorThumbs();
-      const edList = editorImages();
-      if (edList.length) {
-        editorImageIndex = Math.max(0, edList.length - 1);
-        setEditorPreviewFromIndex(editorImageIndex, { resetSlide: true });
-      }
       toast('Image added');
     } catch (e) {
       console.error(e);
@@ -2204,8 +2398,19 @@
 
   async function removeEditorAttachment(attId) {
     // Never delete the main/primary image via the attachment × path
-    if (!editingId || !attId || attId === 'primary') return;
-    const pass = passes.find((p) => p.id === editingId);
+    if (!attId || attId === 'primary') return;
+    const draftIdx = draftAttachments.findIndex((a) => a.id === attId);
+    if (draftIdx >= 0) {
+      // Not uploaded yet: just drop it
+      const [entry] = draftAttachments.splice(draftIdx, 1);
+      URL.revokeObjectURL(entry.url);
+      const list = editorImages();
+      editorImageIndex = Math.max(0, Math.min(editorImageIndex, list.length - 1));
+      renderEditorThumbs();
+      setEditorPreviewFromIndex(editorImageIndex, { resetSlide: true });
+      return;
+    }
+    const pass = editorPass();
     if (!pass) return;
     const wasCurrent =
       editorImages()[editorImageIndex]?.id === attId;
@@ -2243,7 +2448,7 @@
 
   /** Image list for editor preview (primary first, draft override). */
   function editorImages() {
-    const pass = editingId ? passes.find((p) => p.id === editingId) : null;
+    const pass = editorPass();
     const list = [];
     if (pass) {
       for (const entry of viewerImages(pass)) {
@@ -2258,6 +2463,9 @@
       }
     } else if (draftPreviewUrl) {
       list.push({ kind: 'primary', id: 'primary', url: draftPreviewUrl });
+    }
+    for (const entry of draftAttachments) {
+      list.push({ kind: 'draft', id: entry.id, url: entry.url });
     }
     return list;
   }
@@ -2453,6 +2661,10 @@
   async function blobForEditorTarget(target) {
     if (!target) return null;
     if (target.kind === 'primary' && draftImage) return draftImage;
+    if (target.kind === 'draft') {
+      const entry = draftAttachments.find((a) => a.id === target.id);
+      if (entry) return entry.blob;
+    }
     const res = await fetch(target.url, { mode: 'cors', cache: 'no-store' });
     if (!res.ok) throw new Error('Could not load image');
     return res.blob();
@@ -2462,12 +2674,21 @@
   async function commitEditorImageBlob(blob, { quiet } = {}) {
     const target = getEditorEditTarget();
     if (!target || !blob) return;
+    if (target.kind === 'draft') {
+      const entry = draftAttachments.find((a) => a.id === target.id);
+      if (!entry) return;
+      const compressed = await compressImage(blob);
+      URL.revokeObjectURL(entry.url);
+      entry.blob = compressed;
+      entry.url = URL.createObjectURL(compressed);
+      const keep = editorImageIndex;
+      renderEditorThumbs();
+      setEditorPreviewFromIndex(keep, { resetSlide: true });
+      if (!quiet) toast('Image updated');
+      return;
+    }
     if (target.kind === 'attachment') {
-      if (!editingId) {
-        toast('Save the coin first');
-        return;
-      }
-      const pass = passes.find((p) => p.id === editingId);
+      const pass = editorPass();
       if (!pass) return;
       if (!quiet) toast('Saving…');
       const compressed = await compressImage(blob);
@@ -2627,19 +2848,11 @@
     const strip = $('#editor-thumbs');
     if (!strip) return;
     strip.innerHTML = '';
-    const pass = editingId ? passes.find((p) => p.id === editingId) : null;
     const list = editorImages();
+    // Works for new coins too: extras are staged and uploaded on Save
+    const canAdd = list.length > 0 && editorAttachmentCount() < MAX_ATTACHMENTS;
 
-    const canAdd =
-      !!pass &&
-      (!!pass.imageUrl || !!pass.image || !!draftImage) &&
-      passAttachments(pass).length < MAX_ATTACHMENTS;
-
-    if (!list.length && !pass) {
-      strip.classList.add('hidden');
-      return;
-    }
-    if (!list.length && !canAdd) {
+    if (!list.length) {
       strip.classList.add('hidden');
       return;
     }
@@ -2700,12 +2913,7 @@
     if (!canAdd) {
       plus.classList.add('is-disabled');
       plus.disabled = true;
-      if (!pass) plus.title = 'Save the coin first';
-      else if (passAttachments(pass).length >= MAX_ATTACHMENTS) {
-        plus.title = 'Max ' + (MAX_ATTACHMENTS + 1) + ' images';
-      } else {
-        plus.title = 'Add a main image first';
-      }
+      plus.title = 'Max ' + (MAX_ATTACHMENTS + 1) + ' images';
     } else {
       plus.addEventListener('click', (e) => {
         e.preventDefault();
@@ -2800,41 +3008,41 @@
     });
   }
 
-  async function pasteAttachmentImage() {
-    // Clipboard API only — never focus editable or execCommand('paste').
-    // Cross-origin screenshots: WebKit may show its own Allow Paste callout;
-    // that is required by Safari and is not the text-field Paste|Scan Text menu.
+  /**
+   * Read an image from the clipboard inside the Paste tap.
+   * iOS Safari shows its own small "Paste" bubble when the screenshot came from
+   * another app; that bubble is Apple's privacy check and cannot be skipped by
+   * any web page. Tapping it hands the image to us.
+   * @returns {Promise<Blob|null>}
+   */
+  async function readPastedImageOrToast() {
     blurActiveEditable();
+    let blob = null;
     try {
-      const blob = await readClipboardImageBlob();
-      if (blob) {
-        await addAttachmentFromBlob(blob);
-        return;
-      }
-      toast('No image on clipboard');
+      blob = await readClipboardImageBlob();
     } catch (e) {
       console.warn('clipboard.read failed', e);
       toast(clipboardReadErrorMessage(e));
+      return null;
     }
+    if (!blob) {
+      toast('No image on clipboard · copy a screenshot first');
+      return null;
+    }
+    return blob;
+  }
+
+  async function pasteAttachmentImage() {
+    const blob = await readPastedImageOrToast();
+    if (blob) await addAttachmentFromBlob(blob);
   }
 
   // ---------- Clipboard paste ----------
   async function pasteImage() {
-    // Clipboard API only — never focus editable or execCommand('paste').
-    // Cross-origin screenshots: WebKit may show its own Allow Paste callout;
-    // that is required by Safari and is not the text-field Paste|Scan Text menu.
-    blurActiveEditable();
-    try {
-      const blob = await readClipboardImageBlob();
-      if (blob) {
-        await setDraftImage(blob);
-        return;
-      }
-      toast('No image on clipboard');
-    } catch (e) {
-      console.warn('clipboard.read failed', e);
-      toast(clipboardReadErrorMessage(e));
-    }
+    const blob = await readPastedImageOrToast();
+    if (!blob) return;
+    // setDraftImage shows its own error toast
+    try { await setDraftImage(blob); } catch {}
   }
 
 
@@ -3019,7 +3227,7 @@
       ctx.rotate(-Math.PI / 2);
     }
     ctx.drawImage(bitmap, 0, 0);
-    const preferWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+    const preferWebp = canEncodeWebp();
     return blobFromCanvas(
       canvas,
       preferWebp ? 'image/webp' : 'image/jpeg',
@@ -3093,7 +3301,7 @@
     ctx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, outW, outH);
 
     try {
-      const preferWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+      const preferWebp = canEncodeWebp();
       const blob = await blobFromCanvas(
         canvas,
         preferWebp ? 'image/webp' : 'image/jpeg',
@@ -3343,8 +3551,12 @@
     bindEditorPreviewSlide();
     $('#btn-add').addEventListener('click', () => openEditor(null));
     $('#btn-empty-add').addEventListener('click', () => openEditor(null));
-    $('#btn-editor-cancel').addEventListener('click', closeEditor);
-    $('#editor-backdrop').addEventListener('click', closeEditor);
+    $('#btn-editor-cancel').addEventListener('click', () => {
+      if (!editorSaving) closeEditor();
+    });
+    $('#editor-backdrop').addEventListener('click', () => {
+      if (!editorSaving) closeEditor();
+    });
     $('#btn-editor-save').addEventListener('click', (e) => {
       e.preventDefault();
       saveEditor();
@@ -3360,11 +3572,17 @@
 
     $('#field-file').addEventListener('change', async (e) => {
       const f = e.target.files?.[0];
-      if (f) await setDraftImage(f);
+      e.target.value = '';
+      if (f) {
+        try { await setDraftImage(f); } catch {}
+      }
     });
     $('#field-camera').addEventListener('change', async (e) => {
       const f = e.target.files?.[0];
-      if (f) await setDraftImage(f);
+      e.target.value = '';
+      if (f) {
+        try { await setDraftImage(f); } catch {}
+      }
     });
     bindPasteButton($('#btn-paste'), () => { pasteImage(); });
 
@@ -3384,6 +3602,8 @@
       clearDraftImage();
       $('#field-file').value = '';
       $('#field-camera').value = '';
+      // Keep showing any other images on this coin
+      if (editorImages().length) setEditorPreviewFromIndex(0, { resetSlide: true });
     });
 
     // Paste into editor or as viewer attachment (keyboard / iOS)
@@ -3406,14 +3626,15 @@
         }
       }
       if (!imageBlob) return;
-      if (editorOpen) {
-        e.preventDefault();
-        await setDraftImage(imageBlob);
-        return;
-      }
+      // Attach sheet sits on top of the editor, so it wins
       if (attachOpen) {
         e.preventDefault();
         await addAttachmentFromBlob(imageBlob);
+        return;
+      }
+      if (editorOpen) {
+        e.preventDefault();
+        try { await setDraftImage(imageBlob); } catch {}
       }
     });
 
@@ -3441,10 +3662,12 @@
     $('#attach-file')?.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) await addAttachmentFromBlob(file);
+      e.target.value = '';
     });
     $('#attach-camera')?.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (file) await addAttachmentFromBlob(file);
+      e.target.value = '';
     });
 
     $('#btn-confirm-cancel').addEventListener('click', () => closeConfirm(false));
