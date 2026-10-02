@@ -1787,6 +1787,7 @@
     }
     if (!imgs.length) {
       viewerImageIndex = 0;
+      $('#btn-share-image')?.classList.add('hidden');
       img.removeAttribute('src');
       img.classList.add('hidden');
       noImg.classList.remove('hidden');
@@ -1796,6 +1797,7 @@
     }
     viewerImageIndex = Math.max(0, Math.min(index, imgs.length - 1));
     const entry = imgs[viewerImageIndex];
+    $('#btn-share-image')?.classList.toggle('hidden', !entry.url);
     if (entry.url) {
       img.src = entry.url;
       img.classList.remove('hidden');
@@ -1902,6 +1904,7 @@
     $('#viewer-notes').textContent = pass.notes || '';
     setViewerImageFromIndex(pass, 0, { reset: true });
     renderViewerThumbs(pass);
+    prefetchShareImages(pass);
     // Hide the wallet deck so cards cannot paint over the viewer (iOS stacking bug)
     setHomeVisible(false);
     show($('#viewer'));
@@ -1918,10 +1921,13 @@
     if (viewerImageIndex >= imgs.length) viewerImageIndex = Math.max(0, imgs.length - 1);
     setViewerImageFromIndex(pass, viewerImageIndex, { reset: true });
     renderViewerThumbs(pass);
+    prefetchShareImages(pass); // pictures added or edited while open
   }
 
   function closeViewer() {
     resetZoom();
+    shareBlobs.clear();
+    shareFetches.clear();
     hide($('#viewer'));
     const strip = $('#viewer-thumbs');
     if (strip) {
@@ -1941,6 +1947,108 @@
   function dismissViewer() {
     closeViewer();
     if (history.state?.view === 'viewer') history.back();
+  }
+
+  // ---------- Share one picture ----------
+  /**
+   * iOS only opens the share sheet straight from a tap, and waiting on a
+   * download first can use up that tap. So the coin's pictures are fetched
+   * as soon as the coin opens, and Share hands over a picture already in hand.
+   */
+  const shareBlobs = new Map(); // url -> Blob
+  const shareFetches = new Map(); // url -> Promise<Blob>
+
+  function fetchShareBlob(url) {
+    if (!url) return Promise.reject(new Error('No image'));
+    if (shareBlobs.has(url)) return Promise.resolve(shareBlobs.get(url));
+    if (shareFetches.has(url)) return shareFetches.get(url);
+    const p = fetch(url, { mode: 'cors' })
+      .then((res) => {
+        if (!res.ok) throw new Error('Could not load image');
+        return res.blob();
+      })
+      .then((blob) => {
+        shareBlobs.set(url, blob);
+        return blob;
+      })
+      .finally(() => shareFetches.delete(url));
+    shareFetches.set(url, p);
+    return p;
+  }
+
+  function prefetchShareImages(pass) {
+    for (const entry of viewerImages(pass)) {
+      if (entry.url) fetchShareBlob(entry.url).catch(() => {});
+    }
+  }
+
+  function shareFileName(pass, index, type) {
+    const base =
+      String(pass?.title || 'coin')
+        .trim()
+        .replace(/[^\w\- ]+/g, '')
+        .replace(/\s+/g, '-')
+        .slice(0, 60) || 'coin';
+    const t = (type || '').toLowerCase();
+    const ext = t.includes('png') ? 'png' : t.includes('webp') ? 'webp' : 'jpg';
+    return base + '-' + (index + 1) + '.' + ext;
+  }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  /** Share only the picture on screen (not the whole coin, no text). */
+  async function shareCurrentImage() {
+    if (!viewingId) return;
+    const pass = passes.find((p) => p.id === viewingId);
+    if (!pass) return;
+    const index = viewerImageIndex;
+    const entry = viewerImages(pass)[index];
+    if (!entry || !entry.url) {
+      toast('No picture to share');
+      return;
+    }
+    // Ready blob: call share with no await in front of it (keeps the tap valid on iOS)
+    let blob = shareBlobs.get(entry.url) || null;
+    if (!blob) {
+      try {
+        blob = await fetchShareBlob(entry.url);
+      } catch (e) {
+        console.error(e);
+        toast('Couldn’t load that picture');
+        return;
+      }
+    }
+    const type = blob.type || 'image/jpeg';
+    const file = new File([blob], shareFileName(pass, index, type), { type });
+    const canShareFile =
+      !!navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }));
+    if (!canShareFile) {
+      // Browsers without file sharing (some desktops): save the picture instead
+      downloadBlob(blob, file.name);
+      toast('Picture saved · sharing isn’t supported in this browser');
+      return;
+    }
+    try {
+      await navigator.share({ files: [file] });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // closed the share sheet
+      if (e && e.name === 'NotAllowedError') {
+        // The download took the tap; the picture is ready now
+        toast('Tap Share again');
+        return;
+      }
+      console.error(e);
+      toast('Couldn’t share that picture');
+    }
   }
 
   // ---------- Editor ----------
@@ -3645,6 +3753,12 @@
       if (e.target === $('#viewer') || e.target === $('#viewer-body') || e.target?.classList?.contains('viewer-body') || e.target?.id === 'viewer-zoom-hint') {
         if (zoomState.scale <= 1.05) dismissViewer();
       }
+    });
+
+    $('#btn-share-image')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      shareCurrentImage();
     });
 
     $('#btn-edit').addEventListener('click', () => {
