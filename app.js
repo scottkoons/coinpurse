@@ -528,6 +528,8 @@
   // ---------- Wallet deck (full under-card + scrollable stack) ----------
   const PEEK = 56;
   let deckDrag = null;
+  /** When pointerup last handled a deck tap (see the card click fallback). */
+  let deckTapHandledAt = 0;
   // Continuous scroll through the stack (card units). frontIndex tracks focused card.
   let deckScroll = 0; // 0 = first card at front
 
@@ -566,22 +568,35 @@
       card.tabIndex = 0;
 
       const thumbUrl = urlFor(pass);
+      // How many pictures this coin holds (main + extras), shown as a stack + count
+      const imageCount = viewerImages(pass).length;
+      const multi = imageCount > 1;
       const peek = document.createElement('div');
       peek.className = 'pass-card-peek';
 
+      const thumbWrap = document.createElement('div');
+      thumbWrap.className = 'pass-card-thumb-wrap' + (multi ? ' is-stack' : '');
       if (thumbUrl) {
         const thumb = document.createElement('img');
         thumb.className = 'pass-card-thumb';
         thumb.src = thumbUrl;
         thumb.alt = '';
         thumb.draggable = false;
-        peek.appendChild(thumb);
+        thumbWrap.appendChild(thumb);
       } else {
         const ph = document.createElement('div');
         ph.className = 'pass-card-thumb placeholder';
         ph.textContent = '▢';
-        peek.appendChild(ph);
+        thumbWrap.appendChild(ph);
       }
+      if (multi) {
+        const count = document.createElement('span');
+        count.className = 'pass-card-count';
+        count.textContent = String(imageCount);
+        count.setAttribute('aria-label', imageCount + ' images');
+        thumbWrap.appendChild(count);
+      }
+      peek.appendChild(thumbWrap);
 
       const meta = document.createElement('div');
       meta.className = 'pass-card-meta';
@@ -619,11 +634,31 @@
         big.src = thumbUrl;
         big.alt = pass.title || 'Pass';
         big.draggable = false;
-        body.appendChild(big);
+        // Stacked edges under the picture: one layer for 2 images, two for 3+
+        const frame = document.createElement('div');
+        frame.className =
+          'pass-card-frame' + (multi ? ' is-stack' : '') + (imageCount > 2 ? ' is-stack-deep' : '');
+        frame.appendChild(big);
+        body.appendChild(frame);
       }
       const openHint = document.createElement('p');
       openHint.className = 'pass-card-open-hint';
-      openHint.textContent = 'Tap to open full screen';
+      if (multi) {
+        const dots = document.createElement('span');
+        dots.className = 'pass-card-dots';
+        dots.setAttribute('aria-hidden', 'true');
+        for (let d = 0; d < Math.min(imageCount, 6); d++) {
+          const dot = document.createElement('span');
+          dot.className = 'pass-card-dot' + (d === 0 ? ' is-active' : '');
+          dots.appendChild(dot);
+        }
+        const label = document.createElement('span');
+        label.className = 'pass-card-count-label';
+        label.textContent = imageCount + ' images';
+        openHint.append(dots, label, document.createTextNode(' · Tap to open'));
+      } else {
+        openHint.textContent = 'Tap to open full screen';
+      }
       body.appendChild(openHint);
       card.appendChild(body);
 
@@ -631,6 +666,10 @@
       card.addEventListener('click', (e) => {
         // Avoid double-open right after pointerup handled it
         if (card.dataset.justOpened === '1') return;
+        // A touch tap was already handled on pointerup. The browser's follow-up
+        // click can land on whichever card was redrawn under the finger, which
+        // brought the wrong coin forward. Only keyboard/desktop clicks get here.
+        if (Date.now() - deckTapHandledAt < 700) return;
         onCardTap(i);
       });
       card.addEventListener('keydown', (e) => {
@@ -1253,6 +1292,7 @@
 
       // TAP: open full screen from anywhere on the front tile
       if (!moved) {
+        deckTapHandledAt = Date.now();
         clearDragging();
         layoutDeck(0, { animate: true });
         if (Number.isFinite(tappedIndex)) {
