@@ -253,6 +253,49 @@ body {
   flex-shrink: 0;
   border: 1px solid var(--border);
 }
+/* Thumbnail with optional "stack" look + count badge for multi-image coins */
+.pass-card-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  isolation: isolate;
+}
+.pass-card-thumb-wrap .pass-card-thumb {
+  position: relative;
+  z-index: 1;
+}
+.pass-card-thumb-wrap.is-stack::before,
+.pass-card-thumb-wrap.is-stack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #2b2b36;
+  z-index: -1;
+}
+.pass-card-thumb-wrap.is-stack::before { transform: translate(3px, -3px); }
+.pass-card-thumb-wrap.is-stack::after { transform: translate(6px, -6px); opacity: 0.6; z-index: -2; }
+.pass-card-count {
+  position: absolute;
+  right: -9px;
+  top: -8px; /* top corner stays visible when the next coin overlaps this row */
+  z-index: 2;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: var(--coin-accent, #6366f1);
+  border: 2px solid #1d1d26;
+  font-variant-numeric: tabular-nums;
+}
 .pass-card-thumb.placeholder {
   display: grid;
   place-items: center;
@@ -323,6 +366,48 @@ body {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* Front-card preview: stacked edges peek out under the picture */
+.pass-card-frame {
+  position: relative;
+  isolation: isolate;
+}
+.pass-card-frame.is-stack { margin-bottom: 9px; }
+.pass-card-frame.is-stack-deep { margin-bottom: 17px; }
+.pass-card-frame.is-stack::before,
+.pass-card-frame.is-stack-deep::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  bottom: -9px;
+  border-radius: 12px;
+  background: #3a3a48;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  z-index: -1;
+}
+.pass-card-frame.is-stack-deep::after {
+  left: 26px;
+  right: 26px;
+  bottom: -17px;
+  background: #2c2c38;
+  z-index: -2;
+}
+.pass-card-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.pass-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+.pass-card-dot.is-active { background: var(--coin-accent, var(--accent)); }
+.pass-card-count-label { color: var(--text); }
 
 
 /* Viewer */
