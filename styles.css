@@ -259,6 +259,28 @@ body {
   color: #52525b;
 }
 .pass-card-meta { flex: 1; min-width: 0; }
+.pass-card-trash {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin-right: -6px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.pass-card-trash:hover { color: var(--danger); }
+.pass-card-trash:active {
+  color: var(--danger);
+  background: var(--danger-bg);
+  transform: scale(0.94);
+}
 .pass-card-title {
   margin: 0;
   font-size: 1.08rem;

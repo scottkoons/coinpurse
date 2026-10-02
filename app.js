@@ -595,6 +595,20 @@
         : formatDate(pass.updatedAt || pass.createdAt);
       meta.append(title, sub);
       peek.appendChild(meta);
+
+      // Quick delete without opening the coin (asks first)
+      const trash = document.createElement('button');
+      trash.type = 'button';
+      trash.className = 'pass-card-trash';
+      trash.setAttribute('aria-label', 'Delete ' + (pass.title || 'coin'));
+      trash.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+      trash.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // never open the coin
+        deleteCoin(pass.id);
+      });
+      peek.appendChild(trash);
       card.appendChild(peek);
 
       // Always build full body so under-card can show the whole pass
@@ -620,6 +634,7 @@
         onCardTap(i);
       });
       card.addEventListener('keydown', (e) => {
+        if (e.target !== card) return; // let the trash button handle its own keys
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onCardTap(i);
@@ -2144,11 +2159,12 @@
   // ---------- Delete confirm ----------
   let confirmResolve = null;
 
+  const DELETE_TITLE = 'Are you sure you want to delete?';
+  const DELETE_MESSAGE = 'This coin and all of its images will be deleted. This cannot be undone.';
+
   function askConfirm(opts = {}) {
-    const title = opts.title || 'Toss this coin?';
-    const message =
-      opts.message ||
-      'This can’t be undone. The image stays only on this device until you delete it.';
+    const title = opts.title || DELETE_TITLE;
+    const message = opts.message || DELETE_MESSAGE;
     const okLabel = opts.okLabel || 'Delete';
     const t = $('#confirm-title');
     const p = $('#confirm .confirm-panel p');
@@ -2172,17 +2188,25 @@
     const t = $('#confirm-title');
     const p = $('#confirm .confirm-panel p');
     const ok = $('#btn-confirm-ok');
-    if (t) t.textContent = 'Toss this coin?';
-    if (p) p.textContent = 'This can’t be undone. The image stays only on this device until you delete it.';
+    if (t) t.textContent = DELETE_TITLE;
+    if (p) p.textContent = DELETE_MESSAGE;
     if (ok) ok.textContent = 'Delete';
   }
 
-  async function doDelete() {
-    if (!viewingId) return;
-    const ok = await askConfirm();
+  /** Confirm, then delete a coin. Used by the viewer Delete and the list trash can. */
+  async function deleteCoin(id) {
+    const pass = passes.find((p) => p.id === id);
+    if (!pass) return;
+    const name = (pass.title || '').trim();
+    const ok = await askConfirm({
+      title: DELETE_TITLE,
+      message: name
+        ? '“' + name + '” and all of its images will be deleted. This cannot be undone.'
+        : DELETE_MESSAGE,
+      okLabel: 'Delete',
+    });
     if (!ok) return;
-    const id = viewingId;
-    try { await deleteCloudCoin(id); } catch (e) { console.error(e); toast(e.message || "Delete failed"); return; }
+    try { await deleteCloudCoin(id); } catch (e) { console.error(e); toast(e.message || 'Delete failed'); return; }
     try { await deletePass(id); } catch {}
     if (objectUrls.has(id)) {
       URL.revokeObjectURL(objectUrls.get(id));
@@ -2190,11 +2214,18 @@
     }
     passes = passes.filter((p) => p.id !== id);
     syncPassRing();
-    if (expandedId === id) expandedId = null;
-    closeViewer();
-    if (history.state?.view === 'viewer') history.back();
+    if (expandedId === id) expandedId = passes[0]?.id || null;
+    if (frontIndex >= passes.length) frontIndex = 0;
+    if (viewingId === id) {
+      closeViewer();
+      if (history.state?.view === 'viewer') history.back();
+    }
     renderStack();
     toast('Deleted');
+  }
+
+  function doDelete() {
+    if (viewingId) deleteCoin(viewingId);
   }
 
 
