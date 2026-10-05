@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="robots" content="noindex, nofollow" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Coin Purse</title>
+  <title>Coin Purse · Concept 3: Autoplay demo</title>
   <meta name="description" content="A simple app for simple things. Snap it, find it, toss it: QR codes, passes, cards and snapshots you want one tap away." />
   <meta name="theme-color" content="#0b0a10" />
   <meta property="og:title" content="Coin Purse" />
@@ -395,9 +396,50 @@
       .word, .tagline { opacity: 1; transform: none; }
       .drift-coin, .shower-coin { display: none; }
     }
+
+    .concept-tag { position: fixed; right: 14px; top: 14px; z-index: 200; padding: 6px 12px; border-radius: 999px; background: rgba(250, 204, 21, 0.92); color: #111; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; }
+
+    .demo3 { padding: 30px 0 20px; }
+    .demo3-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 40px; align-items: center; margin-top: 10px; }
+    .demo3-phone { height: 720px; display: grid; place-items: center; position: relative; }
+    .steps3 { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 6px; }
+    .steps3 li { position: relative; display: flex; gap: 14px; align-items: center; padding: 8px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); cursor: pointer; overflow: hidden; transition: border-color 0.3s, background 0.3s; }
+    .steps3 li b { display: block; color: var(--text); font-size: 1rem; }
+    .steps3 li small { font-size: 0.85rem; }
+    .steps3 .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.06); color: var(--text); }
+    .steps3 li.on { border-color: rgba(129,140,248,0.55); background: rgba(129,140,248,0.10); }
+    .steps3 li.on .n { background: var(--accent); color: #0b0a10; }
+    .steps3 .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+    .steps3 li.on .bar { animation: fillbar var(--dur, 7s) linear forwards; }
+    @keyframes fillbar { to { width: 100%; } }
+    @media (max-width: 860px) {
+      .demo3-grid { grid-template-columns: 1fr; }
+      .demo3-phone { height: 560px; order: -1; }
+      .steps3 small { display: none; }
+    }
+
+    .bento-sec { padding: 30px 0 10px; }
+    .bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 210px; gap: 14px; margin-top: 26px; }
+    .tile { position: relative; border-radius: 22px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .tile.big { grid-column: span 2; grid-row: span 2; }
+    .tile.wide { grid-column: span 2; }
+    .tile.pic { background: var(--img) center / cover; }
+    .tile.pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(8, 8, 12, 0.88)); }
+    .tile .cap { position: relative; z-index: 1; }
+    .tile b { display: block; font-size: 1.1rem; }
+    .tile span { color: #c9c9d4; font-size: 0.92rem; }
+    .tile.text { justify-content: center; }
+    .tile.text .k { font-size: 2rem; margin-bottom: 10px; }
+    .tile.accent { background: linear-gradient(150deg, rgba(129,140,248,0.25), rgba(34,211,238,0.08)), var(--bg-2); border-color: rgba(129,140,248,0.35); }
+    .tile .hl { color: #0a84ff; text-decoration: underline; text-underline-offset: 2px; }
+    @media (max-width: 860px) {
+      .bento { grid-template-columns: 1fr 1fr; grid-auto-rows: 180px; }
+      .tile.big { grid-column: span 2; grid-row: span 2; }
+    }
   </style>
 </head>
 <body id="top">
+  <div class="concept-tag">Concept 3: Autoplay demo</div>
   <header class="hero" id="hero">
     <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
     <div id="drift" aria-hidden="true"></div>
@@ -428,53 +470,25 @@
     </div>
     <div class="scroll-cue">Scroll for the story<span></span></div>
   </header>
-
-  <section class="compare">
-    <div class="wrap reveal">
-      <p class="eyebrow">Why it exists</p>
-      <h2>Not everything belongs in your wallet.</h2>
-      <div class="compare-grid">
-        <div class="compare-card">
-          <div class="big">$</div>
-          <h3>Apple Wallet</h3>
-          <p>Boarding passes, credit cards, IDs.  Apple Wallet is built for secure, official things, and it is great at them.  But you cannot just drop a snapshot into it, and it is not meant for that.</p>
+  <section class="demo3" id="demo3">
+    <div class="wrap">
+      <div class="demo3-grid">
+        <div class="reveal">
+          <p class="eyebrow">See it in action</p>
+          <h2>Snap it.  Find it.  Toss it.</h2>
+          <p class="lead" style="margin-top:14px">Watch the whole thing in about a minute, or tap a step to jump to it.</p>
+          <ol class="steps3" id="steps3">
+          <li data-step="camera"><span class="n">1</span><span><b>Snap it</b><small>Take a photo right into Coin Purse.</small></span><i class="bar"></i></li>
+          <li data-step="paste"><span class="n">2</span><span><b>Or paste it</b><small>One tap on Paste, no prompt.</small></span><i class="bar"></i></li>
+          <li data-step="arrive"><span class="n">3</span><span><b>Now it is a coin</b><small>It lands at the front of your purse.</small></span><i class="bar"></i></li>
+          <li data-step="open"><span class="n">4</span><span><b>Both tickets, one coin</b><small>Up to six pictures per coin.</small></span><i class="bar"></i></li>
+          <li data-step="text"><span class="n">5</span><span><b>Tap what you see</b><small>Links, emails and numbers just work.</small></span><i class="bar"></i></li>
+          <li data-step="share"><span class="n">6</span><span><b>Share it</b><small>By text or email, one picture at a time.</small></span><i class="bar"></i></li>
+          <li data-step="toss"><span class="n">7</span><span><b>Toss it</b><small>The trash can is right on the card.</small></span><i class="bar"></i></li>
+          <li data-step="lock"><span class="n">8</span><span><b>Yours alone</b><small>Face ID and a private account.</small></span><i class="bar"></i></li>
+          </ol>
         </div>
-        <div class="compare-card purse">
-          <div class="big">¢</div>
-          <h3>Coin Purse</h3>
-          <p>Everything else.  Snap a photo or paste a screenshot of the little things you need to remember or show quickly, the ones that do not need a vault.  One tap to add, one tap to toss.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="story" data-act="1">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="photos">
-            <div class="count"><b>01</b> / 10</div>
-            <h2>Life hands you <em>small change</em>.</h2>
-            <p>The level you parked on.  The tailgate tickets.  The gift card in your drawer.  A link a friend texted you.  It all ends up buried in thousands of photos, or lost somewhere in your email.</p>
-          </div>
-          <div class="chapter" data-step="camera">
-            <div class="count"><b>02</b> / 10</div>
-            <h2><em>Snap</em> it.</h2>
-            <p>Take a photo right into Coin Purse: the garage sign, the back of a card, a note someone handed you.  It never clutters your photo library.</p>
-          </div>
-          <div class="chapter" data-step="paste">
-            <div class="count"><b>03</b> / 10</div>
-            <h2>Or <em>paste</em> it.</h2>
-            <p>Screenshot a ticket, an email or a web page, then tap Paste once.  No "Allow Paste" prompt and no typing.  Prefer an older photo?  Pick it from your library.</p>
-          </div>
-          <div class="chapter" data-step="arrive">
-            <div class="count"><b>04</b> / 10</div>
-            <h2>Now it is a <em>coin</em>.</h2>
-            <p>It lands at the front of your purse.  Skip the title and it is named Coin 5, Coin 6 and so on.  Add a name, a note or a color only when you want to.</p>
-          </div>
-        </div>
-        <div class="story-phone">
-        <div class="phone-fit" id="phone-fit">
+        <div class="demo3-phone"><div class="phone-fit" id="phone-fit">
           <div class="phone-glow" id="phone-glow"></div>
           <div class="tilt" id="tilt">
           <div class="phone" aria-label="Coin Purse on an iPhone">
@@ -608,101 +622,28 @@
             </div>
           </div>
           </div>
-        </div>
-      </div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
-    </div>
-  </section>
-
-  <section class="coin-parts">
-    <div class="wrap">
-      <div class="reveal" style="max-width:720px">
-        <p class="eyebrow">What is in a coin?</p>
-        <h2>One coin, everything that goes together.</h2>
-        <p class="lead" style="margin-top:16px">A coin is one thing you want handy.  It can hold up to six pictures, so two tailgate tickets are one coin, not two.  Same for the front and back of a card, or every page of a return.</p>
-      </div>
-      <div class="anatomy">
-        <div class="part reveal"><div class="k">🏷️</div><h3>A name, if you want one</h3><p>Type one, or skip it and the coin is named Coin 1, Coin 2 and so on.</p></div>
-        <div class="part reveal"><div class="k">🖼️</div><h3>Up to six pictures</h3><p>Photos, screenshots or both.  The first is the one you see on the card.</p></div>
-        <div class="part reveal"><div class="k">📝</div><h3>Notes</h3><p>A gift card code, a seat number, a link.  Links, emails and phone numbers are tappable.</p></div>
-        <div class="part reveal"><div class="k">🎨</div><h3>A color</h3><p>A stripe across the top so you can spot it in the stack.</p></div>
+        </div></div>
       </div>
     </div>
   </section>
-
-  <section class="story flip" data-act="2">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="flip">
-            <div class="count"><b>05</b> / 10</div>
-            <h2><em>Flip</em> through your purse.</h2>
-            <p>Swipe the stack and the front coin goes to the back, like cards in a wallet.  Everything you saved is a flick away.</p>
-          </div>
-          <div class="chapter" data-step="open">
-            <div class="count"><b>06</b> / 10</div>
-            <h2>One coin, <em>both</em> tickets.</h2>
-            <p>A coin holds up to six pictures.  Tap to open it full screen, ready to scan, and swipe to the next one.  Two tailgate tickets, one coin.</p>
-          </div>
-          <div class="chapter" data-step="text">
-            <div class="count"><b>07</b> / 10</div>
-            <h2><em>Tap</em> what you see.</h2>
-            <p>Coin Purse reads the text in your pictures right on your iPhone.  Tap a link to open it, an email address to write to it, a phone number to call.  Press and hold to copy a gift card code.</p>
-          </div>
-        </div>
-        <div class="story-phone"></div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
-    </div>
-  </section>
-
-  <section class="uses">
+  <section class="bento-sec">
     <div class="wrap">
       <div class="reveal">
-        <p class="eyebrow">What people keep in it</p>
-        <h2>Small change, everywhere.</h2>
+        <p class="eyebrow">Small change, everywhere</p>
+        <h2>Everything simple has a place.</h2>
       </div>
-      <div class="uses-grid">
-        <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Conference badges</h3><p>Scan in at the door without digging through your email.</p></div>
-        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tailgate and event tickets</h3><p>Two QR codes, one coin.  Swipe between them at the gate.</p></div>
-        <div class="use reveal" style="--c:#f97316"><span class="dot"></span><h3>Gift cards</h3><p>Snap the back of the card.  At checkout they scan the barcode, or you copy the number.</p></div>
-        <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Return labels</h3><p>Keep the return QR code ready for the drop-off counter.</p></div>
-        <div class="use reveal" style="--c:#ec4899"><span class="dot"></span><h3>Where you parked</h3><p>Snap the level sign in the airport garage.  Delete it when you are home.</p></div>
-        <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Links people text you</h3><p>Screenshot it now, tap the link later.</p></div>
-        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tickets for friends</h3><p>Share the picture by text or email, right from the coin.</p></div>
-        <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Someone's email address</h3><p>Grab it, send your email with one tap, then toss the coin.</p></div>
-        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Grocery lists</h3><p>The handwritten list on the counter.  Snap it and go shopping.</p></div>
+      <div class="bento">
+        <div class="tile big pic reveal" style="--img:url(/img/ticket-1.jpg);background-position:center 30%"><div class="cap"><b>Tailgate tickets</b><span>Two passes in one coin.  Swipe between them at the gate.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/parking-b3.jpg)"><div class="cap"><b>Where you parked</b><span>Toss it when you are home.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/gift-card-coffee.jpg)"><div class="cap"><b>Gift cards</b><span>Let them scan the barcode.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/grocery-note.jpg)"><div class="cap"><b>Grocery lists</b><span>Snap it and go shopping.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/conference-badge.jpg);background-position:top"><div class="cap"><b>Conference badges</b><span>No digging through email.</span></div></div>
+        <div class="tile wide text accent reveal"><div class="k">👆</div><b>Tap what you see</b><span>Links like <i class="hl">tailgate.example.com</i>, emails and phone numbers in your pictures are tappable.</span></div>
+        <div class="tile text reveal"><div class="k">🔒</div><b>Face ID</b><span>Private to your account.</span></div>
+        <div class="tile text reveal"><div class="k">¢</div><b>Free</b><span>No ads.  No tracking.</span></div>
       </div>
     </div>
   </section>
-
-  <section class="story" data-act="3">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="share">
-            <div class="count"><b>08</b> / 10</div>
-            <h2><em>Share</em> it.</h2>
-            <p>Need to hand a friend their ticket?  Tap Share and send the picture by text or email, just like sharing a photo.  Only that one picture goes, nothing else.</p>
-          </div>
-          <div class="chapter" data-step="toss">
-            <div class="count"><b>09</b> / 10</div>
-            <h2><em>Toss</em> it when you are done.</h2>
-            <p>Every coin has a trash can right on the card.  Back from the trip?  One tap and the parking photo is gone, without ever touching your camera roll.  Or keep a coin as long as you like.</p>
-          </div>
-          <div class="chapter" data-step="lock">
-            <div class="count"><b>10</b> / 10</div>
-            <h2>Yours <em>alone</em>.</h2>
-            <p>Face ID unlocks the app.  Sign in once and stay signed in.  Your coins are private to your account, with no ads and no tracking.</p>
-          </div>
-        </div>
-        <div class="story-phone"></div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
-    </div>
-  </section>
-
   <section class="cta" id="cta">
     <div class="wrap reveal">
       <img src="/img/coin.png" alt="" />
@@ -713,17 +654,12 @@
       <a href="#top" class="to-top" id="to-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Back to top</a>
     </div>
   </section>
-
-
-
-
   <footer>
     <div class="wrap">
       <span>© 2026 Yetignome</span>
       <span><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a> · <a href="#top" class="js-top">Back to top</a></span>
     </div>
   </footer>
-
   <script>
     (function () {
       const $ = (s) => document.querySelector(s);
@@ -1132,6 +1068,31 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
       }
+      window.__cp = { play, setOrder, STACK, glow };
+    })();
+  </script>
+  <script>
+    // Plays every step on its own, like a short video, while the demo is on screen.
+    (function () {
+      const items = [...document.querySelectorAll('#steps3 li')];
+      const DUR = 7000;
+      let i = 0, timer = null, visible = false;
+      function go(n) {
+        i = (n + items.length) % items.length;
+        items.forEach((li, k) => { li.classList.remove('on'); void li.offsetWidth; li.classList.toggle('on', k === i); li.style.setProperty('--dur', DUR + 'ms'); });
+        window.__cp.setOrder(window.__cp.STACK);
+        document.getElementById('phone-glow').style.setProperty('--glow', window.__cp.glow[items[i].dataset.step]);
+        window.__cp.play(items[i].dataset.step);
+        clearTimeout(timer);
+        timer = setTimeout(() => { if (visible) go(i + 1); }, DUR);
+      }
+      items.forEach((li, k) => li.addEventListener('click', () => go(k)));
+      new IntersectionObserver((entries) => {
+        const was = visible;
+        visible = entries[0].isIntersecting;
+        if (visible && !was) go(i);
+        if (!visible) clearTimeout(timer);
+      }, { threshold: 0.3 }).observe(document.getElementById('demo3'));
     })();
   </script>
 </body>
