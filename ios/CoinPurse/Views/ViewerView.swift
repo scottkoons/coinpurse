@@ -34,7 +34,7 @@ struct ViewerView: View {
                     ForEach(Array(pictures.enumerated()), id: \.element.key) { i, picture in
                         Group {
                             if let img = images[picture.key] {
-                                ZoomableImage(image: img)
+                                ZoomableImage(image: img) { dismiss() }
                             } else {
                                 ProgressView().tint(.white)
                             }

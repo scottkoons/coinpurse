@@ -1341,8 +1341,31 @@ body.is-locked #confirm {
   text-align: center;
   padding: 14px 12px;
 }
-#email-form, #pin-form { display: grid; gap: 12px; }
-#email-form.hidden, #pin-form.hidden { display: none; }
+#unlock-code {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: #0e0e12;
+  color: #fff;
+  font-size: 1.25rem;
+  letter-spacing: 0.25em;
+  text-align: center;
+  padding: 14px 12px;
+}
+#unlock-email:focus,
+#unlock-code:focus {
+  outline: none;
+  border-color: rgba(129, 140, 248, 0.7);
+}
+#email-form, #code-form, #pin-form { display: grid; gap: 12px; }
+#email-form.hidden, #code-form.hidden, #pin-form.hidden { display: none; }
+
+/* iPhone Safari zooms into any text box under 16px and leaves the page
+   zoomed (wider than the screen). Keep every input at 16px or more. */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
 .unlock-status {
   margin: 14px 0 0;
   color: #a1a1aa;

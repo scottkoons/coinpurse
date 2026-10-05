@@ -114,7 +114,12 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Rotate right"].tap()
         app.buttons["Done"].tap()
         sleep(2)
-        app.buttons["Back"].tap()
+
+        // A tap on the black space above the picture closes the coin.
+        XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.17)).tap()
+        XCTAssertTrue(app.staticTexts["2 of 2"].waitForNonExistence(timeout: 5), "tap outside did not close")
+        snap("8b-closed-by-tap")
 
         // Delete the haircut coin with its trash can.
         app.buttons["Delete Haircut card"].firstMatch.tap()

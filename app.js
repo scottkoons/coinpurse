@@ -1600,11 +1600,24 @@
     return Math.hypot(dx, dy);
   }
 
+  /**
+   * True only over the visible photo. The <img> box fills the frame and the
+   * photo is fitted inside it (object-fit: contain), so the black bands above
+   * and below must not count as "on the photo".
+   */
   function pointOnViewerImage(x, y) {
     const img = $('#viewer-image');
     if (!img || img.classList.contains('hidden')) return false;
     const r = img.getBoundingClientRect();
-    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    let left = r.left, top = r.top, width = r.width, height = r.height;
+    if (img.naturalWidth && img.naturalHeight && r.width && r.height) {
+      const scale = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+      width = img.naturalWidth * scale;
+      height = img.naturalHeight * scale;
+      left = r.left + (r.width - width) / 2;
+      top = r.top + (r.height - height) / 2;
+    }
+    return x >= left && x <= left + width && y >= top && y <= top + height;
   }
 
   function bindZoom() {
@@ -1615,6 +1628,14 @@
 
     // Letterbox tap (black above/below the photo) → close like the back arrow
     let letterboxTap = null;
+
+    // A tap on any other empty part of the viewer closes it too.
+    $('#viewer-body')?.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t.closest('button, a, img, .viewer-image-wrap')) return;
+      if (t.closest('.viewer-thumbs') && t !== $('#viewer-thumbs')) return;
+      dismissViewer();
+    });
 
     wrap.addEventListener('pointerdown', (e) => {
       if ($('#viewer-image').classList.contains('hidden')) return;
@@ -1637,7 +1658,8 @@
         panOriginY = zoomState.y;
         swipeStartX = e.clientX;
         swipeStartY = e.clientY;
-        swipeTracking = zoomState.scale <= 1.05 && onPhoto;
+        // Swipe between pictures can start anywhere, not just on the photo.
+        swipeTracking = zoomState.scale <= 1.05;
         swipeMoved = false;
         // Double-tap zoom only when tapping the photo itself
         if (onPhoto) {
