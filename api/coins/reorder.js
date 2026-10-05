@@ -1,5 +1,6 @@
-const { requireUser, json } = require('../lib/auth');
+const { requireUser, json, readJsonBody } = require('../lib/auth');
 const { reorderCoins } = require('../lib/store');
+const { presentCoin } = require('../lib/imageurl');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -10,16 +11,12 @@ module.exports = async function handler(req, res) {
     return json(res, 405, { error: 'Method not allowed' });
   }
 
-  let body = '';
-  for await (const chunk of req) body += chunk;
-  let data;
-  try { data = JSON.parse(body || '{}'); } catch {
-    return json(res, 400, { error: 'Invalid JSON' });
-  }
+  const data = await readJsonBody(req, res);
+  if (!data) return;
   const ids = data.ids;
-  if (!Array.isArray(ids) || !ids.length) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > 1000) {
     return json(res, 400, { error: 'ids array required' });
   }
   const coins = await reorderCoins(user.id, ids.map(String));
-  return json(res, 200, { coins });
+  return json(res, 200, { coins: coins.map((c) => presentCoin(c, user.id)) });
 };

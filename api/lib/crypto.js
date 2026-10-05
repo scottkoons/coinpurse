@@ -1,7 +1,25 @@
 const crypto = require('crypto');
 
 function secret() {
-  return process.env.AUTH_SECRET || process.env.COINPURSE_TOKEN || 'dev-insecure';
+  const s = process.env.AUTH_SECRET || process.env.COINPURSE_TOKEN;
+  // Fail closed: a guessable default would let anyone forge a session.
+  if (!s || s.length < 16) throw new Error('AUTH_SECRET is not configured');
+  return s;
+}
+
+function hmac(data) {
+  return crypto.createHmac('sha256', secret()).update(String(data)).digest('base64url');
+}
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+/** Stable storage key for an email address (keeps addresses out of file names). */
+function emailKey(email) {
+  return crypto.createHash('sha256').update('coinpurse-email:' + email).digest('hex').slice(0, 40);
 }
 
 function hashPin(pin, salt) {
@@ -31,17 +49,13 @@ function signPayload(payload, maxAgeMs) {
     exp: Date.now() + (maxAgeMs || 1000 * 60 * 60 * 24 * 365),
   };
   const data = b64url(JSON.stringify(body));
-  const sig = crypto.createHmac('sha256', secret()).update(data).digest('base64url');
-  return data + '.' + sig;
+  return data + '.' + hmac(data);
 }
 
 function verifySigned(token) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return null;
   const [data, sig] = token.split('.');
-  const expect = crypto.createHmac('sha256', secret()).update(data).digest('base64url');
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expect);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  if (!safeEqual(sig, hmac(data))) return null;
   try {
     const body = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));
     if (!body || !body.exp || body.exp < Date.now()) return null;
@@ -62,4 +76,7 @@ module.exports = {
   verifySigned,
   randomId,
   secret,
+  hmac,
+  safeEqual,
+  emailKey,
 };

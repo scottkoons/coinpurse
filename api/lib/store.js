@@ -1,10 +1,20 @@
-const { del } = require('@vercel/blob');
 const { readJsonDocument, writeJsonDocument } = require('./blobjson');
+const { listBlobs, deleteBlobs, deleteBlobsQuiet } = require('./blob');
+const { pathOfImage, ownsPath } = require('./imageurl');
 
-const LEGACY_INDEX = 'coinpurse/index.json';
 const MAX_ATTACHMENTS = 5;
+const MAX_COINS = 500;
 /** Keep tombstones so legacy remigration / stale reads cannot resurrect deletes. */
 const MAX_TOMBSTONES = 500;
+
+/** Coin ids become part of file names, so only plain ids are accepted. */
+function isValidCoinId(id) {
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(id);
+}
+
+function userFolder(userId) {
+  return `coinpurse/users/${userId}/`;
+}
 
 function userIndexPath(userId) {
   return `coinpurse/users/${userId}/index.json`;
@@ -148,39 +158,6 @@ async function writeIndex(userId, coins) {
   await writeIndexDocument(userId, { coins: cleaned, deletedIds });
 }
 
-async function readLegacyIndex() {
-  const data = await readJsonBlob(LEGACY_INDEX);
-  if (data && Array.isArray(data.coins)) return sortCoinsByOrder(data.coins);
-  return [];
-}
-
-/**
- * One-time inheritance of pre-account legacy purse.
- * ONLY when the user index blob is missing — never when it exists with [].
- * Empty purse after deletes must stay empty (ghost-coin fix).
- */
-async function migrateLegacyToUser(userId) {
-  const doc = await readIndexDocument(userId);
-  if (doc.status === 'ok') {
-    return doc.coins;
-  }
-  if (doc.status === 'error') {
-    // Do not overwrite a possibly-valid index with legacy on a transient failure.
-    throw new Error('Could not read coin index');
-  }
-  // missing — inherit legacy coins + any legacy tombstones (neutralized index = []).
-  const legacyRaw = await readJsonBlob(LEGACY_INDEX);
-  const deletedIds = normalizeDeletedIds(legacyRaw && legacyRaw.deletedIds);
-  const legacyCoins = Array.isArray(legacyRaw && legacyRaw.coins) ? legacyRaw.coins : [];
-  const coins = filterTombstoned(sortCoinsByOrder(legacyCoins), deletedIds);
-  await writeIndexDocument(userId, {
-    coins,
-    deletedIds,
-    extra: { migratedFromLegacyAt: Date.now() },
-  });
-  return coins;
-}
-
 async function upsertCoin(userId, coin) {
   const doc = await readIndexDocument(userId);
   if (doc.status === 'error') throw new Error('Could not read coin index');
@@ -265,9 +242,10 @@ async function reorderCoins(userId, orderedIds) {
   return next;
 }
 
-async function deleteBlobQuiet(pathOrUrl) {
-  if (!pathOrUrl) return;
-  try { await del(pathOrUrl); } catch (_) {}
+/** Delete a stored picture, but only if it sits in this user's own folder. */
+async function deleteOwnedImage(userId, item) {
+  const p = pathOfImage(item);
+  if (ownsPath(userId, p)) await deleteBlobsQuiet(p);
 }
 
 async function removeCoin(userId, id) {
@@ -277,14 +255,22 @@ async function removeCoin(userId, id) {
   const next = doc.coins.filter((c) => c.id !== id);
   const deletedIds = { ...doc.deletedIds, [id]: Date.now() };
   await writeIndexDocument(userId, { coins: next, deletedIds });
-  if (coin?.imagePath) await deleteBlobQuiet(coin.imagePath);
-  if (coin?.imageUrl) await deleteBlobQuiet(coin.imageUrl);
-  const atts = Array.isArray(coin?.attachments) ? coin.attachments : [];
-  for (const att of atts) {
-    if (att?.imagePath) await deleteBlobQuiet(att.imagePath);
-    if (att?.imageUrl) await deleteBlobQuiet(att.imageUrl);
+  if (coin) {
+    await deleteOwnedImage(userId, coin);
+    for (const att of Array.isArray(coin.attachments) ? coin.attachments : []) {
+      await deleteOwnedImage(userId, att);
+    }
   }
   return true;
+}
+
+/** Delete every coin, picture and index version in the user's folder (not the account). */
+async function deleteAllUserData(userId) {
+  const keep = `${userFolder(userId)}account.`;
+  const blobs = await listBlobs(userFolder(userId));
+  const doomed = blobs.map((b) => b.pathname).filter((p) => !p.startsWith(keep));
+  await deleteBlobs(doomed);
+  return doomed.length;
 }
 
 module.exports = {
@@ -298,10 +284,11 @@ module.exports = {
   reorderCoins,
   sortCoinsByOrder,
   nextFrontSortOrder,
-  migrateLegacyToUser,
-  readLegacyIndex,
+  deleteOwnedImage,
+  deleteAllUserData,
+  isValidCoinId,
   userImagePath,
   userAttachmentPath,
   MAX_ATTACHMENTS,
-  LEGACY_INDEX,
+  MAX_COINS,
 };

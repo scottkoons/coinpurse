@@ -1,10 +1,14 @@
-const { put, del } = require('@vercel/blob');
 const { requireUser, json } = require('../../lib/auth');
 const {
   readIndexDocument,
   patchCoinImage,
   userImagePath,
+  isValidCoinId,
+  deleteOwnedImage,
 } = require('../../lib/store');
+const { putBlob, deleteBlobsQuiet } = require('../../lib/blob');
+const { presentCoin } = require('../../lib/imageurl');
+const { readImageUpload } = require('../../lib/upload');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -13,7 +17,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   const id = req.query.id;
-  if (!id) return json(res, 400, { error: 'Missing id' });
+  if (!isValidCoinId(id)) return json(res, 400, { error: 'Missing id' });
 
   // Require an intentional saved coin first — never invent "Untitled" drafts.
   const doc = await readIndexDocument(user.id);
@@ -28,21 +32,10 @@ module.exports = async function handler(req, res) {
     return json(res, 404, { error: 'Save the coin before uploading an image' });
   }
 
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const buf = Buffer.concat(chunks);
-  if (!buf.length) return json(res, 400, { error: 'Empty body' });
-
-  const ctype = (req.headers['content-type'] || 'image/jpeg').split(';')[0];
-  const ext = ctype.includes('png') ? 'png' : ctype.includes('webp') ? 'webp' : 'jpg';
-  const pathname = userImagePath(user.id, id, ext);
-
-  const blob = await put(pathname, buf, {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: ctype,
-  });
+  const upload = await readImageUpload(req, res);
+  if (!upload) return;
+  const pathname = userImagePath(user.id, id, upload.ext);
+  const blob = await putBlob(pathname, upload.buf, { contentType: upload.contentType });
 
   try {
     const coin = await patchCoinImage(user.id, id, {
@@ -50,15 +43,12 @@ module.exports = async function handler(req, res) {
       imagePath: pathname,
     });
     // Each upload has a unique path; drop the image it replaced.
-    if (existing.imagePath && existing.imagePath !== pathname) {
-      try { await del(existing.imagePath); } catch (_) {}
-    } else if (existing.imageUrl && existing.imageUrl !== blob.url) {
-      try { await del(existing.imageUrl); } catch (_) {}
-    }
-    return json(res, 200, { coin, url: blob.url });
+    await deleteOwnedImage(user.id, existing);
+    const shown = presentCoin(coin, user.id);
+    return json(res, 200, { coin: shown, url: shown.imageUrl });
   } catch (e) {
     // Avoid leaving an orphan blob if the coin disappeared mid-upload.
-    try { await del(pathname); } catch (_) {}
+    await deleteBlobsQuiet(pathname);
     if (e.code === 'NOT_FOUND') {
       return json(res, 404, { error: 'Save the coin before uploading an image' });
     }
@@ -66,6 +56,6 @@ module.exports = async function handler(req, res) {
       return json(res, 410, { error: 'Coin was deleted' });
     }
     console.error('image upload patch', e);
-    return json(res, 503, { error: e.message || 'Could not save image' });
+    return json(res, 503, { error: 'Could not save image' });
   }
 };

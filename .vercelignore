@@ -1,0 +1,6 @@
+# Not part of the website or API; keep them off the public server.
+ios/
+test/
+docs/
+.claude/
+README.md

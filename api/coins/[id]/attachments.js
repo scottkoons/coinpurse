@@ -1,12 +1,22 @@
 const crypto = require('crypto');
-const { put, del } = require('@vercel/blob');
 const { requireUser, json } = require('../../lib/auth');
 const {
   readIndexDocument,
   upsertCoin,
   userAttachmentPath,
+  isValidCoinId,
+  deleteOwnedImage,
   MAX_ATTACHMENTS,
 } = require('../../lib/store');
+const { putBlob } = require('../../lib/blob');
+const { presentCoin } = require('../../lib/imageurl');
+const { readImageUpload } = require('../../lib/upload');
+
+function respond(res, user, coin, att, extra = {}) {
+  const shown = presentCoin(coin, user.id);
+  const shownAtt = att ? shown.attachments.find((a) => a.id === att.id) : undefined;
+  return json(res, 200, { coin: shown, ...(shownAtt ? { attachment: shownAtt } : {}), ...extra });
+}
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -14,7 +24,7 @@ module.exports = async function handler(req, res) {
   if (!user) return;
 
   const id = req.query.id;
-  if (!id) return json(res, 400, { error: 'Missing id' });
+  if (!isValidCoinId(id)) return json(res, 400, { error: 'Missing id' });
 
   const doc = await readIndexDocument(user.id);
   if (doc.status === 'error') {
@@ -29,31 +39,18 @@ module.exports = async function handler(req, res) {
     if (coin.attachments.length >= MAX_ATTACHMENTS) {
       return json(res, 400, { error: `Max ${MAX_ATTACHMENTS} extra images` });
     }
-
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buf = Buffer.concat(chunks);
-    if (!buf.length) return json(res, 400, { error: 'Empty body' });
-
-    const ctype = (req.headers['content-type'] || 'image/jpeg').split(';')[0];
-    const ext = ctype.includes('png') ? 'png' : ctype.includes('webp') ? 'webp' : 'jpg';
+    const upload = await readImageUpload(req, res);
+    if (!upload) return;
     const attId = crypto.randomUUID();
-    const pathname = userAttachmentPath(user.id, id, attId, ext);
-
-    const blob = await put(pathname, buf, {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: ctype,
-    });
+    const pathname = userAttachmentPath(user.id, id, attId, upload.ext);
+    const blob = await putBlob(pathname, upload.buf, { contentType: upload.contentType });
 
     const att = { id: attId, imageUrl: blob.url, imagePath: pathname };
     coin.attachments.push(att);
     coin.updatedAt = Date.now();
     await upsertCoin(user.id, coin);
-    return json(res, 200, { coin, attachment: att });
+    return respond(res, user, coin, att);
   }
-
 
   if (req.method === 'PUT') {
     const attId = req.query.attId || req.query.attachmentId;
@@ -61,21 +58,10 @@ module.exports = async function handler(req, res) {
     const idx = coin.attachments.findIndex((a) => a.id === attId);
     if (idx < 0) return json(res, 404, { error: 'Attachment not found' });
 
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buf = Buffer.concat(chunks);
-    if (!buf.length) return json(res, 400, { error: 'Empty body' });
-
-    const ctype = (req.headers['content-type'] || 'image/jpeg').split(';')[0];
-    const ext = ctype.includes('png') ? 'png' : ctype.includes('webp') ? 'webp' : 'jpg';
-    const pathname = userAttachmentPath(user.id, id, attId, ext);
-
-    const blob = await put(pathname, buf, {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: ctype,
-    });
+    const upload = await readImageUpload(req, res);
+    if (!upload) return;
+    const pathname = userAttachmentPath(user.id, id, attId, upload.ext);
+    const blob = await putBlob(pathname, upload.buf, { contentType: upload.contentType });
 
     const prev = coin.attachments[idx];
     const att = { id: attId, imageUrl: blob.url, imagePath: pathname };
@@ -83,12 +69,8 @@ module.exports = async function handler(req, res) {
     coin.updatedAt = Date.now();
     await upsertCoin(user.id, coin);
     // Each upload has a unique path; drop the image it replaced.
-    if (prev?.imagePath && prev.imagePath !== pathname) {
-      try { await del(prev.imagePath); } catch (_) {}
-    } else if (prev?.imageUrl && prev.imageUrl !== blob.url) {
-      try { await del(prev.imageUrl); } catch (_) {}
-    }
-    return json(res, 200, { coin, attachment: att });
+    await deleteOwnedImage(user.id, prev);
+    return respond(res, user, coin, att);
   }
 
   if (req.method === 'DELETE') {
@@ -97,15 +79,10 @@ module.exports = async function handler(req, res) {
     const idx = coin.attachments.findIndex((a) => a.id === attId);
     if (idx < 0) return json(res, 404, { error: 'Attachment not found' });
     const [removed] = coin.attachments.splice(idx, 1);
-    if (removed?.imagePath) {
-      try { await del(removed.imagePath); } catch (_) {}
-    }
-    if (removed?.imageUrl) {
-      try { await del(removed.imageUrl); } catch (_) {}
-    }
     coin.updatedAt = Date.now();
     await upsertCoin(user.id, coin);
-    return json(res, 200, { coin, removed: removed.id });
+    await deleteOwnedImage(user.id, removed);
+    return respond(res, user, coin, null, { removed: removed.id });
   }
 
   return json(res, 405, { error: 'Method not allowed' });
