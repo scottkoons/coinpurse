@@ -46,14 +46,19 @@
     .badge svg { width: 20px; height: 20px; }
 
     /* ---------- Hero ---------- */
-    .hero { position: relative; padding: calc(56px + env(safe-area-inset-top)) 0 80px; overflow: hidden; min-height: 92vh; }
-    .hero::before {
-      content: ""; position: absolute; inset: -20% -10% auto; height: 760px;
-      background:
-        radial-gradient(40% 50% at 70% 30%, rgba(129, 140, 248, 0.28), transparent 70%),
-        radial-gradient(35% 45% at 20% 10%, rgba(34, 211, 238, 0.16), transparent 70%);
-      pointer-events: none;
-    }
+    .hero { position: relative; padding: calc(40px + env(safe-area-inset-top)) 0 110px; overflow: hidden; }
+    /* Slowly moving aurora behind the hero. */
+    .aurora { position: absolute; inset: -30% -20%; pointer-events: none; filter: blur(60px); opacity: 0.9; }
+    .aurora i { position: absolute; border-radius: 50%; mix-blend-mode: screen; animation: blob 22s ease-in-out infinite; }
+    .aurora i:nth-child(1) { width: 46vw; height: 46vw; left: 48%; top: 8%; background: rgba(129, 140, 248, 0.35); }
+    .aurora i:nth-child(2) { width: 38vw; height: 38vw; left: 8%; top: 0; background: rgba(34, 211, 238, 0.22); animation-delay: -7s; animation-duration: 26s; }
+    .aurora i:nth-child(3) { width: 30vw; height: 30vw; left: 30%; top: 38%; background: rgba(236, 72, 153, 0.16); animation-delay: -13s; animation-duration: 30s; }
+    @keyframes blob { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(6vw, 4vh) scale(1.12); } 66% { transform: translate(-5vw, -3vh) scale(0.92); } }
+    /* Little coins drifting up in the background. */
+    .drift-coin { position: absolute; bottom: -80px; opacity: 0; pointer-events: none; animation: rise linear infinite; }
+    @keyframes rise { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: var(--o); } 90% { opacity: var(--o); } 100% { transform: translateY(-115vh) rotate(var(--r)); opacity: 0; } }
+    .word { display: inline-block; opacity: 0; transform: translateY(0.5em) rotate(3deg); animation: word 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    @keyframes word { to { opacity: 1; transform: none; } }
     .hero-grid { position: relative; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; margin-bottom: 56px; }
     .brand img { width: 34px; height: 34px; }
@@ -67,8 +72,14 @@
     @keyframes sheen { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
     .hero .lead { margin: 22px 0 30px; }
     .sub-badge { display: block; margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
-    .coin-stage { position: relative; display: grid; place-items: center; min-height: 420px; }
-    .coin { width: min(320px, 72vw); filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.55)); animation: float 6s ease-in-out infinite; }
+    .coin-stage { position: relative; display: grid; place-items: center; min-height: 440px; perspective: 1000px; }
+    .coin-3d { transform-style: preserve-3d; will-change: transform; }
+    .coin { width: min(320px, 72vw); display: block; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.55)); animation: float 6s ease-in-out infinite; }
+    /* Labels orbit the coin and stay upright. */
+    .orbit { position: absolute; inset: 0; animation: orbit 60s linear infinite; pointer-events: none; }
+    .orbit .chip { animation: counter 60s linear infinite; }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    @keyframes counter { to { transform: rotate(-360deg); } }
     @keyframes float { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-14px) rotate(4deg); } }
     .chip {
       position: absolute; padding: 9px 14px; border-radius: 999px;
@@ -78,12 +89,12 @@
       animation: drift 7s ease-in-out infinite;
     }
     .chip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
-    .chip.a { top: 8%; left: 0; }
-    .chip.b { top: 22%; right: -4%; animation-delay: -2s; }
-    .chip.c { bottom: 16%; left: 4%; animation-delay: -4s; }
-    .chip.d { bottom: 4%; right: 6%; animation-delay: -1s; }
+    .chip.a { top: 6%; left: 2%; }
+    .chip.b { top: 24%; right: -2%; }
+    .chip.c { bottom: 18%; left: -2%; }
+    .chip.d { bottom: 4%; right: 8%; }
     @keyframes drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    .scroll-cue { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); color: var(--muted); font-size: 0.75rem; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; }
+    .scroll-cue { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); color: var(--muted); font-size: 0.75rem; text-align: center; letter-spacing: 0.12em; text-transform: uppercase; }
     .scroll-cue span { display: block; width: 22px; height: 34px; margin: 8px auto 0; border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; position: relative; }
     .scroll-cue span::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 8px; margin-left: -2px; border-radius: 2px; background: var(--text); animation: cue 1.6s ease-in-out infinite; }
     @keyframes cue { 0% { opacity: 0; transform: translateY(0); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(12px); } }
@@ -95,25 +106,33 @@
     .compare-card h3 { font-size: 1.3rem; margin-bottom: 6px; }
     .compare-card .big { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; }
     .compare-card p { color: var(--muted); margin: 0; }
+    .compare .reveal .compare-card { transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s; }
+    .compare .reveal:not(.in) .compare-card:first-child { transform: translateX(-60px) rotate(-2deg); opacity: 0; }
+    .compare .reveal:not(.in) .compare-card.purse { transform: translateX(60px) rotate(2deg); opacity: 0; }
+    .compare-card.purse .big { display: inline-block; animation: wobble 3s ease-in-out infinite; }
+    @keyframes wobble { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-10deg) scale(1.15); } }
     .compare-card.purse { background: linear-gradient(160deg, rgba(129, 140, 248, 0.16), rgba(34, 211, 238, 0.06)), var(--bg-2); border-color: rgba(129, 140, 248, 0.35); }
 
-    /* ---------- Story: one pinned iPhone, chapters scroll past ---------- */
-    .story { position: relative; padding: 20px 0 60px; }
-    .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-    .story-phone { position: sticky; top: 0; height: 100vh; display: grid; place-items: center; }
-    .phone-fit { width: 330px; height: 716px; }
-    .phone-fit .phone { transform-origin: top left; }
-    .chapters { padding: 6vh 0 20vh; }
-    .chapter { min-height: 95vh; display: flex; align-items: center; }
-    .chapter-card { max-width: 460px; opacity: 0.22; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
-    .chapter.active .chapter-card { opacity: 1; transform: none; }
-    .chapter .num { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(129,140,248,0.15); color: var(--accent); font-weight: 800; margin-bottom: 14px; }
-    .chapter h2 { font-size: clamp(2rem, 4vw, 3rem); }
-    .chapter p { color: var(--muted); font-size: 1.12rem; margin: 16px 0 0; }
-    .rail { position: fixed; left: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 10px; z-index: 40; opacity: 0; transition: opacity 0.4s; }
-    .rail.show { opacity: 1; }
-    .rail i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.22); transition: background 0.3s, height 0.3s; }
-    .rail i.on { background: var(--accent); height: 20px; border-radius: 3px; }
+    /* ---------- Story: a pinned full-screen stage; scrolling plays the chapters in place ---------- */
+    .story { position: relative; }
+    .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; display: flex; align-items: center; }
+    .stage::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 72% 50%, rgba(129,140,248,0.10), transparent 70%); pointer-events: none; }
+    .stage-grid { position: relative; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 30px; align-items: center; width: 100%; }
+    .stage-text { position: relative; height: 62vh; }
+    .chapter { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; opacity: 0; transform: translateY(50px); transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1); pointer-events: none; }
+    .chapter.active { opacity: 1; transform: none; }
+    .chapter.past { transform: translateY(-50px); }
+    .chapter .count { color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.14em; margin-bottom: 18px; }
+    .chapter .count b { color: var(--accent); }
+    .chapter h2 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); font-weight: 800; letter-spacing: -0.035em; }
+    .chapter h2 em { font-style: normal; background: linear-gradient(90deg, #a5b4fc, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .chapter p { color: var(--muted); font-size: clamp(1.05rem, 1.4vw, 1.25rem); margin: 22px 0 0; max-width: 470px; }
+    .story-phone { height: 100vh; height: 100svh; display: grid; place-items: center; }
+    .story.flip .stage-grid { grid-template-columns: 0.95fr 1.05fr; }
+    .story.flip .story-phone { order: -1; }
+    .progress { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; gap: 6px; }
+    .progress i { width: 34px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.14); overflow: hidden; }
+    .progress i b { display: block; height: 100%; width: 0; background: var(--text); }
 
     /* iPhone */
     .phone {
@@ -141,16 +160,15 @@
     .finger.show { opacity: 1; transform: scale(1); }
     .finger.press { transform: scale(0.8); background: rgba(255,255,255,0.6); }
 
-    /* Scene: photo library clutter */
-    .s-photos { background: #000; padding-top: 54px; }
-    .s-photos h4 { margin: 0 16px; font-size: 1.6rem; }
-    .s-photos small { display: block; margin: 0 16px 10px; color: var(--muted); }
-    .roll-wrap { position: absolute; top: 120px; left: 0; right: 0; bottom: 0; overflow: hidden; }
-    .roll-wrap::after { content: ""; position: absolute; inset: auto 0 0; height: 120px; background: linear-gradient(transparent, #000); }
-    .roll { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; animation: roll 26s linear infinite; }
-    .roll i { aspect-ratio: 1; background: #2a2933 center / cover; }
-    @keyframes roll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
-
+    /* Scene: a messy pile of all the little things */
+    .s-pile { background: radial-gradient(70% 50% at 50% 40%, #1d1c28, #000); }
+    .pile-label { position: absolute; top: 62px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .pile { position: absolute; inset: 86px 0 30px; }
+    .pile img {
+      position: absolute; width: 50%; border-radius: 12px; object-fit: cover; aspect-ratio: 4 / 5; object-position: top;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.6); border: 3px solid #fff;
+      transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
+    }
     /* Scene: camera */
     .s-camera { background: #000; }
     .viewfinder { position: absolute; top: 90px; left: 0; right: 0; height: 470px; background: url(/img/parking-2c.jpg) center / cover; transform: scale(1.12); transition: transform 2.5s ease; }
@@ -175,14 +193,16 @@
     .sheet-bar .save.ready { color: #fff; background: #3a3a3c; }
     .sec { color: #8e8e93; font-size: 0.72rem; margin: 4px 4px 6px; }
     .pic-box { border-radius: 14px; background: #2c2c2e; padding: 12px; text-align: center; }
-    .pic-box .ph { height: 230px; display: grid; place-items: center; color: #636366; font-size: 0.8rem; border-radius: 10px; background: #232325 center top / cover no-repeat; }
+    .pic-box .ph { height: 200px; display: grid; place-items: center; color: #636366; font-size: 0.8rem; border-radius: 10px; background: #232325 center top / cover no-repeat; }
     .pic-box .ph.filled { color: transparent; background-image: url(/img/ticket-1.jpg); }
     .pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
     .pills span { padding: 6px 12px; border-radius: 999px; background: #3a3a3c; color: #a5b4fc; font-size: 0.76rem; font-weight: 600; }
     .pills .paste { background: #6366f1; color: #fff; }
-    .field { margin-top: 12px; border-radius: 12px; background: #2c2c2e; padding: 11px 12px; color: #636366; font-size: 0.82rem; }
+    .field-group { margin-top: 12px; border-radius: 12px; background: #2c2c2e; overflow: hidden; }
+    .field { padding: 11px 12px; color: #636366; font-size: 0.82rem; }
+    .field + .field { border-top: 1px solid #3a3a3c; min-height: 52px; }
     .field-note { color: #8e8e93; font-size: 0.68rem; margin: 6px 4px 0; }
-    .dots { display: flex; gap: 10px; margin-top: 12px; justify-content: center; }
+    .dots { display: flex; gap: 10px; margin-top: 2px; justify-content: center; padding: 10px; border-radius: 12px; background: #2c2c2e; }
     .dots i { width: 22px; height: 22px; border-radius: 50%; }
 
     /* Scene: purse stack */
@@ -258,6 +278,37 @@
     .action div + div { border-top: 1px solid #48484a; }
     .action small { color: #8e8e93; }
 
+    /* Scene: share one picture */
+    .share-btn { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.12); display: grid; place-items: center; transition: background 0.2s; }
+    .share-btn svg { width: 15px; height: 15px; }
+    .share-btn.press { background: rgba(255,255,255,0.35); }
+    .share-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #1c1c1e; border-radius: 22px 22px 0 0; padding: 14px 14px 30px; transform: translateY(105%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); z-index: 70; }
+    .share-sheet.show { transform: none; }
+    .ss-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #2c2c2e; }
+    .ss-thumb { width: 40px; height: 40px; border-radius: 8px; background: url(/img/ticket-2.jpg) center top / cover; }
+    .ss-head b { display: block; font-size: 0.8rem; }
+    .ss-head small { color: #8e8e93; font-size: 0.68rem; }
+    .ss-x { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: #2c2c2e; display: grid; place-items: center; color: #8e8e93; }
+    .ss-people, .ss-apps { display: flex; justify-content: space-between; padding: 14px 4px 0; }
+    .ss-people span, .ss-apps span { display: grid; justify-items: center; gap: 5px; font-size: 0.62rem; color: #d1d1d6; width: 25%; }
+    .ss-people i { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 700; color: #fff; font-size: 1rem; }
+    .app { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; transition: transform 0.15s; }
+    .app svg { width: 24px; height: 24px; }
+    .app.msg { background: linear-gradient(#5df07a, #22c55e); }
+    .app.mail { background: linear-gradient(#5ab0ff, #0a84ff); }
+    .app.air { background: linear-gradient(#68d4ff, #0ea5e9); }
+    .app.save { background: #3a3a3c; }
+    .app.press { transform: scale(0.88); }
+    .compose { position: absolute; inset: 0; background: #000; padding: 58px 14px 14px; opacity: 0; transition: opacity 0.4s; z-index: 75; }
+    .compose.show { opacity: 1; }
+    .cp-to { padding: 8px 4px 10px; border-bottom: 1px solid #2c2c2e; color: #8e8e93; font-size: 0.8rem; }
+    .cp-to b { color: #0a84ff; font-weight: 600; }
+    .cp-thread { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 18px; }
+    .cp-photo { width: 62%; aspect-ratio: 640 / 1300; max-height: 330px; border-radius: 16px; background: center top / cover; transform: translateY(30px) scale(0.9); opacity: 0; transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.4s; }
+    .compose.show .cp-photo { transform: none; opacity: 1; }
+    .cp-thread .bubble { margin: 0; }
+    .cp-meta { color: #8e8e93; font-size: 0.62rem; }
+
     /* Scene: Face ID lock */
     .s-lock { background: radial-gradient(60% 40% at 50% 35%, #1c1b2a, #000); display: grid; place-items: center; text-align: center; }
     .s-lock img { width: 74px; margin-bottom: 14px; }
@@ -283,16 +334,22 @@
     .uses-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
     .use { padding: 20px 22px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); transition: transform 0.25s, border-color 0.25s; }
     .use:hover { transform: translateY(-3px); border-color: rgba(129, 140, 248, 0.4); }
+    .uses-grid .use.reveal:not(.in) { transform: translateY(30px) scale(0.96); }
     .use .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); margin-right: 10px; }
     .use h3 { font-size: 1.05rem; display: inline; }
     .use p { color: var(--muted); margin: 8px 0 0; font-size: 0.95rem; }
 
     /* ---------- CTA + footer ---------- */
-    .cta { padding: 80px 0 60px; text-align: center; }
+    .cta { padding: 80px 0 60px; text-align: center; position: relative; overflow: hidden; }
+    .shower-coin { position: absolute; top: -60px; pointer-events: none; animation: fall linear forwards; }
+    @keyframes fall { to { transform: translateY(var(--d)) rotate(var(--r)); opacity: 0; } }
     .cta img { width: 110px; animation: float 6s ease-in-out infinite; }
     .cta h2 { margin: 18px 0 10px; }
     .cta .lead { margin: 0 auto 26px; }
     .note { color: var(--muted); font-size: 0.9rem; margin-top: 26px; }
+    .to-top { display: inline-flex; align-items: center; gap: 8px; margin-top: 34px; padding: 12px 20px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); font-weight: 600; text-decoration: none; transition: border-color 0.2s, transform 0.2s; }
+    .to-top:hover { border-color: rgba(129,140,248,0.5); transform: translateY(-2px); }
+    .to-top svg { width: 18px; height: 18px; }
     footer { border-top: 1px solid var(--line); padding: 26px 0 calc(26px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 0.9rem; }
     footer .wrap { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; }
     footer a { color: var(--muted); }
@@ -305,15 +362,18 @@
       .coin-stage { min-height: 340px; order: -1; }
       .brand { margin-bottom: 28px; }
       .uses-grid, .anatomy { grid-template-columns: 1fr 1fr; }
-      /* Story on phones: the iPhone pins to the top, chapters scroll beneath it. */
-      .story-grid { grid-template-columns: 1fr; gap: 0; }
-      .story-phone { height: 60vh; top: 0; z-index: 5; background: linear-gradient(var(--bg) 92%, transparent); padding: 8px 0 0; }
-      .chapters { padding: 0 0 25vh; }
-      .chapter { min-height: 70vh; align-items: flex-start; padding-top: 2vh; position: relative; z-index: 1; }
-      .chapter-card { padding: 20px; border-radius: 20px; background: rgba(19,18,27,0.94); border: 1px solid var(--line); }
-      .chapter h2 { font-size: 1.6rem; }
-      .chapter p { font-size: 1rem; }
-      .rail { display: none; }
+      /* Story on phones: the iPhone fills the top, the chapter text sits right under it. */
+      .stage { align-items: flex-start; }
+      .stage-grid, .story.flip .stage-grid { grid-template-columns: 1fr; gap: 0; }
+      .story-phone { height: 58svh; order: -1; padding-top: 10px; }
+      .stage-text { height: 36svh; margin-top: 10px; }
+      .chapter { justify-content: flex-start; padding-top: 4px; transform: translateY(24px); }
+      .chapter.past { transform: translateY(-24px); }
+      .chapter .count { margin-bottom: 8px; font-size: 0.75rem; }
+      .chapter h2 { font-size: 1.85rem; }
+      .chapter p { font-size: 0.98rem; margin-top: 10px; }
+      .progress { bottom: 14px; }
+      .progress i { width: 22px; }
     }
     @media (max-width: 560px) {
       .compare-grid, .uses-grid, .anatomy { grid-template-columns: 1fr; }
@@ -321,17 +381,21 @@
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
-      .reveal, .chapter-card { opacity: 1; transform: none; }
+      .reveal { opacity: 1; transform: none; }
+      .word { opacity: 1; transform: none; }
+      .drift-coin, .shower-coin { display: none; }
     }
   </style>
 </head>
-<body>
-  <header class="hero">
-    <div class="wrap">
+<body id="top">
+  <header class="hero" id="hero">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div id="drift" aria-hidden="true"></div>
+    <div class="wrap" style="position:relative">
       <div class="brand"><img src="/img/coin.png" alt="" />Coin Purse</div>
       <div class="hero-grid">
         <div>
-          <h1>Your wallet is for the dollars.<br /><span class="silver">This is for the small change.</span></h1>
+          <h1 id="headline"><span class="split">Your wallet is for the dollars.</span><br /><span class="silver split">This is for the small change.</span></h1>
           <p class="lead">The QR code for the conference.  The barcode on the back of a gift card.  The level you parked on at the airport.  Snap it, paste it, and pull it up in one tap.  Toss it when you are done, or keep it handy as long as you like.</p>
           <span class="badge">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 1.43c.06 1.08-.36 2.12-1.02 2.88-.7.8-1.82 1.42-2.930 1.33-.08-1.06.42-2.15 1.06-2.84.72-.79 1.95-1.37 2.89-1.37zM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.51-1.54.02-1.94-1-4.03-.99-2.09.01-2.53 1.01-4.07 1-1.73-.02-3.050-1.77-4.04-3.33C-.07 15.9-.36 11.06 1.3 8.52 2.48 6.71 4.34 5.65 6.09 5.65c1.78 0 2.9 1 4.37 1 1.43 0 2.3-1 4.36-1 1.56 0 3.21.85 4.38 2.31-3.85 2.11-3.22 7.6 1.3 9.14z"/></svg>
@@ -340,11 +404,13 @@
           <span class="sub-badge">Free.  No ads.  iPhone.</span>
         </div>
         <div class="coin-stage" aria-hidden="true">
-          <img class="coin" src="/img/coin.png" alt="" />
-          <span class="chip a"><i style="background:#22c55e"></i>Tailgate tickets · 2</span>
-          <span class="chip b"><i style="background:#f97316"></i>Coffee gift card</span>
-          <span class="chip c"><i style="background:#06b6d4"></i>Conference badge</span>
-          <span class="chip d"><i style="background:#ec4899"></i>Coin 7</span>
+          <div class="coin-3d" id="coin3d"><img class="coin" src="/img/coin.png" alt="" /></div>
+          <div class="orbit">
+            <span class="chip a"><i style="background:#22c55e"></i>Tailgate tickets · 2</span>
+            <span class="chip b"><i style="background:#f97316"></i>Coffee gift card</span>
+            <span class="chip c"><i style="background:#06b6d4"></i>Conference badge</span>
+            <span class="chip d"><i style="background:#ec4899"></i>Coin 7</span>
+          </div>
         </div>
       </div>
     </div>
@@ -370,12 +436,35 @@
     </div>
   </section>
 
-  <nav class="rail" id="rail" aria-hidden="true"></nav>
-
-  <section class="story" id="story">
-    <div class="wrap story-grid">
-      <div class="story-phone">
+  <section class="story" data-act="1">
+    <div class="stage">
+      <div class="wrap stage-grid">
+        <div class="stage-text">
+          <div class="chapter" data-step="photos">
+            <div class="count"><b>01</b> / 10</div>
+            <h2>Life hands you <em>small change</em>.</h2>
+            <p>The level you parked on.  The tailgate tickets.  The gift card in your drawer.  A link a friend texted you.  It all ends up buried in thousands of photos, or lost somewhere in your email.</p>
+          </div>
+          <div class="chapter" data-step="camera">
+            <div class="count"><b>02</b> / 10</div>
+            <h2><em>Snap</em> it.</h2>
+            <p>Take a photo right into Coin Purse: the garage sign, the back of a card, a note someone handed you.  It never clutters your photo library.</p>
+          </div>
+          <div class="chapter" data-step="paste">
+            <div class="count"><b>03</b> / 10</div>
+            <h2>Or <em>paste</em> it.</h2>
+            <p>Screenshot a ticket, an email or a web page, then tap Paste once.  No "Allow Paste" prompt and no typing.  Prefer an older photo?  Pick it from your library.</p>
+          </div>
+          <div class="chapter" data-step="arrive">
+            <div class="count"><b>04</b> / 10</div>
+            <h2>Now it is a <em>coin</em>.</h2>
+            <p>It lands at the front of your purse.  Skip the title and it is named Coin 5, Coin 6 and so on.  Add a name, a note or a color only when you want to.</p>
+          </div>
+        </div>
+        <div class="story-phone">
         <div class="phone-fit" id="phone-fit">
+          <div class="phone-glow" id="phone-glow"></div>
+          <div class="tilt" id="tilt">
           <div class="phone" aria-label="Coin Purse on an iPhone">
             <div class="screen">
               <div class="island"></div>
@@ -386,9 +475,9 @@
               </span></div>
 
               <!-- 1. Photo library clutter -->
-              <div class="scene s-photos" data-scene="photos">
-                <h4>Recents</h4><small>4,812 Photos · 1,207 Screenshots</small>
-                <div class="roll-wrap"><div class="roll" id="roll"></div></div>
+              <div class="scene s-pile" data-scene="photos">
+                <div class="pile-label">Screenshots · Photos · Emails · Texts</div>
+                <div class="pile" id="pile"></div>
               </div>
 
               <!-- 2. Camera -->
@@ -410,8 +499,9 @@
                     <div class="ph" id="paste-ph">No picture yet</div>
                     <div class="pills"><span class="paste">Paste</span><span>Photos</span><span>Camera</span></div>
                   </div>
-                  <div class="field">Title (optional)</div>
+                  <div class="field-group"><div class="field">Title (optional)</div><div class="field">Notes</div></div>
                   <div class="field-note">Leave the title blank and it is saved as Coin 5.</div>
+                  <div class="sec" style="margin-top:12px">Color</div>
                   <div class="dots"><i style="background:#6366f1;box-shadow:0 0 0 2px #fff"></i><i style="background:#06b6d4"></i><i style="background:#22c55e"></i><i style="background:#eab308"></i><i style="background:#f97316"></i><i style="background:#ec4899"></i></div>
                 </div>
               </div>
@@ -458,6 +548,37 @@
                 <div class="action" id="action"><div>Open Link <small>Safari</small></div><div>Copy Link <small>⌘</small></div><div>Share… <small>↑</small></div></div>
               </div>
 
+              <!-- Share one picture -->
+              <div class="scene s-viewer s-share" data-scene="share" id="share-scene">
+                <div class="dv-bar">
+                  <span class="back">‹</span>
+                  <div class="dv-title"><b>Tailgate tickets</b><span>2 of 2</span></div>
+                  <span class="share-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>
+                </div>
+                <div class="dv-track"><div class="dv-slides"><div class="dv-slide"><img src="/img/ticket-2.jpg" alt="Tailgate pass, ticket 2" /></div></div></div>
+                <div class="dv-thumbs"><i style="background-image:url(/img/ticket-1.jpg)"></i><i style="background-image:url(/img/ticket-2.jpg);border-color:#fff"></i></div>
+                <div class="share-sheet" id="share-sheet">
+                  <div class="ss-head"><span class="ss-thumb"></span><span><b>Photo</b><small>JPEG Image</small></span><span class="ss-x">×</span></div>
+                  <div class="ss-people">
+                    <span><i style="background:#f59e0b">S</i>Sam</span><span><i style="background:#10b981">M</i>Mom</span><span><i style="background:#6366f1">A</i>Alex</span><span><i style="background:#ec4899">J</i>Jordan</span>
+                  </div>
+                  <div class="ss-apps">
+                    <span><i class="app msg" id="ss-msg"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.6 3.4 6.1L4.6 21l4.2-2.2c1 .3 2.1.4 3.2.4 5.5 0 10-3.6 10-8S17.5 3 12 3z"/></svg></i>Messages</span>
+                    <span><i class="app mail"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></i>Mail</span>
+                    <span><i class="app air"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M8 16a5.6 5.6 0 1 1 8 0M5 19a9.9 9.9 0 1 1 14 0"/></svg></i>AirDrop</span>
+                    <span><i class="app save"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg></i>Save Image</span>
+                  </div>
+                </div>
+                <div class="compose" id="compose">
+                  <div class="cp-to">To: <b>Sam</b></div>
+                  <div class="cp-thread">
+                    <div class="cp-photo" style="background-image:url(/img/ticket-2.jpg)"></div>
+                    <div class="bubble me">Here is your ticket for Saturday!</div>
+                    <small class="cp-meta">Delivered</small>
+                  </div>
+                </div>
+              </div>
+
               <!-- 9. Face ID -->
               <div class="scene s-lock" data-scene="lock" id="lock">
                 <div>
@@ -474,56 +595,11 @@
               <div class="home-bar"></div>
             </div>
           </div>
+          </div>
         </div>
       </div>
-
-      <div class="chapters">
-        <div class="chapter" data-step="photos"><div class="chapter-card">
-          <span class="num">1</span>
-          <h2>Life hands you small change.</h2>
-          <p>The level you parked on.  The tailgate tickets.  The gift card in your drawer.  A link a friend texted you.  It all ends up buried in thousands of photos, or lost somewhere in your email.</p>
-        </div></div>
-        <div class="chapter" data-step="camera"><div class="chapter-card">
-          <span class="num">2</span>
-          <h2>Snap it.</h2>
-          <p>Take a photo right into Coin Purse: the garage sign, the back of a card, a note someone handed you.  It never clutters your photo library.</p>
-        </div></div>
-        <div class="chapter" data-step="paste"><div class="chapter-card">
-          <span class="num">3</span>
-          <h2>Or paste it.</h2>
-          <p>Screenshot a ticket, an email or a web page, then tap Paste once.  No "Allow Paste" prompt and no typing.  Prefer an older photo?  Pick it from your library.</p>
-        </div></div>
-        <div class="chapter" data-step="arrive"><div class="chapter-card">
-          <span class="num">4</span>
-          <h2>Now it is a coin.</h2>
-          <p>It lands at the front of your purse.  Skip the title and it is named Coin 5, Coin 6 and so on.  Add a name, a note or a color only when you want to.</p>
-        </div></div>
-        <div class="chapter" data-step="flip"><div class="chapter-card">
-          <span class="num">5</span>
-          <h2>Flip through your purse.</h2>
-          <p>Swipe the stack and the front coin goes to the back, like cards in a wallet.  Everything you saved is a flick away.</p>
-        </div></div>
-        <div class="chapter" data-step="open"><div class="chapter-card">
-          <span class="num">6</span>
-          <h2>One coin, both tickets.</h2>
-          <p>A coin holds up to six pictures.  Tap to open it full screen, ready to scan, and swipe to the next one.  Two tailgate tickets, one coin.</p>
-        </div></div>
-        <div class="chapter" data-step="text"><div class="chapter-card">
-          <span class="num">7</span>
-          <h2>Tap what you see.</h2>
-          <p>Coin Purse reads the text in your pictures right on your iPhone.  Tap a link to open it, an email address to write to it, a phone number to call.  Press and hold to copy a gift card code.</p>
-        </div></div>
-        <div class="chapter" data-step="toss"><div class="chapter-card">
-          <span class="num">8</span>
-          <h2>Toss it when you are done.</h2>
-          <p>Every coin has a trash can right on the card.  Back from the trip?  One tap and the parking photo is gone, without ever touching your camera roll.  Or keep a coin as long as you like.</p>
-        </div></div>
-        <div class="chapter" data-step="lock"><div class="chapter-card">
-          <span class="num">9</span>
-          <h2>Yours alone.</h2>
-          <p>Face ID unlocks the app.  Sign in once and stay signed in.  Your coins are private to your account, with no ads and no tracking.</p>
-        </div></div>
       </div>
+      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
     </div>
   </section>
 
@@ -543,6 +619,32 @@
     </div>
   </section>
 
+  <section class="story flip" data-act="2">
+    <div class="stage">
+      <div class="wrap stage-grid">
+        <div class="stage-text">
+          <div class="chapter" data-step="flip">
+            <div class="count"><b>05</b> / 10</div>
+            <h2><em>Flip</em> through your purse.</h2>
+            <p>Swipe the stack and the front coin goes to the back, like cards in a wallet.  Everything you saved is a flick away.</p>
+          </div>
+          <div class="chapter" data-step="open">
+            <div class="count"><b>06</b> / 10</div>
+            <h2>One coin, <em>both</em> tickets.</h2>
+            <p>A coin holds up to six pictures.  Tap to open it full screen, ready to scan, and swipe to the next one.  Two tailgate tickets, one coin.</p>
+          </div>
+          <div class="chapter" data-step="text">
+            <div class="count"><b>07</b> / 10</div>
+            <h2><em>Tap</em> what you see.</h2>
+            <p>Coin Purse reads the text in your pictures right on your iPhone.  Tap a link to open it, an email address to write to it, a phone number to call.  Press and hold to copy a gift card code.</p>
+          </div>
+        </div>
+        <div class="story-phone"></div>
+      </div>
+      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+    </div>
+  </section>
+
   <section class="uses">
     <div class="wrap">
       <div class="reveal">
@@ -553,30 +655,60 @@
         <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Conference badges</h3><p>Scan in at the door without digging through your email.</p></div>
         <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tailgate and event tickets</h3><p>Two QR codes, one coin.  Swipe between them at the gate.</p></div>
         <div class="use reveal" style="--c:#f97316"><span class="dot"></span><h3>Gift cards</h3><p>Snap the back of the card.  At checkout they scan the barcode, or you copy the number.</p></div>
-        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>A number to call</h3><p>Add a note like the airport shuttle number, then tap it to call.</p></div>
         <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Return labels</h3><p>Keep the return QR code ready for the drop-off counter.</p></div>
         <div class="use reveal" style="--c:#ec4899"><span class="dot"></span><h3>Where you parked</h3><p>Snap the level sign in the airport garage.  Delete it when you are home.</p></div>
         <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Links people text you</h3><p>Screenshot it now, tap the link later.</p></div>
-        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Someone's email address</h3><p>Grab it, send your email with one tap, then toss the coin.</p></div>
+        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tickets for friends</h3><p>Share the picture by text or email, right from the coin.</p></div>
+        <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Someone's email address</h3><p>Grab it, send your email with one tap, then toss the coin.</p></div>
         <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Grocery lists</h3><p>The handwritten list on the counter.  Snap it and go shopping.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="cta">
+  <section class="story" data-act="3">
+    <div class="stage">
+      <div class="wrap stage-grid">
+        <div class="stage-text">
+          <div class="chapter" data-step="share">
+            <div class="count"><b>08</b> / 10</div>
+            <h2><em>Share</em> it.</h2>
+            <p>Need to hand a friend their ticket?  Tap Share and send the picture by text or email, just like sharing a photo.  Only that one picture goes, nothing else.</p>
+          </div>
+          <div class="chapter" data-step="toss">
+            <div class="count"><b>09</b> / 10</div>
+            <h2><em>Toss</em> it when you are done.</h2>
+            <p>Every coin has a trash can right on the card.  Back from the trip?  One tap and the parking photo is gone, without ever touching your camera roll.  Or keep a coin as long as you like.</p>
+          </div>
+          <div class="chapter" data-step="lock">
+            <div class="count"><b>10</b> / 10</div>
+            <h2>Yours <em>alone</em>.</h2>
+            <p>Face ID unlocks the app.  Sign in once and stay signed in.  Your coins are private to your account, with no ads and no tracking.</p>
+          </div>
+        </div>
+        <div class="story-phone"></div>
+      </div>
+      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+    </div>
+  </section>
+
+  <section class="cta" id="cta">
     <div class="wrap reveal">
       <img src="/img/coin.png" alt="" />
       <h2>Keep the small change handy.</h2>
       <p class="lead">Coin Purse is coming soon to the App Store for iPhone.</p>
       <span class="badge">Coming soon to the App Store</span>
       <p class="note">Coin Purse is for everyday things.  Please do not store credit cards, IDs or passwords in it.</p>
+      <a href="#top" class="to-top" id="to-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Back to top</a>
     </div>
   </section>
+
+
+
 
   <footer>
     <div class="wrap">
       <span>© 2026 Yetignome</span>
-      <span><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a></span>
+      <span><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a> · <a href="#top" class="js-top">Back to top</a></span>
     </div>
   </footer>
 
@@ -595,21 +727,28 @@
         const s = Math.min(1, (box.height - pad) / 716, (box.width - 20) / 330);
         fit.style.width = 330 * s + 'px';
         fit.style.height = 716 * s + 'px';
+        phone.style.transformOrigin = '0 0';
         phone.style.transform = 'scale(' + s + ')';
       }
       sizePhone();
       addEventListener('resize', sizePhone);
 
-      // ---------- Camera roll clutter ----------
-      const roll = $('#roll');
-      const pics = ['/img/parking-2c.jpg', '/img/grocery-list.jpg', '/img/gift-card.jpg', '/img/ticket-1.jpg', '/img/conference-badge.jpg', '/img/return-label.jpg'];
-      const tints = ['#3b3a46', '#2f3a3a', '#463b35', '#35384a', '#40364a', '#2d3a46'];
-      for (let i = 0; i < 48; i++) {
-        const el = document.createElement('i');
-        if (i % 3 === 0 || i % 5 === 0) el.style.backgroundImage = 'url(' + pics[i % pics.length] + ')';
-        else el.style.backgroundColor = tints[i % tints.length];
-        roll.appendChild(el);
-      }
+      // ---------- The pile: every little thing, dropped in a heap ----------
+      const pile = $('#pile');
+      const heap = [
+        ['/img/ticket-1.jpg', 6, 4, -9], ['/img/parking-2c.jpg', 44, 0, 8], ['/img/gift-card.jpg', 2, 36, 6],
+        ['/img/conference-badge.jpg', 46, 30, -7], ['/img/grocery-list.jpg', 10, 62, 10], ['/img/return-label.jpg', 44, 60, -5],
+        ['/img/ticket-2.jpg', 26, 22, 3],
+      ].map(([src, x, y, r]) => {
+        const img = document.createElement('img');
+        img.src = src; img.alt = '';
+        img.style.left = x + '%'; img.style.top = y + '%';
+        img.dataset.rest = 'rotate(' + r + 'deg)';
+        img.style.transform = 'translateY(-140%) rotate(' + (r * 3) + 'deg)';
+        img.style.opacity = '0';
+        pile.appendChild(img);
+        return img;
+      });
 
       // ---------- Purse stack (each card has its trash can, like the app) ----------
       const TRASH = '<span class="mini-trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></span>';
@@ -671,6 +810,7 @@
         finger.classList.remove('show', 'press');
         $('#alert').classList.remove('show'); $('#dim').classList.remove('show');
         $('#action').classList.remove('show');
+        $('#share-sheet').classList.remove('show'); $('#compose').classList.remove('show');
         cards.forEach((el) => { el.classList.remove('gone'); el.style.transition = ''; });
         deck.classList.remove('reset');
       }
@@ -689,7 +829,19 @@
       const STACK = [TAILGATE, GIFT, RETURN, PARKING, GROCERY];
 
       const scenes = {
-        async photos() { show('photos'); },
+        async photos(my) {
+          show('photos');
+          for (;;) {
+            heap.forEach((img) => { img.style.transition = 'none'; img.style.opacity = '0'; img.style.transform = 'translateY(-140%) rotate(20deg)'; });
+            void pile.offsetWidth;
+            heap.forEach((img) => { img.style.transition = ''; });
+            for (const img of heap) {
+              await wait(320, my);
+              img.style.opacity = '1'; img.style.transform = img.dataset.rest;
+            }
+            await wait(4200, my);
+          }
+        },
         async camera(my) {
           show('camera');
           const shutter = $('#shutter'), flash = $('#flash'), toast = $('#cam-toast'), thumb = $('#cam-thumb');
@@ -771,6 +923,23 @@
             action.classList.remove('show'); finger.classList.remove('show'); await wait(1200, my);
           }
         },
+        async share(my) {
+          show('share');
+          const btn = document.querySelector('#share-scene .share-btn'), sheet = $('#share-sheet'), compose = $('#compose'), msg = $('#ss-msg');
+          for (;;) {
+            sheet.classList.remove('show'); compose.classList.remove('show');
+            await wait(1400, my);
+            put(88, 9); finger.classList.add('show'); await wait(800, my);
+            finger.classList.add('press'); btn.classList.add('press'); await wait(200, my);
+            finger.classList.remove('press'); btn.classList.remove('press');
+            sheet.classList.add('show'); await wait(1500, my);
+            put(16, 84); await wait(900, my);
+            finger.classList.add('press'); msg.classList.add('press'); await wait(200, my);
+            finger.classList.remove('press', 'show'); msg.classList.remove('press');
+            sheet.classList.remove('show'); compose.classList.add('show');
+            await wait(3400, my);
+          }
+        },
         async toss(my) {
           show('stack');
           const alert = $('#alert'), dim = $('#dim');
@@ -805,40 +974,133 @@
         try { await scenes[step](my); } catch (e) { if (e !== 'stop') throw e; }
       }
 
-      // ---------- Chapters drive the phone as you scroll ----------
-      const chapters = [...document.querySelectorAll('.chapter')];
-      const rail = $('#rail');
-      chapters.forEach(() => rail.appendChild(document.createElement('i')));
-      const still = { photos: 'photos', camera: 'camera', paste: 'paste', arrive: 'stack', flip: 'stack', open: 'viewer', text: 'text', toss: 'stack', lock: 'lock' };
-      let current = null;
-      let storyVisible = false;
-      function activate(ch) {
-        current = ch;
-        chapters.forEach((c, i) => {
-          c.classList.toggle('active', c === ch);
-          rail.children[i].classList.toggle('on', c === ch);
-        });
+      // ---------- Three story acts share one iPhone; scrolling inside an act plays its chapters ----------
+      const acts = [...document.querySelectorAll('.story')].map((el) => ({
+        el,
+        holder: el.querySelector('.story-phone'),
+        chapters: [...el.querySelectorAll('.chapter')],
+        bars: [...el.querySelectorAll('.progress b')],
+      }));
+      const PER = 0.85;   // viewport heights of scrolling per chapter
+      acts.forEach((a) => { a.el.style.height = 'calc(' + (a.chapters.length * PER * 100) + 'vh + 100vh)'; });
+      const still = { photos: 'photos', camera: 'camera', paste: 'paste', arrive: 'stack', flip: 'stack', open: 'viewer', text: 'text', share: 'share', toss: 'stack', lock: 'lock' };
+      const glow = { photos: '#64748b', camera: '#facc15', paste: '#818cf8', arrive: '#22c55e', flip: '#06b6d4', open: '#22c55e', text: '#0a84ff', share: '#22c55e', toss: '#ef4444', lock: '#a78bfa' };
+      let currentAct = null, current = -1;
+      function activate(act, i) {
+        current = i;
+        const ch = act.chapters[i];
+        act.chapters.forEach((c, n) => { c.classList.toggle('active', n === i); c.classList.toggle('past', n < i); });
+        $('#phone-glow').style.setProperty('--glow', glow[ch.dataset.step]);
         if (reduce) {
           setOrder(STACK); show(still[ch.dataset.step]);
           $('#text-scene').classList.add('live'); $('#paste-ph').classList.add('filled');
+          heap.forEach((img) => { img.style.opacity = '1'; img.style.transform = img.dataset.rest; });
           return;
         }
-        if (storyVisible) play(ch.dataset.step);
+        play(ch.dataset.step);
       }
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach((e) => { if (e.isIntersecting && e.target !== current) activate(e.target); });
-      }, { rootMargin: '-45% 0px -45% 0px' });
-      chapters.forEach((c) => io.observe(c));
-      // Only animate (and show the progress rail) while the story is on screen.
-      new IntersectionObserver((entries) => {
-        storyVisible = entries[0].isIntersecting;
-        rail.classList.toggle('show', storyVisible);
-        if (!storyVisible) run++;
-        else if (current && !reduce) play(current.dataset.step);
-      }, { threshold: 0.02 }).observe($('#story'));
+      function onScroll() {
+        // The act covering the middle of the screen owns the phone.
+        const mid = innerHeight / 2;
+        const act = acts.find((a) => { const r = a.el.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
+        if (act !== currentAct) {
+          currentAct = act; current = -1;
+          if (!act) { run++; return; }
+          if (fit.parentElement !== act.holder) { act.holder.appendChild(fit); sizePhone(); }
+        }
+        if (!act) return;
+        const r = act.el.getBoundingClientRect();
+        const span = act.el.offsetHeight - innerHeight;
+        const p = Math.min(0.9999, Math.max(0, -r.top / span));
+        const pos = p * act.chapters.length;
+        act.bars.forEach((b, i) => { b.style.width = Math.min(1, Math.max(0, pos - i)) * 100 + '%'; });
+        const i = Math.floor(pos);
+        if (i !== current) activate(act, i);
+      }
+      addEventListener('scroll', onScroll, { passive: true });
+      addEventListener('resize', onScroll);
       setOrder(STACK);
       show('photos');
-      activate(chapters[0]);
+      onScroll();
+
+      // ---------- Hero: words, drifting coins, 3D coin that flips as you scroll ----------
+      document.querySelectorAll('#headline .split').forEach((el, line) => {
+        const words = el.textContent.split(' ');
+        el.textContent = '';
+        words.forEach((w, i) => {
+          const span = document.createElement('span');
+          span.className = 'word';
+          span.textContent = w;
+          span.style.animationDelay = (0.15 + line * 0.45 + i * 0.07) + 's';
+          el.appendChild(span);
+          if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+        });
+      });
+      if (!reduce) {
+        const drift = $('#drift');
+        for (let i = 0; i < 14; i++) {
+          const img = document.createElement('img');
+          img.src = '/img/coin.png'; img.alt = ''; img.className = 'drift-coin';
+          const size = 14 + Math.random() * 46;
+          img.style.width = size + 'px';
+          img.style.left = Math.random() * 100 + '%';
+          img.style.filter = 'blur(' + (size < 26 ? 2 : size < 40 ? 1 : 0) + 'px)';
+          img.style.setProperty('--o', (0.15 + size / 120).toFixed(2));
+          img.style.setProperty('--r', (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 360) + 'deg');
+          img.style.animationDuration = (14 + Math.random() * 16) + 's';
+          img.style.animationDelay = (-Math.random() * 25) + 's';
+          drift.appendChild(img);
+        }
+        const coin3d = $('#coin3d'), hero = $('#hero');
+        let mx = 0, my = 0;
+        addEventListener('pointermove', (e) => {
+          mx = (e.clientX / innerWidth - 0.5) * 2; my = (e.clientY / innerHeight - 0.5) * 2;
+        });
+        // The coin tilts toward the mouse, then flips and spins away as you scroll past.
+        (function frame() {
+          const p = Math.min(1, Math.max(0, scrollY / (hero.offsetHeight * 0.9)));
+          coin3d.style.transform =
+            'translateY(' + (p * 120) + 'px) scale(' + (1 - p * 0.35) + ') ' +
+            'rotateY(' + (mx * 18 + p * 540) + 'deg) rotateX(' + (-my * 14) + 'deg)';
+          coin3d.style.opacity = String(1 - p * 0.8);
+          requestAnimationFrame(frame);
+        })();
+        // The pinned iPhone leans gently toward the mouse.
+        const tilt = $('#tilt');
+        addEventListener('pointermove', () => {
+          if (innerWidth > 860) tilt.style.transform = 'rotateY(' + (mx * 6) + 'deg) rotateX(' + (-my * 4) + 'deg)';
+        });
+      }
+
+      // ---------- Coin shower when the last section arrives ----------
+      let showered = false;
+      new IntersectionObserver((entries) => {
+        if (reduce || showered || !entries[0].isIntersecting) return;
+        showered = true;
+        const cta = $('#cta');
+        for (let i = 0; i < 34; i++) {
+          const img = document.createElement('img');
+          img.src = '/img/coin.png'; img.alt = ''; img.className = 'shower-coin';
+          const size = 18 + Math.random() * 34;
+          img.style.width = size + 'px';
+          img.style.left = Math.random() * 100 + '%';
+          img.style.setProperty('--d', (cta.offsetHeight + 120) + 'px');
+          img.style.setProperty('--r', (Math.random() > 0.5 ? 1 : -1) * (200 + Math.random() * 500) + 'deg');
+          img.style.animationDuration = (1.6 + Math.random() * 1.8) + 's';
+          img.style.animationDelay = (Math.random() * 1.4) + 's';
+          cta.appendChild(img);
+          setTimeout(() => img.remove(), 5000);
+        }
+      }, { threshold: 0.4 }).observe($('#cta'));
+
+      // Back to top: a smooth ride up through the whole story.
+      document.querySelectorAll('#to-top, .js-top').forEach((a) => a.addEventListener('click', (e) => {
+        e.preventDefault();
+        scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      }));
+
+      // Stagger the tiles in the uses grid.
+      document.querySelectorAll('.uses-grid .use').forEach((el, i) => { el.style.transitionDelay = (i % 3) * 0.08 + Math.floor(i / 3) * 0.06 + 's'; });
 
       // ---------- Fade the static sections in ----------
       const fade = new IntersectionObserver((entries) => {
