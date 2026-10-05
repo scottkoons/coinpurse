@@ -21,9 +21,13 @@ struct SignInView: View {
                 .accessibilityHidden(true)
             Text("Coin Purse")
                 .font(.largeTitle.bold())
-            Text("For the quick stuff: QR codes, passes and cards.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 4) {
+                Text("A simple app for simple things.")
+                    .font(.headline)
+                Text("Snap it.  Find it.  Toss it.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Text(sentTo == nil
                  ? "Sign in with your email. We will send you a 6-digit code."
                  : "Enter the 6-digit code we sent to \(sentTo ?? "").")

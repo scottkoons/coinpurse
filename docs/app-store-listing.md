@@ -2,13 +2,15 @@
 
 **Name (30 max):** Coin Purse: QR Codes & Passes
 
-**Subtitle (30 max):** Quick access to the little things
+**Subtitle (30 max):** A simple app for simple things
 
 **Category:** Productivity (secondary: Utilities)
 
 **Price:** Free.  No ads, no in-app purchases.
 
 ## Description
+
+A simple app for simple things.  Snap it.  Find it.  Toss it.
 
 Your wallet is for the dollars.  Coin Purse is for the small change.
 
