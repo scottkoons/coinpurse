@@ -172,7 +172,11 @@
     .dv-track { flex: 1; position: relative; overflow: hidden; }
     .dv-slides { position: absolute; inset: 0; display: flex; transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
     .demo.second .dv-slides { transform: translateX(-100%); }
-    .dv-slide { flex: 0 0 100%; display: grid; place-items: center; padding: 10px 18px; }
+    .dv-slide { flex: 0 0 100%; display: grid; place-items: center; padding: 6px 16px; min-height: 0; }
+    .dv-slide img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 16px 30px rgba(0,0,0,0.5); }
+    .dv-track { min-height: 0; }
+    .mini-body.photo { padding: 0; background: #f2f2f7; overflow: hidden; display: block; }
+    .mini-body.photo img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
     .ticket { width: 100%; max-width: 240px; border-radius: 14px; background: #fff; color: #111; overflow: hidden; box-shadow: 0 16px 30px rgba(0,0,0,0.5); }
     .ticket-head { background: #16a34a; color: #fff; padding: 12px 14px; }
     .ticket-head b { display: block; font-size: 1rem; letter-spacing: 0.04em; }
@@ -181,7 +185,9 @@
     .ticket-body .art-qr { width: 110px; height: 110px; }
     .ticket-body small { font-weight: 700; font-size: 0.8rem; }
     .dv-thumbs { display: flex; gap: 8px; justify-content: center; padding: 12px 0 22px; }
-    .dv-thumbs i { width: 34px; height: 34px; border-radius: 8px; background: #e9f7ee; border: 2px solid transparent; }
+    .dv-thumbs i { width: 34px; height: 34px; border-radius: 8px; background: #f2f2f7 center top / cover; border: 2px solid transparent; }
+    .dv-thumbs i:first-child { background-image: url(/img/ticket-1.jpg); }
+    .dv-thumbs i:nth-child(2) { background-image: url(/img/ticket-2.jpg); }
     .dv-thumbs i.on { border-color: #fff; }
     .demo.second .dv-thumbs i:first-child { border-color: transparent; }
     .demo.second .dv-thumbs i:nth-child(2) { border-color: #fff; }
@@ -361,8 +367,8 @@
                 </div>
                 <div class="dv-track">
                   <div class="dv-slides">
-                    <div class="dv-slide"><div class="ticket"><div class="ticket-head"><b>TAILGATE PASS</b><span>Saturday · Lot C</span></div><div class="ticket-body"><div class="art-qr"></div><small>Ticket 1 · Admit one</small></div></div></div>
-                    <div class="dv-slide"><div class="ticket"><div class="ticket-head"><b>TAILGATE PASS</b><span>Saturday · Lot C</span></div><div class="ticket-body"><div class="art-qr" style="transform:rotate(90deg)"></div><small>Ticket 2 · Admit one</small></div></div></div>
+                    <div class="dv-slide"><img src="/img/ticket-1.jpg" alt="Tailgate pass, ticket 1 of 2" /></div>
+                    <div class="dv-slide"><img src="/img/ticket-2.jpg" alt="Tailgate pass, ticket 2 of 2" /></div>
                   </div>
                 </div>
                 <div class="dv-thumbs"><i class="on"></i><i></i></div>
@@ -504,7 +510,7 @@
   <script>
     // Example coins for the animated stack (front card first).
     const coins = [
-      { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, art: '#e9f7ee', body: '<div class="art-qr"></div>' },
+      { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, art: '#f2f2f7', photo: '/img/ticket-1.jpg' },
       { t: 'Haircut card', s: 'Card # 4821 0937', c: '#f97316', art: '#fff4ea', body: '<div><div class="art-bars"></div><div class="art-text" style="margin-top:10px">A7K3 9Q2M</div></div>' },
       { t: 'Airport parking', s: 'Long-term lot', c: '#ec4899', art: '#fde8f2', body: '<div><div class="art-big">G 12</div><div class="art-text">Row G · Space 12</div></div>' },
       { t: 'Conference badge', s: 'DevConf 2026', c: '#06b6d4', art: '#e6f8fc', body: '<div class="art-qr"></div>' },
@@ -520,7 +526,7 @@
       el.innerHTML =
         '<div class="mini-head"><div class="mini-thumb">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
         '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
-        '<div class="mini-body">' + c.body + '</div>';
+        (c.photo ? '<div class="mini-body photo"><img src="' + c.photo + '" alt="" /></div>' : '<div class="mini-body">' + c.body + '</div>');
       deck.appendChild(el);
       return el;
     });
@@ -573,7 +579,7 @@
         el.style.height = c.front ? '370px' : '64px';
         el.innerHTML = '<div class="mini-head"><div class="mini-thumb">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
           '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
-          (c.front ? '<div class="mini-body"><div class="art-qr"></div></div>' : '');
+          (c.front ? '<div class="mini-body photo"><img src="/img/ticket-1.jpg" alt="" /></div>' : '');
         deckEl.appendChild(el);
         y += 52;
       });
