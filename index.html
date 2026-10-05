@@ -141,7 +141,8 @@
       overflow: hidden;
     }
     .mini-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 12px; }
-    .mini-thumb { width: 32px; height: 32px; border-radius: 7px; background: var(--c); opacity: 0.85; display: grid; place-items: center; font-size: 0.7rem; font-weight: 800; color: #0b0a10; position: relative; }
+    .mini-thumb { width: 32px; height: 32px; border-radius: 7px; background: #2a2933 center / cover; position: relative; flex: 0 0 32px; }
+    .mini-sub u { color: var(--accent); text-underline-offset: 2px; }
     .mini-count { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--c); color: #fff; font-size: 0.6rem; display: grid; place-items: center; border: 2px solid #1a1a22; }
     .mini-title { font-weight: 700; font-size: 0.86rem; }
     .mini-sub { color: var(--muted); font-size: 0.68rem; }
@@ -244,7 +245,7 @@
     .livetext { width: 100%; max-width: 360px; border-radius: 14px; background: #f3f3f5; color: #111; padding: 18px; font-size: 0.95rem; line-height: 1.7; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
     .livetext .hl { color: #2563eb; text-decoration: underline; text-underline-offset: 3px; background: rgba(37, 99, 235, 0.1); border-radius: 4px; padding: 0 3px; }
     .roll { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 340px; }
-    .roll span { aspect-ratio: 1; border-radius: 8px; background: #2a2933; }
+    .roll span { aspect-ratio: 1; border-radius: 8px; background: #2a2933 center / cover; }
     .roll span.gone { background: transparent; border: 1px dashed rgba(255, 255, 255, 0.18); }
     .lock { text-align: center; }
     .lock .face { width: 96px; height: 96px; margin: 0 auto 14px; border-radius: 26px; display: grid; place-items: center; background: rgba(129, 140, 248, 0.14); color: var(--accent); }
@@ -290,7 +291,7 @@
       <div class="hero-grid">
         <div>
           <h1>Your wallet is for the dollars.<br /><span class="silver">This is for the small change.</span></h1>
-          <p class="lead">The QR code for the conference.  The barcode on your haircut card.  The row you parked in at the airport.  Snap it, paste it, and pull it up in one tap.  Toss it when you are done, or keep it handy as long as you like.</p>
+          <p class="lead">The QR code for the conference.  The barcode on the back of a gift card.  The level you parked on at the airport.  Snap it, paste it, and pull it up in one tap.  Toss it when you are done, or keep it handy as long as you like.</p>
           <span class="badge">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 1.43c.06 1.08-.36 2.12-1.02 2.88-.7.8-1.82 1.42-2.93 1.33-.08-1.06.42-2.15 1.06-2.84.72-.79 1.95-1.37 2.89-1.37zM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.51-1.54.02-1.94-1-4.03-.99-2.09.01-2.53 1.01-4.07 1-1.73-.02-3.05-1.77-4.04-3.33C-.07 15.9-.36 11.06 1.3 8.52 2.48 6.71 4.34 5.65 6.09 5.65c1.78 0 2.9 1 4.37 1 1.43 0 2.3-1 4.36-1 1.56 0 3.21.85 4.38 2.31-3.85 2.11-3.22 7.6 1.3 9.14z"/></svg>
             Coming soon to the App Store
@@ -300,7 +301,7 @@
         <div class="coin-stage" aria-hidden="true">
           <img class="coin" src="/img/coin.png" alt="" />
           <span class="chip a"><i style="background:#22c55e"></i>Tailgate tickets · 2</span>
-          <span class="chip b"><i style="background:#f97316"></i>Haircut card</span>
+          <span class="chip b"><i style="background:#f97316"></i>Coffee gift card</span>
           <span class="chip c"><i style="background:#06b6d4"></i>Conference badge</span>
           <span class="chip d"><i style="background:#ec4899"></i>Coin 7</span>
         </div>
@@ -316,12 +317,12 @@
         <div class="compare-card">
           <div class="big">$</div>
           <h3>Apple Wallet</h3>
-          <p>Boarding passes, credit cards, IDs.  Valuable, official and locked down.  Setting something up there takes effort, and much of what you need to show cannot go there at all.</p>
+          <p>Boarding passes, credit cards, IDs.  Apple Wallet is built for secure, official things, and it is great at them.  But you cannot just drop a snapshot into it, and it is not meant for that.</p>
         </div>
         <div class="compare-card purse">
           <div class="big">¢</div>
           <h3>Coin Purse</h3>
-          <p>Everything else.  The little things you need to remember or produce quickly, that do not need a vault.  It takes one tap to add, and one tap to toss.</p>
+          <p>Everything else.  Snap a photo or paste a screenshot of the little things you need to remember or show quickly, the ones that do not need a vault.  One tap to add, one tap to toss.</p>
         </div>
       </div>
     </div>
@@ -433,13 +434,13 @@
       <div class="uses-grid">
         <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Conference badges</h3><p>Scan in at the door without digging through your email.</p></div>
         <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tailgate and event tickets</h3><p>Two QR codes, one coin.  Swipe between them at the gate.</p></div>
-        <div class="use reveal" style="--c:#f97316"><span class="dot"></span><h3>Loyalty and punch cards</h3><p>Forgot the haircut card?  Show the barcode and they scan or type it in.</p></div>
-        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Gift card codes</h3><p>Paste the code from the app or website and copy it when you check out.</p></div>
+        <div class="use reveal" style="--c:#f97316"><span class="dot"></span><h3>Gift cards</h3><p>Snap the back of the card.  At checkout they scan the barcode, or you copy the number.</p></div>
+        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>A number to call</h3><p>Add a note like the airport shuttle number, then tap it to call.</p></div>
         <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Return labels</h3><p>Keep the return QR code ready for the drop-off counter.</p></div>
-        <div class="use reveal" style="--c:#ec4899"><span class="dot"></span><h3>Where you parked</h3><p>Snap the row at the airport lot.  Delete it when you are home.</p></div>
+        <div class="use reveal" style="--c:#ec4899"><span class="dot"></span><h3>Where you parked</h3><p>Snap the level sign in the airport garage.  Delete it when you are home.</p></div>
         <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Links people text you</h3><p>Screenshot it now, tap the link later.</p></div>
         <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Someone's email address</h3><p>Grab it, send your email with one tap, then toss the coin.</p></div>
-        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Handwritten lists</h3><p>The shopping list on a card, the to-do note on the fridge.  Snap it and go.</p></div>
+        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Grocery lists</h3><p>The handwritten list on the counter.  Snap it and go shopping.</p></div>
       </div>
     </div>
   </section>
@@ -464,8 +465,8 @@
       <div class="row reveal">
         <div class="visual">
           <div class="roll" aria-hidden="true">
-            <span></span><span></span><span class="gone"></span><span></span>
-            <span class="gone"></span><span></span><span></span><span class="gone"></span>
+            <span style="background-image:url(/img/parking-2c.jpg)"></span><span></span><span class="gone"></span><span style="background-image:url(/img/grocery-list.jpg)"></span>
+            <span class="gone"></span><span></span><span style="background-image:url(/img/gift-card.jpg)"></span><span class="gone"></span>
           </div>
         </div>
         <div>
@@ -510,12 +511,19 @@
   <script>
     // Example coins for the animated stack (front card first).
     const coins = [
-      { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, art: '#f2f2f7', photo: '/img/ticket-1.jpg' },
-      { t: 'Haircut card', s: 'Card # 4821 0937', c: '#f97316', art: '#fff4ea', body: '<div><div class="art-bars"></div><div class="art-text" style="margin-top:10px">A7K3 9Q2M</div></div>' },
-      { t: 'Airport parking', s: 'Long-term lot', c: '#ec4899', art: '#fde8f2', body: '<div><div class="art-big">G 12</div><div class="art-text">Row G · Space 12</div></div>' },
-      { t: 'Conference badge', s: 'DevConf 2026', c: '#06b6d4', art: '#e6f8fc', body: '<div class="art-qr"></div>' },
-      { t: 'Coin 4', s: 'Shopping list', c: '#eab308', art: '#fff9e0', body: '<div class="art-text" style="text-align:left">eggs<br>coffee<br>lemons<br>birthday card</div>' },
+      { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, photo: '/img/ticket-1.jpg', pos: 'top' },
+      { t: 'Coffee gift card', s: 'Sunrise Coffee · $25', c: '#f97316', photo: '/img/gift-card.jpg', pos: 'center' },
+      { t: 'Parking 2C', s: 'Shuttle <u>(719) 555-0142</u>', c: '#ec4899', photo: '/img/parking-2c.jpg', pos: 'center' },
+      { t: 'Conference badge', s: 'DevSummit 2026', c: '#06b6d4', photo: '/img/conference-badge.jpg', pos: 'top' },
+      { t: 'Coin 4', s: 'Groceries', c: '#eab308', photo: '/img/grocery-list.jpg', pos: 'center' },
     ];
+    // One example coin card: thumbnail with picture count, title, note, picture.
+    function miniCard(c) {
+      return '<div class="mini-head"><div class="mini-thumb" style="background-image:url(' + c.photo + ')">' +
+        (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
+        '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
+        '<div class="mini-body photo"><img src="' + c.photo + '" alt="" style="object-position:' + (c.pos || 'center') + '" /></div>';
+    }
     const deck = document.getElementById('deck');
     const PEEK = 52;
     const cards = coins.map((c) => {
@@ -523,10 +531,7 @@
       el.className = 'mini';
       el.style.setProperty('--c', c.c);
       el.style.setProperty('--art', c.art);
-      el.innerHTML =
-        '<div class="mini-head"><div class="mini-thumb">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
-        '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
-        (c.photo ? '<div class="mini-body photo"><img src="' + c.photo + '" alt="" /></div>' : '<div class="mini-body">' + c.body + '</div>');
+      el.innerHTML = miniCard(c);
       deck.appendChild(el);
       return el;
     });
@@ -564,22 +569,19 @@
       const count = document.getElementById('dv-count');
       const steps = [...document.querySelectorAll('#demo-steps li')];
       const items = [
-        { t: 'Return label', s: 'Drop off by Friday', c: '#6366f1' },
-        { t: 'Haircut card', s: 'Card # 4821 0937', c: '#f97316' },
-        { t: 'Coin 4', s: 'Shopping list', c: '#eab308' },
-        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, front: true },
+        { t: 'Return label', s: 'Return by Oct 24', c: '#6366f1', photo: '/img/return-label.jpg', pos: 'top' },
+        { t: 'Coffee gift card', s: 'Sunrise Coffee · $25', c: '#f97316', photo: '/img/gift-card.jpg' },
+        { t: 'Coin 4', s: 'Groceries', c: '#eab308', photo: '/img/grocery-list.jpg' },
+        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, front: true, photo: '/img/ticket-1.jpg', pos: 'top' },
       ];
       let y = 0;
       items.forEach((c) => {
         const el = document.createElement('div');
         el.className = 'mini';
         el.style.setProperty('--c', c.c);
-        el.style.setProperty('--art', '#e9f7ee');
         el.style.transform = 'translateY(' + y + 'px)';
         el.style.height = c.front ? '370px' : '64px';
-        el.innerHTML = '<div class="mini-head"><div class="mini-thumb">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
-          '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
-          (c.front ? '<div class="mini-body photo"><img src="/img/ticket-1.jpg" alt="" /></div>' : '');
+        el.innerHTML = miniCard(c);
         deckEl.appendChild(el);
         y += 52;
       });
