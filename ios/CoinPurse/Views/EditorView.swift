@@ -39,6 +39,13 @@ struct EditorView: View {
         NavigationStack {
             Form {
                 Section {
+                    mainPicture
+                } header: {
+                    Text("Picture")
+                } footer: {
+                    Text("Copy a screenshot or image in any app and Paste lights up. Or choose from Photos.")
+                }
+                Section {
                     TextField("Title", text: $title)
                         .accessibilityIdentifier("titleField")
                         .focused($titleFocused)
@@ -48,13 +55,6 @@ struct EditorView: View {
                 }
                 Section("Color") {
                     accentPicker
-                }
-                Section {
-                    mainPicture
-                } header: {
-                    Text("Picture")
-                } footer: {
-                    Text("Copy a screenshot or image, then tap Paste.")
                 }
                 if hasMain {
                     Section {
@@ -144,14 +144,17 @@ struct EditorView: View {
                 } else if let first = existing?.pictures.first, first.isPrimary {
                     CachedImage(picture: first)
                 } else {
-                    Image(systemName: "photo.badge.plus")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.title)
+                        Text("No picture yet")
+                            .font(.subheadline)
+                    }
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, minHeight: 90)
                 }
             }
             .frame(maxHeight: 240)
-            .frame(minHeight: 120)
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             PictureSourceButtons { data in stage(data, asMain: true) }
@@ -164,6 +167,7 @@ struct EditorView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
     }
 
@@ -223,8 +227,8 @@ struct EditorView: View {
             notes = coin.notes
             accent = coin.accent
         } else {
+            // No keyboard yet: the Paste button is the first thing to see.
             accent = model.suggestedAccent()
-            titleFocused = true
         }
     }
 

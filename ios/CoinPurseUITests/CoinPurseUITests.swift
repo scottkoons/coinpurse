@@ -43,6 +43,8 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Add your first coin"].tap()
         let title = app.textFields["titleField"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
+        snap("2a-editor-empty")
+        title.tap()
         title.typeText("Conference badge")
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5), "pasted picture did not appear")
@@ -50,8 +52,11 @@ final class CoinPurseUITests: XCTestCase {
 
         // Add an extra picture through "+" (Paste again).
         UIPasteboard.general.image = Self.sample(color: .systemPink, label: "Back")
-        app.buttons["Add picture"].firstMatch.tap()
+        let addPicture = app.buttons["Add picture"].firstMatch
+        if !addPicture.waitForExistence(timeout: 2) { app.swipeUp() }
+        addPicture.tap()
         tapPaste()
+        snap("2b-editor-extras")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.otherElements["frontCard"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["2 pictures · Tap to open"].waitForExistence(timeout: 5))
@@ -64,6 +69,7 @@ final class CoinPurseUITests: XCTestCase {
             dump("tree-add-coin")
             XCTFail("editor did not open")
         }
+        title.tap()
         title.typeText("Haircut card")
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5))

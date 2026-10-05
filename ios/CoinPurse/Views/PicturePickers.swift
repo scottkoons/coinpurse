@@ -39,7 +39,9 @@ struct PictureSourceButtons: View {
     @State private var loading = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 10) {
+            // Apple's secure Paste control: one tap, no "Allow Paste" prompt.
+            // iOS dims it by itself until the clipboard holds a picture.
             PasteButton(supportedContentTypes: [.image]) { providers in
                 Task { await deliver(await PictureLoader.data(from: providers)) }
             }
@@ -47,21 +49,27 @@ struct PictureSourceButtons: View {
             .buttonBorderShape(.capsule)
             .tint(.accentColor)
 
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Photos", systemImage: "photo.on.rectangle")
+            HStack(spacing: 10) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                        .lineLimit(1)
+                }
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button { showCamera = true } label: {
+                        Label("Camera", systemImage: "camera")
+                            .lineLimit(1)
+                    }
+                }
             }
+            // Same compact pill shape as Paste, which iOS sizes itself.
+            .labelStyle(.titleAndIcon)
             .buttonStyle(.bordered)
             .buttonBorderShape(.capsule)
+            .fixedSize()
 
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button { showCamera = true } label: {
-                    Label("Camera", systemImage: "camera")
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-            }
             if loading { ProgressView() }
         }
+        .frame(maxWidth: .infinity)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             photoItem = nil
