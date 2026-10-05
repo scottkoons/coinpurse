@@ -2,14 +2,17 @@ import SwiftUI
 import UIKit
 
 /// Pinch to zoom, double-tap to zoom in or out, pan while zoomed.
+/// A single tap on the empty space around the picture calls `onTapOutside`.
 struct ZoomableImage: UIViewRepresentable {
     let image: UIImage
+    var onTapOutside: () -> Void = {}
 
     func makeUIView(context: Context) -> ZoomScrollView {
         ZoomScrollView()
     }
 
     func updateUIView(_ view: ZoomScrollView, context: Context) {
+        view.onTapOutside = onTapOutside
         view.display(image)
     }
 }
@@ -17,6 +20,7 @@ struct ZoomableImage: UIViewRepresentable {
 final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
     private let imageView = UIImageView()
     private var shown: UIImage?
+    var onTapOutside: () -> Void = {}
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -33,6 +37,24 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
         doubleTap.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTap)
+        let singleTap = UITapGestureRecognizer(target: self, action: #selector(singleTapped(_:)))
+        singleTap.require(toFail: doubleTap)
+        addGestureRecognizer(singleTap)
+    }
+
+    /// Where the picture actually shows inside the image view (aspect fit).
+    private var pictureFrame: CGRect {
+        guard let size = imageView.image?.size, size.width > 0, size.height > 0 else { return .zero }
+        let box = imageView.bounds
+        let scale = min(box.width / size.width, box.height / size.height)
+        let w = size.width * scale, h = size.height * scale
+        return CGRect(x: (box.width - w) / 2, y: (box.height - h) / 2, width: w, height: h)
+    }
+
+    @objc private func singleTapped(_ g: UITapGestureRecognizer) {
+        // Only when not zoomed: a tap on the black space closes the coin.
+        guard zoomScale <= 1.01, !pictureFrame.contains(g.location(in: imageView)) else { return }
+        onTapOutside()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
