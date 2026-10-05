@@ -85,7 +85,7 @@ struct LockView: View {
             Image(systemName: "lock.fill")
                 .font(.system(size: 44))
                 .foregroundStyle(Color.accentColor)
-            Text("CoinPurse is locked")
+            Text("Coin Purse is locked")
                 .font(.title3.bold())
             Button {
                 Task { await lock.unlock() }

@@ -1,12 +1,12 @@
 /* CoinPurse service worker — cache app shell for offline use of saved UI.
    Pass images live in IndexedDB on the device and do not go through the network. */
 // Bump this and the ?v= numbers in index.html together on every release.
-const CACHE = 'coinpurse-v163';
+const CACHE = 'coinpurse-v164';
 const SHELL = [
   './',
   './index.html',
-  './styles.css?v=163',
-  './app.js?v=163',
+  './styles.css?v=164',
+  './app.js?v=164',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',

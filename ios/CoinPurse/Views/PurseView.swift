@@ -29,7 +29,7 @@ struct PurseView: View {
                     deck
                 }
             }
-            .navigationTitle("CoinPurse")
+            .navigationTitle("Coin Purse")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAccount = true } label: {
@@ -206,7 +206,7 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Purse is empty")
                 .font(.title2.bold())
-            Text("Drop in conference QR codes, haircut cards and other passes. They sync with the CoinPurse website.")
+            Text("Drop in conference QR codes, haircut cards and other passes. They sync with the Coin Purse website.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Button {

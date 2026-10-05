@@ -49,7 +49,7 @@ final class AppModel {
     func verifyCode(email: String, code: String) async throws {
         let result = try await APIClient().verifyCode(email: email, code: code)
         guard let newToken = result.token else {
-            throw APIError.server("Please update the CoinPurse server, then try again.")
+            throw APIError.server("Please update the Coin Purse server, then try again.")
         }
         Keychain.saveToken(newToken)
         token = newToken
