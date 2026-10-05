@@ -1,7 +1,7 @@
 async function sendSignInCodeEmail({ to, code }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY not configured');
-  const from = process.env.RESEND_FROM || 'CoinPurse <onboarding@resend.dev>';
+  const from = process.env.RESEND_FROM || 'Coin Purse <onboarding@resend.dev>';
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -11,13 +11,13 @@ async function sendSignInCodeEmail({ to, code }) {
     body: JSON.stringify({
       from,
       to: [to],
-      subject: 'Your CoinPurse code: ' + code,
+      subject: 'Your Coin Purse code: ' + code,
       html:
-        '<p>Your CoinPurse sign-in code is:</p>' +
+        '<p>Your Coin Purse sign-in code is:</p>' +
         '<p style="font-size:28px;letter-spacing:0.2em;font-weight:700">' + code + '</p>' +
         '<p>It expires in 15 minutes. If you did not ask for this, ignore the email.</p>',
       text:
-        'Your CoinPurse sign-in code is: ' + code + '\n\n' +
+        'Your Coin Purse sign-in code is: ' + code + '\n\n' +
         'It expires in 15 minutes. If you did not ask for this, ignore the email.\n',
     }),
   });

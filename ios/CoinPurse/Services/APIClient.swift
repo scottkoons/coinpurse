@@ -133,7 +133,7 @@ struct APIClient: Sendable {
         do {
             (data, response) = try await URLSession.shared.data(for: req)
         } catch {
-            throw APIError.network("Could not reach CoinPurse. Check your connection.")
+            throw APIError.network("Could not reach Coin Purse. Check your connection.")
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if status == 401 && token != nil { throw APIError.unauthorized }

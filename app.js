@@ -4121,7 +4121,7 @@
     const ok = await askConfirm({
       title: 'Delete your account?',
       message:
-        'Your account, every coin and every picture will be permanently deleted from CoinPurse on all of your devices. This cannot be undone.',
+        'Your account, every coin and every picture will be permanently deleted from Coin Purse on all of your devices. This cannot be undone.',
       okLabel: 'Delete account',
     });
     if (!ok) return;

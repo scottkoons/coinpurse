@@ -1,6 +1,6 @@
 {
-  "name": "CoinPurse",
-  "short_name": "CoinPurse",
+  "name": "Coin Purse",
+  "short_name": "Coin Purse",
   "description": "A little coin purse for throwaway QR codes and quick cards. Stays on your device.",
   "start_url": "./",
   "scope": "./",

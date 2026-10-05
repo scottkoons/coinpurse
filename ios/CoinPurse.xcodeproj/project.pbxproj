@@ -264,10 +264,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "CoinPurse-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = CoinPurse;
+				INFOPLIST_KEY_CFBundleDisplayName = "Coin Purse";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSCameraUsageDescription = "CoinPurse uses the camera when you choose to take a picture for a coin.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "CoinPurse uses Face ID to keep your purse locked.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Coin Purse uses the camera when you choose to take a picture for a coin.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Coin Purse uses Face ID to keep your purse locked.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -302,10 +302,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "CoinPurse-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = CoinPurse;
+				INFOPLIST_KEY_CFBundleDisplayName = "Coin Purse";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSCameraUsageDescription = "CoinPurse uses the camera when you choose to take a picture for a coin.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "CoinPurse uses Face ID to keep your purse locked.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Coin Purse uses the camera when you choose to take a picture for a coin.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Coin Purse uses Face ID to keep your purse locked.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

@@ -19,7 +19,7 @@ struct AccountView: View {
                     Section {
                         Toggle("Lock with \(AppLock.biometryName)", isOn: $lock.enabled)
                     } footer: {
-                        Text("Asks for \(AppLock.biometryName) when you open CoinPurse after a minute away.")
+                        Text("Asks for \(AppLock.biometryName) when you open Coin Purse after a minute away.")
                     }
                 }
                 Section {
@@ -41,7 +41,7 @@ struct AccountView: View {
                     Link("Privacy Policy", destination: Config.baseURL.appendingPathComponent("privacy"))
                     Link("Support", destination: Config.baseURL.appendingPathComponent("support"))
                 } footer: {
-                    Text("CoinPurse \(Self.version) by Yetignome")
+                    Text("Coin Purse \(Self.version) by Yetignome")
                 }
             }
             .navigationTitle("Account")

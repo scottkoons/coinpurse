@@ -19,7 +19,7 @@ struct SignInView: View {
                 .scaledToFit()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
-            Text("CoinPurse")
+            Text("Coin Purse")
                 .font(.largeTitle.bold())
             Text("For the quick stuff: QR codes, passes and cards.")
                 .font(.subheadline)
