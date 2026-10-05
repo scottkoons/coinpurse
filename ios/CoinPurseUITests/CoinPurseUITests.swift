@@ -46,6 +46,11 @@ final class CoinPurseUITests: XCTestCase {
         snap("2a-editor-empty")
         title.tap()
         title.typeText("Conference badge")
+        let notes = app.textFields["Notes"].exists ? app.textFields["Notes"] : app.textViews["Notes"]
+        if notes.exists {
+            notes.tap()
+            notes.typeText("Questions: hello@example.com or https://coinpurse.yetignome.com/support")
+        }
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5), "pasted picture did not appear")
         snap("2-editor-pasted")
@@ -106,6 +111,9 @@ final class CoinPurseUITests: XCTestCase {
         badgeHint.tap()
         XCTAssertTrue(app.staticTexts["1 of 2"].waitForExistence(timeout: 5))
         snap("6-viewer")
+        // Typed notes show in the viewer with tappable links.
+        XCTAssertTrue(app.links["hello@example.com"].waitForExistence(timeout: 5), "email in notes is not a link")
+        XCTAssertTrue(app.links["https://coinpurse.yetignome.com/support"].exists, "web address in notes is not a link")
         app.swipeLeft()
         XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
 
@@ -127,10 +135,16 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Done"].tap()
         sleep(2)
 
-        // A tap on the black space above the picture closes the coin.
-        XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.17)).tap()
-        XCTAssertTrue(app.staticTexts["2 of 2"].waitForNonExistence(timeout: 5), "tap outside did not close")
+        app.buttons["Back"].tap()
+
+        // Open the coin without notes and tap the empty space above its picture.
+        card.swipeDown(velocity: .fast)
+        let singleHint2 = app.staticTexts["Tap to open full screen"]
+        XCTAssertTrue(singleHint2.waitForExistence(timeout: 3))
+        singleHint2.tap()
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        XCTAssertTrue(app.buttons["Back"].waitForNonExistence(timeout: 5), "tap outside did not close")
         snap("8b-closed-by-tap")
 
         // Delete the haircut coin with its trash can.
@@ -194,6 +208,10 @@ final class CoinPurseUITests: XCTestCase {
             } }
             (label as NSString).draw(at: CGPoint(x: 100, y: 80), withAttributes: [
                 .font: UIFont.boldSystemFont(ofSize: 64), .foregroundColor: UIColor.white,
+            ])
+            // Text for Live Text to find: a web address and an email address.
+            ("coinpurse.yetignome.com\nhello@example.com" as NSString).draw(at: CGPoint(x: 40, y: 640), withAttributes: [
+                .font: UIFont.systemFont(ofSize: 38, weight: .semibold), .foregroundColor: UIColor.black,
             ])
         }
     }

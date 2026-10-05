@@ -123,6 +123,26 @@ struct ViewerView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .background(.black.opacity(0.35))
+        .safeAreaInset(edge: .bottom, spacing: 0) { notesView }
+    }
+
+    /// The coin's notes, with web links, email addresses and phone numbers tappable.
+    @ViewBuilder private var notesView: some View {
+        if let notes = coin?.notes.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            ScrollView {
+                Text(LinkedText.make(notes))
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .tint(Color.accentColor)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+            }
+            .frame(maxHeight: 96)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(.black.opacity(0.35))
+        }
     }
 
     private var bottomBar: some View {

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import VisionKit
 
 /// Pinch to zoom, double-tap to zoom in or out, pan while zoomed.
 /// A single tap on the empty space around the picture calls `onTapOutside`.
@@ -22,6 +23,13 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
     private var shown: UIImage?
     var onTapOutside: () -> Void = {}
 
+    /// Apple's Live Text, on the phone and free: links, email addresses,
+    /// phone numbers and QR codes in the picture become tappable, and any
+    /// text can be selected and copied.
+    private let liveText = ImageAnalysisInteraction()
+    private static let analyzer = ImageAnalyzer()
+    private var analysisTask: Task<Void, Never>?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         delegate = self
@@ -33,7 +41,14 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         contentInsetAdjustmentBehavior = .never
         backgroundColor = .clear
         imageView.contentMode = .scaleAspectFit
+        imageView.isUserInteractionEnabled = true
         addSubview(imageView)
+        if ImageAnalyzer.isSupported {
+            liveText.preferredInteractionTypes = .automatic
+            // Keep the Live Text button clear of the viewer's bottom bar.
+            liveText.supplementaryInterfaceContentInsets = UIEdgeInsets(top: 0, left: 0, bottom: 170, right: 12)
+            imageView.addInteraction(liveText)
+        }
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
         doubleTap.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTap)
@@ -65,6 +80,20 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         imageView.image = image
         zoomScale = 1
         setNeedsLayout()
+        analyze(image)
+    }
+
+    private func analyze(_ image: UIImage) {
+        guard ImageAnalyzer.isSupported else { return }
+        analysisTask?.cancel()
+        liveText.analysis = nil
+        analysisTask = Task { [weak self] in
+            let config = ImageAnalyzer.Configuration([.text, .machineReadableCode])
+            guard let analysis = try? await Self.analyzer.analyze(image, configuration: config),
+                  !Task.isCancelled, let self, self.shown === image else { return }
+            self.liveText.analysis = analysis
+            self.liveText.preferredInteractionTypes = .automatic
+        }
     }
 
     override func layoutSubviews() {
