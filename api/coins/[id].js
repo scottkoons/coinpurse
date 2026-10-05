@@ -26,13 +26,13 @@ module.exports = async function handler(req, res) {
     // client are ignored; pictures change only through the upload endpoints.
     const coin = {
       ...existing,
-      title: data.title != null ? cleanTitle(data.title) : existing.title,
+      // Clearing the title keeps the old one (every coin has a name).
+      title: cleanTitle(data.title) || existing.title,
       notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
       accent: validAccent(data.accent) ? data.accent : existing.accent,
       sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : existing.sortOrder,
       updatedAt: Date.now(),
     };
-    if (!coin.title) return json(res, 400, { error: 'Title required' });
     try {
       const saved = await upsertCoin(user.id, coin);
       return json(res, 200, { coin: presentCoin(saved, user.id) });

@@ -8,7 +8,7 @@ const {
   MAX_COINS,
 } = require('./lib/store');
 const { presentCoin } = require('./lib/imageurl');
-const { cleanTitle, cleanNotes, validAccent } = require('./lib/coinfields');
+const { cleanTitle, cleanNotes, validAccent, nextDefaultTitle } = require('./lib/coinfields');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -31,13 +31,13 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     const data = await readJsonBody(req, res);
     if (!data) return;
-    const title = cleanTitle(data.title);
-    if (!title) return json(res, 400, { error: 'Title required' });
     const doc = await readIndexDocument(user.id);
     if (doc.status === 'error') {
       return json(res, 503, { error: 'Could not read coin index' });
     }
     const existing = doc.coins;
+    // A title is optional: untitled coins are named Coin 1, Coin 2, ...
+    const title = cleanTitle(data.title) || nextDefaultTitle(existing);
     // Clients may pick the id (so a retried Save does not duplicate the coin),
     // but only a plain one.
     const id = isValidCoinId(data.id) ? data.id : crypto.randomUUID();

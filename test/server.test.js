@@ -396,3 +396,23 @@ test('sessions renew themselves while in use', async () => {
     Date.now = realNow;
   }
 });
+
+test('untitled coins are named Coin 1, Coin 2, ...', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('quick@example.com');
+  const make = async (title) => (await call('coins.js', { method: 'POST', token: t, body: title == null ? {} : { title } })).data.coin.title;
+  assert.equal(await make(''), 'Coin 1');
+  assert.equal(await make('Dev conference pass'), 'Dev conference pass');
+  assert.equal(await make(null), 'Coin 2');
+  assert.equal(await make('   '), 'Coin 3');
+  // Another account counts on its own.
+  const other = await signIn('other@example.com');
+  assert.equal((await call('coins.js', { method: 'POST', token: other, body: {} })).data.coin.title, 'Coin 1');
+  // Clearing a title on edit keeps the old name.
+  const coins = (await call('coins.js', { token: t })).data.coins;
+  const pass = coins.find((c) => c.title === 'Dev conference pass');
+  const r = await call('coins/[id].js', { method: 'PUT', token: t, query: { id: pass.id }, body: { title: '' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.coin.title, 'Dev conference pass');
+});
