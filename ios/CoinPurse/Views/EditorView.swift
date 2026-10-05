@@ -34,9 +34,12 @@ struct EditorView: View {
     private var existingExtras: [Picture] { existing?.pictures.filter { !$0.isPrimary } ?? [] }
     private var extrasCount: Int { existingExtras.count + stagedExtras.count }
     private var hasMain: Bool { stagedMain != nil || existing?.imageUrl != nil }
-    /// A quick coin needs only a picture; a title alone is fine too.
+    /// A quick coin needs only a picture; a title or notes alone (like a
+    /// pasted gift card code) is fine too.
     private var canSave: Bool {
-        existing != nil || stagedMain != nil || !title.trimmingCharacters(in: .whitespaces).isEmpty
+        existing != nil || stagedMain != nil
+            || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {

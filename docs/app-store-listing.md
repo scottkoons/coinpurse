@@ -10,26 +10,36 @@
 
 ## Description
 
-Apple Wallet is for the valuable things.  Coin Purse is for the small change.
+Your wallet is for the dollars.  Coin Purse is for the small change.
 
-Coin Purse keeps the little things you need to pull up fast, without digging through your photos, email or notes.  Paste a screenshot with one tap or snap a photo, and it becomes a coin you can find in a second.
+Coin Purse keeps the little things you need to remember or show quickly: the QR code for the conference, the barcode on your haircut card, the row you parked in at the airport.  Take a photo, choose one from your library, or paste a screenshot, and it becomes a coin you can pull up in one tap.  Delete it when you are done, or keep it handy as long as you like.
 
 Good for:
-• Conference badge and event check-in QR codes
-• Return labels and return QR codes
-• Any QR code you want to find again quickly
-• A photo of a handwritten note, shopping list or to-do list
-• The useful part of an email, like directions or instructions
-• Punch cards and loyalty cards
+• Conference badges and event check-in codes
+• Tailgate and event tickets, several in one coin
+• Loyalty and punch card barcodes
+• Gift card codes
+• Return labels
+• Links people text you
+• Someone's email address you need for a moment
+• Where you parked, or a sign you want to remember
+• A photo of a handwritten list or note
 
 Made to be quick:
 • One-tap Paste, with no "Allow Paste" prompt
+• Take a photo, choose a photo, or paste a screenshot
 • No typing needed: untitled coins are named Coin 1, Coin 2 and so on
+• Up to 6 pictures per coin; swipe between them
+• Tap web links, email addresses and phone numbers right in your pictures
+• Press and hold to copy any text, like a gift card code
 • Swipe through your coins like cards in a wallet
-• Pinch to zoom and swipe between pictures
-• Up to 6 pictures per coin
 • Share a single picture with anyone
-• Face ID lock, and your coins are private to your account
+• Keep throwaway photos out of your photo library
+
+Private by design:
+• Face ID lock
+• Your coins are private to your account
+• No ads and no tracking
 
 Coin Purse is for everyday things.  Please do not store credit cards, IDs or passwords in it.
 
