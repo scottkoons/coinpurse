@@ -1,5 +1,5 @@
-const { json, readBearer } = require('../lib/auth');
-const { safeEqual } = require('../lib/crypto');
+const { json } = require('../lib/auth');
+const { requireAdmin } = require('../lib/admin');
 const { listPage, readBlobBuffer, putBlob } = require('../lib/blob');
 const { readIndexDocument, writeIndexDocument } = require('../lib/store');
 const { pathOfImage, ownsPath } = require('../lib/imageurl');
@@ -10,7 +10,7 @@ const { pathOfImage, ownsPath } = require('../lib/imageurl');
  * rules only show and delete pictures inside it. This copies each such
  * picture into the owner's folder and points the coin at the copy.
  *
- *   POST /api/admin/adopt-images[?cursor=..]   Authorization: Bearer <ADMIN_SECRET>
+ *   POST /api/admin/adopt-images[?cursor=..]   (signed in as an ADMIN_EMAILS account)
  */
 
 // Only picture files may be adopted. Old index files could hold any path a
@@ -41,9 +41,7 @@ async function adopt(uid, item, tag) {
 }
 
 module.exports = async function handler(req, res) {
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret || secret.length < 24) return json(res, 404, { error: 'Not found' });
-  if (!safeEqual(readBearer(req), secret)) return json(res, 401, { error: 'Unauthorized' });
+  if (!(await requireAdmin(req, res))) return;
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   const page = await listPage('coinpurse/users/', req.query.cursor || undefined, { limit: 50, folded: true });

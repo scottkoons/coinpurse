@@ -29,19 +29,19 @@ Open the project, then **Settings**, then **Environment Variables**.
    openssl rand -base64 48
    ```
    Changing it signs everyone out once; they sign back in with an email code.  The new server refuses to start without it, on purpose.
-2. **Add `ADMIN_SECRET`** with another `openssl rand -base64 48` value.  It unlocks the one-time storage move in step 3.
+2. **Add `ADMIN_EMAILS`** = the email you sign in to CoinPurse with.  Only that signed-in account can run the one-time storage move in step 3.
 3. **Add `REVIEW_EMAIL`** = `appreview@yetignome.com` and **`REVIEW_CODE`** = any 6 digits you choose.  This is the account Apple's reviewer signs in with.  The fixed code works for that one address only, and no email is sent to it.
 
 ## 3. Move pictures to private storage
 
 1. In Vercel, open **Storage**, then **Create**, then **Blob**.  Name it `coinpurse-private`, set **Access** to **Private**, and connect it to the qr-locker project with the environment variable prefix `COINPURSE_PRIVATE`.  Vercel then adds `COINPURSE_PRIVATE_READ_WRITE_TOKEN`.
 2. Merge the server branch and let it deploy.  The site still uses the old public store at this point.
-3. Tell Claude.  Claude runs the one-time jobs in this order, with `COINPURSE_STORE` not yet set:
+3. Sign in to the web app, then tell Claude.  Claude runs the one-time jobs from your signed-in browser, in this order, with `COINPURSE_STORE` not yet set:
    1. `/api/admin/adopt-images`: moves pictures inherited from the old single purse into their owner's folder.  Only real picture files are moved; anything else is reported as skipped.
    2. `/api/admin/migrate-store`: copies everything into the private store and checks that nothing failed.
 4. Add `COINPURSE_STORE` = `private` and redeploy.  From then on, pictures are only reachable through links the server signs, which expire within two days.  Claude runs `migrate-store` once more right after, to catch anything saved during the switch.
 5. After a few days of normal use, delete the old public Blob store in Vercel.  Until then, old picture URLs still work, so do this before the App Store submission; the privacy policy depends on it.
-6. Remove `ADMIN_SECRET` and Claude removes the `api/admin` jobs.
+6. Remove `ADMIN_EMAILS` and Claude removes the `api/admin` jobs.
 
 ## 3b. Extra protection for sign-in (recommended)
 

@@ -26,7 +26,7 @@ process.env.AUTH_SECRET = 'test-secret-that-is-long-enough';
 process.env.BLOB_READ_WRITE_TOKEN = 'public-token';
 process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN = 'private-token';
 process.env.RESEND_API_KEY = 're_test';
-process.env.ADMIN_SECRET = 'admin-secret-admin-secret-1234';
+process.env.ADMIN_EMAILS = 'boss@example.com';
 
 const api = (p) => require(path.join(__dirname, '..', 'api', p));
 
@@ -283,8 +283,11 @@ test('store move: adopt stray pictures, then copy to private', async () => {
   await fakeBlob.put(`coinpurse/users/${uid}/index.json`, JSON.stringify({
     coins: [{ id: 'coin-legacy-1', title: 'Old', sortOrder: 0, imagePath: 'coinpurse/images/legacy-1.jpg', imageUrl: 'https://store.public.blob.vercel-storage.com/coinpurse/images/legacy-1.jpg' }],
   }), pub);
-  const admin = process.env.ADMIN_SECRET;
-  assert.equal((await call('admin/adopt-images.js', { method: 'POST', token: 'wrong' })).status, 401);
+  const admin = await signIn('boss@example.com');
+  const notAdmin = await signIn('someone@example.com');
+  assert.equal((await call('admin/adopt-images.js', { method: 'POST' })).status, 401);
+  assert.equal((await call('admin/adopt-images.js', { method: 'POST', token: notAdmin })).status, 403);
+  assert.equal((await call('admin/migrate-store.js', { method: 'POST', token: notAdmin })).status, 403);
   const a = await call('admin/adopt-images.js', { method: 'POST', token: admin });
   assert.equal(a.status, 200, JSON.stringify(a.data));
   const byUid = Object.fromEntries(a.data.report.map((r) => [r.uid, r]));

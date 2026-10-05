@@ -1,5 +1,5 @@
-const { json, readBearer } = require('../lib/auth');
-const { safeEqual } = require('../lib/crypto');
+const { json } = require('../lib/auth');
+const { requireAdmin } = require('../lib/admin');
 const { listPage, readBlobBuffer, putBlob, getBlob } = require('../lib/blob');
 
 /**
@@ -8,8 +8,7 @@ const { listPage, readBlobBuffer, putBlob, getBlob } = require('../lib/blob');
  *   POST /api/admin/migrate-store            copy one page; repeat with the
  *   POST /api/admin/migrate-store?cursor=..  returned cursor until done=true
  *
- * Authorization: Bearer <ADMIN_SECRET>. Without ADMIN_SECRET set, this route
- * does not exist. Safe to re-run: files already in the private store are
+ * Runs only for a signed-in account listed in ADMIN_EMAILS. Safe to re-run: files already in the private store are
  * skipped. The old single-purse files (coinpurse/index.*) are not copied;
  * they belonged to no account and nobody should inherit them.
  */
@@ -23,9 +22,7 @@ function skip(pathname) {
 }
 
 module.exports = async function handler(req, res) {
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret || secret.length < 24) return json(res, 404, { error: 'Not found' });
-  if (!safeEqual(readBearer(req), secret)) return json(res, 401, { error: 'Unauthorized' });
+  if (!(await requireAdmin(req, res))) return;
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   if (!process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN) {
     return json(res, 400, { error: 'Private store is not connected' });
