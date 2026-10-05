@@ -26,6 +26,12 @@ final class AppModel {
             await ImageCache.shared.removeAll()
         }
         #endif
+        // The Keychain outlives the app. After a delete and reinstall, start
+        // signed out instead of reusing an old session.
+        if !UserDefaults.standard.bool(forKey: "hasLaunched") {
+            Keychain.deleteToken()
+            UserDefaults.standard.set(true, forKey: "hasLaunched")
+        }
         token = Keychain.loadToken()
         guard token != nil else {
             phase = .signedOut

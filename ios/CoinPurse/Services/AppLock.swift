@@ -39,7 +39,13 @@ final class AppLock {
         }
     }
 
-    func scenePhaseChanged(_ phase: ScenePhase) {
+    /// Only a signed-in purse is ever locked.
+    func scenePhaseChanged(_ phase: ScenePhase, signedIn: Bool) {
+        guard signedIn else {
+            isLocked = false
+            backgroundedAt = nil
+            return
+        }
         switch phase {
         case .background:
             backgroundedAt = Date()

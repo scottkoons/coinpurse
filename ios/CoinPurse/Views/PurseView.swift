@@ -198,9 +198,12 @@ struct PurseView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "wallet.pass")
-                .font(.system(size: 56))
-                .foregroundStyle(.secondary)
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+                .opacity(0.85)
+                .accessibilityHidden(true)
             Text("Purse is empty")
                 .font(.title2.bold())
             Text("Drop in conference QR codes, haircut cards and other passes. They sync with the CoinPurse website.")

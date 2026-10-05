@@ -14,11 +14,16 @@ struct SignInView: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "wallet.pass.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(Color.accentColor)
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
+                .accessibilityHidden(true)
             Text("CoinPurse")
                 .font(.largeTitle.bold())
+            Text("For the quick stuff: QR codes, passes and cards.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             Text(sentTo == nil
                  ? "Sign in with your email. We will send you a 6-digit code."
                  : "Enter the 6-digit code we sent to \(sentTo ?? "").")
