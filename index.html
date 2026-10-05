@@ -117,16 +117,37 @@
 
     /* ---------- Phone mockup ---------- */
     .phone {
-      width: min(340px, 86vw); margin: 0 auto;
-      aspect-ratio: 9 / 19;
-      border-radius: 46px; padding: 14px;
-      background: linear-gradient(160deg, #2a2933, #121118);
-      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+      position: relative;
+      width: min(330px, 84vw); margin: 0 auto;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 56px; padding: 11px;
+      /* Titanium edge around a black bezel. */
+      background: #0a0a0c;
+      box-shadow:
+        0 0 0 3px #4a4a50,
+        0 0 0 4px #2b2b30,
+        0 40px 80px rgba(0, 0, 0, 0.65);
+    }
+    /* Side buttons: action button and volume on the left, power on the right. */
+    .phone::before {
+      content: ""; position: absolute; left: -7px; top: 17%; width: 4px; height: 30px;
+      border-radius: 3px 0 0 3px; background: #3c3c42;
+      box-shadow: 0 58px 0 #3c3c42, 0 112px 0 #3c3c42;
+    }
+    .phone::after {
+      content: ""; position: absolute; right: -7px; top: 27%; width: 4px; height: 12%;
+      border-radius: 0 3px 3px 0; background: #3c3c42;
     }
     .screen {
-      position: relative; height: 100%; border-radius: 34px; overflow: hidden;
-      background: #000; padding: 54px 14px 14px;
+      position: relative; height: 100%; border-radius: 46px; overflow: hidden;
+      background: #000; padding: 58px 14px 14px;
     }
+    .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 32%; height: 30px; border-radius: 20px; background: #000; z-index: 95; box-shadow: inset 0 0 0 1px #111; }
+    .island::after { content: ""; position: absolute; right: 14px; top: 10px; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #2b3a5c, #05060a 70%); }
+    .statusbar { position: absolute; top: 16px; left: 0; right: 0; padding: 0 28px; display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 0.82rem; font-weight: 700; z-index: 90; pointer-events: none; }
+    .statusbar .icons { display: flex; gap: 5px; align-items: center; }
+    .statusbar svg { height: 11px; width: auto; fill: #fff; }
+    .home-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 36%; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); z-index: 95; }
     .screen-title { font-weight: 800; font-size: 1.5rem; margin: 0 4px 6px; }
     .screen-hint { color: var(--muted); font-size: 0.66rem; text-align: center; margin-bottom: 10px; }
     .deck { position: relative; height: 470px; }
@@ -135,7 +156,7 @@
       border-radius: 16px; background: #1a1a22; border: 1px solid var(--line);
       border-top: 4px solid var(--c);
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
-      transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), height 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+      transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), height 0.9s cubic-bezier(0.22, 1, 0.36, 1);
       overflow: hidden;
     }
     .mini-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 12px; }
@@ -159,11 +180,11 @@
     .demo-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 50px; align-items: center; }
     .demo .screen { padding: 0; }
     .demo-stack, .demo-viewer { position: absolute; inset: 0; transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
-    .demo-stack { padding: 54px 14px 14px; }
+    .demo-stack { padding: 58px 14px 14px; }
     .demo-viewer { background: #000; opacity: 0; transform: scale(0.92); pointer-events: none; display: flex; flex-direction: column; }
     .demo.open .demo-viewer { opacity: 1; transform: none; }
     .demo.open .demo-stack { opacity: 0; transform: scale(1.04); }
-    .dv-bar { padding: 50px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+    .dv-bar { padding: 54px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
     .dv-bar .back { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.12); display: grid; place-items: center; font-size: 0.9rem; }
     .dv-title { text-align: center; }
     .dv-title b { display: block; font-size: 0.95rem; }
@@ -183,7 +204,7 @@
     .ticket-body { padding: 14px; display: grid; place-items: center; gap: 10px; border-top: 2px dashed #d4d4d8; }
     .ticket-body .art-qr { width: 110px; height: 110px; }
     .ticket-body small { font-weight: 700; font-size: 0.8rem; }
-    .dv-thumbs { display: flex; gap: 8px; justify-content: center; padding: 12px 0 22px; }
+    .dv-thumbs { display: flex; gap: 8px; justify-content: center; padding: 12px 0 28px; }
     .dv-thumbs i { width: 34px; height: 34px; border-radius: 8px; background: #f2f2f7 center top / cover; border: 2px solid transparent; }
     .dv-thumbs i:first-child { background-image: url(/img/ticket-1.jpg); }
     .dv-thumbs i:nth-child(2) { background-image: url(/img/ticket-2.jpg); }
@@ -195,7 +216,7 @@
       position: absolute; width: 46px; height: 46px; border-radius: 50%;
       background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.8);
       opacity: 0; transform: scale(0.6); pointer-events: none; z-index: 80;
-      transition: opacity 0.25s ease, transform 0.25s ease, left 0.7s ease, top 0.7s ease;
+      transition: opacity 0.3s ease, transform 0.2s ease, left 0.8s cubic-bezier(0.45, 0, 0.25, 1), top 0.8s cubic-bezier(0.45, 0, 0.25, 1);
     }
     .finger.show { opacity: 1; transform: scale(1); }
     .finger.press { transform: scale(0.8); background: rgba(255,255,255,0.55); }
@@ -386,6 +407,13 @@
         <div class="reveal">
           <div class="phone" aria-label="Opening a coin that holds two tailgate tickets">
             <div class="screen">
+              <div class="island"></div>
+              <div class="statusbar"><span>9:41</span><span class="icons">
+                <svg viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="6" rx="1"/><rect x="10" y="2.5" width="3" height="8.5" rx="1"/><rect x="15" y="0" width="3" height="11" rx="1"/></svg>
+                <svg viewBox="0 0 16 11"><path d="M8 2.2c2.3 0 4.4.9 6 2.4l1.2-1.3A10.4 10.4 0 0 0 8 .4 10.4 10.4 0 0 0 .8 3.3L2 4.6a8.6 8.6 0 0 1 6-2.4zm0 3.5c1.4 0 2.6.5 3.6 1.4l1.2-1.3A7 7 0 0 0 8 3.9a7 7 0 0 0-4.8 1.9l1.2 1.3c1-.9 2.2-1.4 3.6-1.4zm0 3.4c.5 0 1 .2 1.3.5L8 11 6.7 9.6c.3-.3.8-.5 1.3-.5z"/></svg>
+                <svg viewBox="0 0 26 12"><rect x="0.5" y="0.5" width="22" height="11" rx="3.5" fill="none" stroke="#fff" stroke-opacity=".5"/><rect x="2" y="2" width="17" height="8" rx="2"/><rect x="23.5" y="4" width="2" height="4" rx="1" fill-opacity=".5"/></svg>
+              </span></div>
+              <div class="home-bar"></div>
               <div class="demo-stack">
                 <div class="screen-title">Coin Purse</div>
                 <div class="screen-hint">Swipe to flip · tap to open</div>
@@ -609,31 +637,45 @@
         order = [START, ...ring.map((_, i) => i).filter((i) => i !== START)];
         layout();
       }
+      // Swipe the front card down: it follows the finger, then goes to the back.
+      async function swipeTo(id) {
+        const front = cards[order[0]];
+        const base = (order.length - 1) * PEEK;
+        put(50, 70); finger.classList.add('show');
+        await wait(500);
+        finger.classList.add('press');
+        await wait(250);
+        front.style.transition = 'transform 0.8s cubic-bezier(0.45, 0, 0.25, 1)';
+        front.style.transform = 'translateY(' + (base + 120) + 'px)';
+        put(50, 92);
+        await wait(850);
+        finger.classList.remove('press', 'show');
+        front.style.transition = '';
+        bringForward(id);
+        await wait(1700);   // time to see which coin is in front now
+      }
       async function loop() {
         for (;;) {
           reset(); setStep(0);
-          await wait(1200);
-          // 1. Flip through the stack until the tailgate tickets are in front.
-          put(50, 80); finger.classList.add('show');
-          for (let id = START + 1; id <= TAILGATE; id++) {
-            put(50, 70); await wait(250); put(50, 88); bringForward(id); await wait(1100);
-          }
-          finger.classList.remove('show');
+          await wait(1600);
+          // 1. Swipe through the stack until the tailgate tickets are in front.
+          for (let id = START + 1; id <= TAILGATE; id++) await swipeTo(id);
           // 2. The badge says this coin holds two pictures.
           setStep(1);
           const badge = cards[TAILGATE].querySelector('.mini-count');
           badge.classList.remove('pulse'); void badge.offsetWidth; badge.classList.add('pulse');
-          await wait(1800);
+          await wait(2200);
           // 3. Tap to open.
-          setStep(2); put(42, 66); finger.classList.add('show'); await wait(700); await tap();
-          demo.classList.add('open'); await wait(1600);
-          // 4. Swipe to ticket 2.
-          setStep(3); put(78, 48); await wait(700);
-          put(14, 48); demo.classList.add('second'); count.textContent = '2 of 2'; await wait(1900);
+          setStep(2); put(45, 66); finger.classList.add('show'); await wait(900); await tap();
+          demo.classList.add('open'); await wait(2400);
+          // 4. Swipe left to ticket 2.
+          setStep(3); put(80, 50); await wait(800);
+          finger.classList.add('press'); put(16, 50); demo.classList.add('second'); count.textContent = '2 of 2';
+          await wait(800); finger.classList.remove('press'); await wait(2200);
           // 5. Tap outside the picture to close.
-          setStep(4); put(46, 14); await wait(700); await tap();
+          setStep(4); put(48, 15); await wait(900); await tap();
           demo.classList.remove('open', 'second'); finger.classList.remove('show');
-          await wait(1800);
+          await wait(2400);
         }
       }
       reset();
