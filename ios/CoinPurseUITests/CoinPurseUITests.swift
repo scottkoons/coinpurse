@@ -77,6 +77,18 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Haircut card"].waitForExistence(timeout: 15))
         snap("4-two-coins")
 
+        // A quick coin: picture only, no title, is named Coin 1.
+        UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "Note")
+        app.buttons["Add coin"].tap()
+        XCTAssertTrue(app.staticTexts["Leave the title blank and it is saved as Coin 1."].waitForExistence(timeout: 5))
+        tapPaste()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Coin 1"].waitForExistence(timeout: 15))
+        snap("4b-quick-coin")
+        app.buttons["Delete Coin 1"].firstMatch.tap()
+        app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(app.staticTexts["Coin 1"].waitForNonExistence(timeout: 10))
+
         // The new coin is in front. Swipe to flip to the other one.
         let badgeHint = app.staticTexts["2 pictures · Tap to open"]
         let singleHint = app.staticTexts["Tap to open full screen"]

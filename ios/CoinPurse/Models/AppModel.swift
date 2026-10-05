@@ -122,7 +122,8 @@ final class AppModel {
         if self.coin(id) == nil {
             let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent)
             // If the create was a retry, make sure the text is current.
-            coin = (created.title == title && created.notes == notes && created.accent == accent)
+            // (A blank title means the server picked a name like "Coin 3".)
+            coin = ((title.isEmpty || created.title == title) && created.notes == notes && created.accent == accent)
                 ? created
                 : try await api.updateCoin(id: id, title: title, notes: notes, accent: accent)
         } else {
@@ -198,6 +199,17 @@ final class AppModel {
     }
 
     func url(for picture: Picture) -> URL? { api.url(for: picture) }
+
+    /// What a coin saved without a title will be called (the server decides;
+    /// this matches its rule so the editor can show it).
+    func nextDefaultTitle() -> String {
+        let numbers = coins.compactMap { coin -> Int? in
+            let t = coin.title.trimmingCharacters(in: .whitespaces)
+            guard t.hasPrefix("Coin "), let n = Int(t.dropFirst(5)) else { return nil }
+            return n
+        }
+        return "Coin \((numbers.max() ?? 0) + 1)"
+    }
 
     /// The six accent colors, least-used first, like the web app.
     func suggestedAccent() -> Int {

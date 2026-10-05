@@ -34,6 +34,10 @@ struct EditorView: View {
     private var existingExtras: [Picture] { existing?.pictures.filter { !$0.isPrimary } ?? [] }
     private var extrasCount: Int { existingExtras.count + stagedExtras.count }
     private var hasMain: Bool { stagedMain != nil || existing?.imageUrl != nil }
+    /// A quick coin needs only a picture; a title alone is fine too.
+    private var canSave: Bool {
+        existing != nil || stagedMain != nil || !title.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
@@ -43,15 +47,19 @@ struct EditorView: View {
                 } header: {
                     Text("Picture")
                 } footer: {
-                    Text("Copy a screenshot or image in any app and Paste lights up. Or choose from Photos. Coin Purse is for everyday passes: please do not store credit cards, IDs or passwords.")
+                    Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
                 }
                 Section {
-                    TextField("Title", text: $title)
+                    TextField("Title (optional)", text: $title)
                         .accessibilityIdentifier("titleField")
                         .focused($titleFocused)
                         .submitLabel(.done)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(2...6)
+                } footer: {
+                    if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
+                    }
                 }
                 Section("Color") {
                     accentPicker
@@ -81,7 +89,7 @@ struct EditorView: View {
                     } else {
                         Button("Save") { Task { await save() } }
                             .bold()
-                            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .disabled(!canSave)
                     }
                 }
             }
@@ -248,7 +256,7 @@ struct EditorView: View {
     /// failure continues where it stopped instead of duplicating anything.
     private func save() async {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
+        guard canSave else { return }
         saving = true
         error = nil
         defer { saving = false }
