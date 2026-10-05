@@ -986,7 +986,7 @@
         chapters: [...el.querySelectorAll('.chapter')],
         bars: [...el.querySelectorAll('.progress b')],
       }));
-      const PER = 0.85;   // viewport heights of scrolling per chapter
+      const PER = 0.4;    // viewport heights of scrolling per chapter (short: a flick moves on)
       acts.forEach((a) => { a.el.style.height = 'calc(' + (a.chapters.length * PER * 100) + 'vh + 100vh)'; });
       const still = { photos: 'photos', camera: 'camera', paste: 'paste', arrive: 'stack', flip: 'stack', open: 'viewer', text: 'text', share: 'share', toss: 'stack', lock: 'lock' };
       const glow = { photos: '#64748b', camera: '#facc15', paste: '#818cf8', arrive: '#22c55e', flip: '#06b6d4', open: '#22c55e', text: '#0a84ff', share: '#22c55e', toss: '#ef4444', lock: '#a78bfa' };
