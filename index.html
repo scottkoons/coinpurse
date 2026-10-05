@@ -115,9 +115,7 @@
     .compare-card p { color: var(--muted); margin: 0; }
     .compare-card.purse { background: linear-gradient(160deg, rgba(129, 140, 248, 0.16), rgba(34, 211, 238, 0.06)), var(--bg-2); border-color: rgba(129, 140, 248, 0.35); }
 
-    /* ---------- Live stack ---------- */
-    .stack-section { padding: 60px 0; }
-    .stack-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 50px; align-items: center; }
+    /* ---------- Phone mockup ---------- */
     .phone {
       width: min(340px, 86vw); margin: 0 auto;
       aspect-ratio: 9 / 19;
@@ -207,7 +205,10 @@
     .steps li .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.06); color: var(--text); }
     .steps li.on { border-color: rgba(129,140,248,0.55); background: rgba(129,140,248,0.10); color: var(--text); }
     .steps li.on .n { background: var(--accent); color: #0b0a10; }
-    .anatomy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 46px; }
+    .coin-parts { padding: 40px 0 60px; }
+    .anatomy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 32px; }
+    .mini-count.pulse { animation: pulse 0.9s ease-in-out 2; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.7); box-shadow: 0 0 0 6px rgba(34,197,94,0.35); } }
     .part { padding: 20px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); }
     .part .k { font-size: 1.6rem; margin-bottom: 8px; }
     .part h3 { font-size: 1.05rem; margin-bottom: 6px; }
@@ -244,9 +245,30 @@
     .row p { color: var(--muted); }
     .livetext { width: 100%; max-width: 360px; border-radius: 14px; background: #f3f3f5; color: #111; padding: 18px; font-size: 0.95rem; line-height: 1.7; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
     .livetext .hl { color: #2563eb; text-decoration: underline; text-underline-offset: 3px; background: rgba(37, 99, 235, 0.1); border-radius: 4px; padding: 0 3px; }
-    .roll { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 340px; }
-    .roll span { aspect-ratio: 1; border-radius: 8px; background: #2a2933 center / cover; }
-    .roll span.gone { background: transparent; border: 1px dashed rgba(255, 255, 255, 0.18); }
+    .row .visual { min-height: 340px; }
+    .row .visual.tall { padding: 0; overflow: hidden; }
+    .snaps { position: relative; width: 100%; height: 440px; }
+    .snap {
+      position: absolute; width: 47%; margin: 0;
+      border-radius: 18px; overflow: hidden; background: #1b1a24;
+      border: 1px solid var(--line); box-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+    }
+    .snap img { display: block; width: 100%; aspect-ratio: 4 / 4.4; object-fit: cover; }
+    .snap figcaption { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; }
+    .snap figcaption b { display: block; font-size: 0.95rem; }
+    .snap figcaption small { color: var(--muted); font-size: 0.8rem; }
+    .snap figcaption i { flex: 0 0 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(239, 68, 68, 0.14); color: #f87171; }
+    .snap figcaption i svg { width: 18px; height: 18px; }
+    .snap.a { left: 3%; top: 30px; transform: rotate(-3deg); }
+    .snap.b { right: 3%; top: 62px; transform: rotate(4deg); }
+    .snap figcaption small { white-space: nowrap; }
+    @media (max-width: 560px) {
+      /* Phones: one snapshot above the other, both full size. */
+      .snaps { height: auto; display: grid; gap: 22px; padding: 26px 18px; }
+      .snap { position: static; width: 82%; }
+      .snap.a { justify-self: start; }
+      .snap.b { justify-self: end; }
+    }
     .lock { text-align: center; }
     .lock .face { width: 96px; height: 96px; margin: 0 auto 14px; border-radius: 26px; display: grid; place-items: center; background: rgba(129, 140, 248, 0.14); color: var(--accent); }
     .lock .face svg { width: 54px; height: 54px; }
@@ -267,7 +289,7 @@
     .reveal.in { opacity: 1; transform: none; }
 
     @media (max-width: 860px) {
-      .hero-grid, .stack-grid, .row { grid-template-columns: 1fr; }
+      .hero-grid, .row { grid-template-columns: 1fr; }
       .coin-stage { min-height: 340px; order: -1; }
       .brand { margin-bottom: 28px; }
       .ways-grid { grid-template-columns: 1fr; }
@@ -328,26 +350,35 @@
     </div>
   </section>
 
-  <section class="stack-section">
-    <div class="wrap stack-grid">
+
+
+
+
+  <section class="ways">
+    <div class="wrap">
       <div class="reveal">
-        <div class="phone" aria-label="Coin Purse showing a stack of coins">
-          <div class="screen">
-            <div class="screen-title">Coin Purse</div>
-            <div class="screen-hint">Swipe to flip · tap to open</div>
-            <div class="deck" id="deck"></div>
-          </div>
-        </div>
+        <p class="eyebrow">Three ways in</p>
+        <h2>However it reaches you, it fits.</h2>
       </div>
-      <div class="reveal">
-        <p class="eyebrow">Flip through your coins</p>
-        <h2>A stack, like cards in a wallet.</h2>
-        <p class="lead" style="margin-top:16px">Swipe to flip, tap to open full screen, pinch to zoom.  A coin can hold up to six pictures, so two tailgate tickets live together in one coin instead of two.</p>
-        <p class="lead">No typing required.  Skip the title and your coin is named Coin 1, Coin 2 and so on.  Add a name only when you want one.</p>
+      <div class="ways-grid">
+        <div class="way reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+          <h3>Take a photo</h3>
+          <p>The back of a card, a sign, the row you parked in, a note someone handed you.  Snap it straight into a coin.</p>
+        </div>
+        <div class="way reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+          <h3>Choose a photo</h3>
+          <p>Already took the picture?  Pick it from your library and it becomes a coin.</p>
+        </div>
+        <div class="way reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
+          <h3>Paste a screenshot</h3>
+          <p>Screenshot a QR code from an email, a gift card code from a website, a link someone texted you.  One tap on Paste and it is in.</p>
+        </div>
       </div>
     </div>
   </section>
-
 
   <section class="demo" id="demo">
     <div class="wrap">
@@ -379,48 +410,33 @@
           </div>
         </div>
         <div class="reveal">
-          <p class="eyebrow">What is in a coin?</p>
-          <h2>One coin, everything that goes together.</h2>
-          <p class="lead" style="margin-top:16px">A coin is one thing you want handy, and it can hold up to six pictures.  Two tailgate tickets are one coin, not two.  Same for the front and back of a card, or every page of a return label.</p>
+          <p class="eyebrow">How it works</p>
+          <h2>Flip, tap, swipe.</h2>
+          <p class="lead" style="margin-top:16px">Your coins stack like cards in a wallet.  Flip through them, tap one to open it full screen, and swipe between its pictures.</p>
           <ol class="steps" id="demo-steps">
-            <li data-step="0"><span class="n">1</span><span><b>Find it.</b>  The badge on the card shows how many pictures the coin holds.</span></li>
-            <li data-step="1"><span class="n">2</span><span><b>Tap to open.</b>  The coin fills the screen, ready to scan.</span></li>
-            <li data-step="2"><span class="n">3</span><span><b>Swipe for the next one.</b>  Ticket 2 is right there.  Pinch to zoom on any picture.</span></li>
-            <li data-step="3"><span class="n">4</span><span><b>Tap outside to close.</b>  Back to your purse.</span></li>
+            <li><span class="n">1</span><span><b>Flip through your coins.</b>  Swipe the stack to bring any coin to the front.</span></li>
+            <li><span class="n">2</span><span><b>Spot the badge.</b>  The number shows how many pictures a coin holds.</span></li>
+            <li><span class="n">3</span><span><b>Tap to open.</b>  The coin fills the screen, ready to scan.  Pinch to zoom.</span></li>
+            <li><span class="n">4</span><span><b>Swipe for the next picture.</b>  Ticket 2 is right there.</span></li>
+            <li><span class="n">5</span><span><b>Tap outside to close.</b>  Back to your purse.</span></li>
           </ol>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="coin-parts">
+    <div class="wrap">
+      <div class="reveal" style="max-width:720px">
+        <p class="eyebrow">What is in a coin?</p>
+        <h2>One coin, everything that goes together.</h2>
+        <p class="lead" style="margin-top:16px">A coin is one thing you want handy.  It can hold up to six pictures, so two tailgate tickets are one coin, not two.  Same for the front and back of a card, or every page of a return.  No typing required: skip the title and it is named Coin 1, Coin 2 and so on.</p>
       </div>
       <div class="anatomy">
         <div class="part reveal"><div class="k">🏷️</div><h3>A name, if you want one</h3><p>Type one, or skip it and the coin is named Coin 1, Coin 2 and so on.</p></div>
         <div class="part reveal"><div class="k">🖼️</div><h3>Up to six pictures</h3><p>Photos, screenshots or both.  The first is the one you see on the card.</p></div>
         <div class="part reveal"><div class="k">📝</div><h3>Notes</h3><p>A gift card code, a seat number, a link.  Links, emails and phone numbers are tappable.</p></div>
         <div class="part reveal"><div class="k">🎨</div><h3>A color</h3><p>A stripe across the top so you can spot it in the stack.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="ways">
-    <div class="wrap">
-      <div class="reveal">
-        <p class="eyebrow">Three ways in</p>
-        <h2>However it reaches you, it fits.</h2>
-      </div>
-      <div class="ways-grid">
-        <div class="way reveal">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-          <h3>Take a photo</h3>
-          <p>The back of a card, a sign, the row you parked in, a note someone handed you.  Snap it straight into a coin.</p>
-        </div>
-        <div class="way reveal">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
-          <h3>Choose a photo</h3>
-          <p>Already took the picture?  Pick it from your library and it becomes a coin.</p>
-        </div>
-        <div class="way reveal">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div>
-          <h3>Paste a screenshot</h3>
-          <p>Screenshot a QR code from an email, a gift card code from a website, a link someone texted you.  One tap on Paste and it is in.</p>
-        </div>
       </div>
     </div>
   </section>
@@ -463,10 +479,16 @@
         </div>
       </div>
       <div class="row reveal">
-        <div class="visual">
-          <div class="roll" aria-hidden="true">
-            <span style="background-image:url(/img/parking-2c.jpg)"></span><span></span><span class="gone"></span><span style="background-image:url(/img/grocery-list.jpg)"></span>
-            <span class="gone"></span><span></span><span style="background-image:url(/img/gift-card.jpg)"></span><span class="gone"></span>
+        <div class="visual tall">
+          <div class="snaps">
+            <figure class="snap a">
+              <img src="/img/parking-2c.jpg" alt="Photo of a parking garage sign reading Level 2C" />
+              <figcaption><span><b>Parking 2C</b><small>Toss it when you are home</small></span><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></i></figcaption>
+            </figure>
+            <figure class="snap b">
+              <img src="/img/grocery-list.jpg" alt="Photo of a handwritten grocery list" />
+              <figcaption><span><b>Coin 4</b><small>Toss it after shopping</small></span><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></i></figcaption>
+            </figure>
           </div>
         </div>
         <div>
@@ -524,100 +546,105 @@
         '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
         '<div class="mini-body photo"><img src="' + c.photo + '" alt="" style="object-position:' + (c.pos || 'center') + '" /></div>';
     }
-    const deck = document.getElementById('deck');
-    const PEEK = 52;
-    const cards = coins.map((c) => {
-      const el = document.createElement('div');
-      el.className = 'mini';
-      el.style.setProperty('--c', c.c);
-      el.style.setProperty('--art', c.art);
-      el.innerHTML = miniCard(c);
-      deck.appendChild(el);
-      return el;
-    });
-    let order = cards.map((_, i) => i);
-    function layout() {
-      // Peeks on top, the front card open below them, like the app.
-      const front = order[0];
-      const peeks = order.slice(1);
-      peeks.forEach((idx, slot) => {
-        cards[idx].style.transform = 'translateY(' + slot * PEEK + 'px)';
-        cards[idx].style.zIndex = String(slot + 1);
-        cards[idx].style.height = '64px';
-      });
-      cards[front].style.transform = 'translateY(' + peeks.length * PEEK + 'px)';
-      cards[front].style.zIndex = '50';
-      cards[front].style.height = '370px';
-    }
-    layout();
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reduce) {
-      setInterval(() => {
-        // The old front card becomes the top peek, the next one opens.
-        const [front, next, ...rest] = order;
-        order = [next, front, ...rest];
-        layout();
-      }, 2600);
-    }
-
-
-    // ---------- What is in a coin: tap to open, swipe to ticket 2, tap outside ----------
+    // ---------- How it works: flip the stack, open the tailgate coin, swipe, close ----------
     (function () {
       const demo = document.getElementById('demo');
       const deckEl = document.getElementById('demo-deck');
       const finger = document.getElementById('finger');
       const count = document.getElementById('dv-count');
       const steps = [...document.querySelectorAll('#demo-steps li')];
-      const items = [
+      // Saved order of the purse (the ring the stack flips through).
+      const ring = [
         { t: 'Return label', s: 'Return by Oct 24', c: '#6366f1', photo: '/img/return-label.jpg', pos: 'top' },
         { t: 'Coffee gift card', s: 'Sunrise Coffee · $25', c: '#f97316', photo: '/img/gift-card.jpg' },
+        { t: 'Parking 2C', s: 'Shuttle <u>(719) 555-0142</u>', c: '#ec4899', photo: '/img/parking-2c.jpg' },
         { t: 'Coin 4', s: 'Groceries', c: '#eab308', photo: '/img/grocery-list.jpg' },
-        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, front: true, photo: '/img/ticket-1.jpg', pos: 'top' },
+        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, photo: '/img/ticket-1.jpg', pos: 'top' },
       ];
-      let y = 0;
-      items.forEach((c) => {
+      const TAILGATE = 4, START = 1;
+      const cards = ring.map((c) => {
         const el = document.createElement('div');
         el.className = 'mini';
         el.style.setProperty('--c', c.c);
-        el.style.transform = 'translateY(' + y + 'px)';
-        el.style.height = c.front ? '370px' : '64px';
         el.innerHTML = miniCard(c);
         deckEl.appendChild(el);
-        y += 52;
+        return el;
       });
+      const PEEK = 52;
+      let order = [];
+      // Like the app: front card open at the bottom, the others peeking above it.
+      function layout() {
+        order.slice(1).forEach((idx, slot) => {
+          cards[idx].style.transform = 'translateY(' + slot * PEEK + 'px)';
+          cards[idx].style.zIndex = String(slot + 1);
+          cards[idx].style.height = '64px';
+        });
+        const f = cards[order[0]];
+        f.style.transform = 'translateY(' + (order.length - 1) * PEEK + 'px)';
+        f.style.zIndex = '50';
+        f.style.height = '370px';
+      }
+      // Bring a coin to the front; the old front becomes the top peek.
+      function bringForward(id) {
+        const old = order[0];
+        const rest = [];
+        for (let k = 1; k < ring.length; k++) {
+          const other = (old + k) % ring.length;
+          if (other !== id) rest.push(other);
+        }
+        order = [id, old, ...rest.filter((x) => x !== old)];
+        layout();
+      }
       const setStep = (i) => steps.forEach((li, n) => li.classList.toggle('on', n === i));
-      const put = (x, yy) => { finger.style.left = x + '%'; finger.style.top = yy + '%'; };
-      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-      async function tap() {
-        finger.classList.add('press'); await wait(180); finger.classList.remove('press');
+      const put = (x, y) => { finger.style.left = x + '%'; finger.style.top = y + '%'; };
+      let visible = false;
+      const wait = async (ms) => {
+        await new Promise((r) => setTimeout(r, ms));
+        while (!visible) await new Promise((r) => setTimeout(r, 300));   // pause off screen
+      };
+      async function tap() { finger.classList.add('press'); await wait(180); finger.classList.remove('press'); }
+      function reset() {
+        demo.classList.remove('open', 'second'); count.textContent = '1 of 2';
+        finger.classList.remove('show');
+        order = [START, ...ring.map((_, i) => i).filter((i) => i !== START)];
+        layout();
       }
       async function loop() {
         for (;;) {
-          demo.classList.remove('open', 'second'); count.textContent = '1 of 2';
-          finger.classList.remove('show'); setStep(0);
-          await wait(1800);
-          put(42, 62); finger.classList.add('show'); setStep(1);
-          await wait(700); await tap();
-          demo.classList.add('open');
-          await wait(1500);
-          setStep(2); put(78, 48); await wait(700);
-          put(14, 48); demo.classList.add('second'); count.textContent = '2 of 2';
-          await wait(1800);
-          setStep(3); put(46, 14); await wait(700); await tap();
-          demo.classList.remove('open', 'second');
+          reset(); setStep(0);
+          await wait(1200);
+          // 1. Flip through the stack until the tailgate tickets are in front.
+          put(50, 80); finger.classList.add('show');
+          for (let id = START + 1; id <= TAILGATE; id++) {
+            put(50, 70); await wait(250); put(50, 88); bringForward(id); await wait(1100);
+          }
           finger.classList.remove('show');
-          await wait(1600);
+          // 2. The badge says this coin holds two pictures.
+          setStep(1);
+          const badge = cards[TAILGATE].querySelector('.mini-count');
+          badge.classList.remove('pulse'); void badge.offsetWidth; badge.classList.add('pulse');
+          await wait(1800);
+          // 3. Tap to open.
+          setStep(2); put(42, 66); finger.classList.add('show'); await wait(700); await tap();
+          demo.classList.add('open'); await wait(1600);
+          // 4. Swipe to ticket 2.
+          setStep(3); put(78, 48); await wait(700);
+          put(14, 48); demo.classList.add('second'); count.textContent = '2 of 2'; await wait(1900);
+          // 5. Tap outside the picture to close.
+          setStep(4); put(46, 14); await wait(700); await tap();
+          demo.classList.remove('open', 'second'); finger.classList.remove('show');
+          await wait(1800);
         }
       }
+      reset();
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        demo.classList.add('open'); setStep(1);
+        bringForward(TAILGATE); setStep(1);
         return;
       }
-      // Start when the phone scrolls into view.
-      const io2 = new IntersectionObserver((entries) => {
-        if (entries.some((e) => e.isIntersecting)) { io2.disconnect(); loop(); }
-      }, { threshold: 0.3 });
-      io2.observe(demo);
+      new IntersectionObserver((entries) => {
+        visible = entries.some((e) => e.isIntersecting);
+      }, { threshold: 0.25 }).observe(demo);
+      loop();
     })();
 
     // Fade sections in as they scroll into view.
