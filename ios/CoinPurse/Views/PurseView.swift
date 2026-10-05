@@ -206,7 +206,7 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Purse is empty")
                 .font(.title2.bold())
-            Text("Drop in conference QR codes, haircut cards and other passes. They sync with the Coin Purse website.")
+            Text("Drop in conference QR codes, haircut cards and other passes. Paste a screenshot with one tap.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Button {

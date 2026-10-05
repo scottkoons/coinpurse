@@ -2,252 +2,49 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0a0c" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Coin Purse" />
-  <meta name="description" content="A little coin purse for throwaway QR codes and quick cards. Synced across your devices." />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon-180.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Coin Purse</title>
-  <link rel="stylesheet" href="styles.css?v=164" />
+  <meta name="description" content="Coin Purse is an iPhone app for the quick stuff: QR codes, passes and cards, one tap from your home screen." />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="stylesheet" href="/legal.css" />
+  <style>
+    .hero { text-align: center; padding-top: 24px; }
+    .hero img { width: 120px; height: 120px; border-radius: 27px; }
+    .hero h1 { font-size: 2.2rem; margin-top: 16px; }
+    .tagline { color: var(--muted); font-size: 1.1rem; margin: 4px 0 28px; }
+    .badge { display: inline-block; padding: 12px 22px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 600; text-decoration: none; }
+    .features { margin-top: 36px; }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <!-- Sign-in: email + 6-digit code -->
-    <section id="unlock-screen" class="unlock-screen hidden" aria-hidden="true">
-      <div class="unlock-card">
-        <h1>Coin Purse</h1>
-        <p id="unlock-copy">Sign in with email. We'll send you a 6-digit code.</p>
+<main>
+  <section class="hero">
+    <img src="/icons/icon-512.png" alt="Coin Purse icon" />
+    <h1>Coin Purse</h1>
+    <p class="tagline">For the quick stuff: QR codes, passes and cards.</p>
+    <span class="badge">Coming soon to the iPhone App Store</span>
+  </section>
 
-        <form id="email-form" autocomplete="email">
-          <input type="email" id="unlock-email" name="email" placeholder="you@example.com" required autofocus />
-          <button type="submit" class="btn-primary" id="btn-email">Email me a code</button>
-        </form>
+  <section class="features">
+    <h2>What it is</h2>
+    <p>Apple Wallet is for the important things.  Coin Purse is for everything else: the conference badge QR code, the haircut punch card, the parking pass, the gym check-in.  Paste a screenshot with one tap and it is ready whenever you need to show it.</p>
+    <ul>
+      <li>One-tap Paste of any screenshot or picture.</li>
+      <li>Swipe through your coins like cards in a wallet.</li>
+      <li>Locked with Face ID, private to your account.</li>
+      <li>Share a single picture when someone needs it.</li>
+    </ul>
+    <p>Coin Purse is for everyday passes and QR codes.  Please do not store credit cards, IDs or passwords in it.</p>
+  </section>
 
-        <form id="code-form" class="hidden" autocomplete="one-time-code">
-          <input type="text" id="unlock-code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="6-digit code" required />
-          <button type="submit" class="btn-primary" id="btn-code">Verify code</button>
-        </form>
-
-        <form id="pin-form" class="hidden" autocomplete="off">
-          <input type="password" id="unlock-pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="PIN" required />
-          <button type="submit" class="btn-primary" id="btn-unlock">Continue</button>
-        </form>
-
-        <p id="unlock-status" class="unlock-status hidden"></p>
-        <p id="unlock-error" class="unlock-error hidden" role="alert"></p>
-        <button type="button" id="btn-auth-reset" class="btn-text hidden">Use a different email</button>
-        <p class="unlock-links"><a href="/privacy">Privacy</a> · <a href="/support">Support</a></p>
-      </div>
-    </section>
-
-    <!-- Home: card stack -->
-    <header class="top-bar" id="home-header">
-      <h1>Coin Purse</h1>
-      <div class="top-bar-actions">
-        <button type="button" class="btn-icon" id="btn-account" aria-label="Account">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        </button>
-        <button type="button" class="btn-icon" id="btn-add" aria-label="Add coin">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-      </div>
-    </header>
-
-    <main id="stack-view" class="stack-view">
-      <div id="empty-state" class="empty-state hidden">
-        <div class="empty-icon" aria-hidden="true">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <rect x="8" y="16" width="48" height="32" rx="6" stroke="currentColor" stroke-width="2.5"/>
-            <rect x="16" y="24" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
-            <path d="M36 28h12M36 34h8M36 40h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2>Purse is empty</h2>
-        <p>Drop in conference QR codes, haircut cards, and other throwaway scans. Synced to your cloud purse.</p>
-        <button type="button" class="btn-primary" id="btn-empty-add">Add your first coin</button>
-      </div>
-      <p class="deck-hint" id="deck-hint" hidden>Swipe to flip · tap to open · long-press to rearrange</p>
-      <div id="card-stack" class="card-stack" role="list"></div>
-    </main>
-
-    <!-- Full-screen viewer -->
-    <section id="viewer" class="viewer hidden" aria-hidden="true">
-      <header class="viewer-bar">
-        <button type="button" class="btn-icon" id="btn-viewer-back" aria-label="Back">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <div class="viewer-actions">
-          <button type="button" class="btn-icon btn-share" id="btn-share-image" aria-label="Share this picture" title="Share this picture">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>
-          </button>
-          <button type="button" class="btn-text" id="btn-edit">Edit</button>
-          <button type="button" class="btn-text danger" id="btn-delete">Delete</button>
-        </div>
-      </header>
-      <div class="viewer-body" id="viewer-body">
-        <div class="viewer-meta">
-          <h2 id="viewer-title" class="viewer-title"></h2>
-          <p id="viewer-notes" class="viewer-notes"></p>
-        </div>
-        <div class="viewer-image-wrap" id="viewer-image-wrap">
-          <img id="viewer-image" alt="Coin image" />
-          <img id="viewer-image-peer" class="viewer-image-peer hidden" alt="" aria-hidden="true" draggable="false" />
-          <div id="viewer-no-image" class="viewer-no-image hidden">No image</div>
-          <p class="viewer-zoom-hint" id="viewer-zoom-hint">Pinch to zoom · drag to pan · swipe for more</p>
-        </div>
-        <div id="viewer-thumbs" class="viewer-thumbs hidden" aria-label="Images"></div>
-        <div id="viewer-attach-bar" class="viewer-attach-bar hidden">
-          <button type="button" class="btn-text danger" id="btn-remove-attachment">Remove image</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Editor sheet -->
-    <section id="editor" class="sheet hidden" aria-hidden="true">
-      <div class="sheet-backdrop" id="editor-backdrop"></div>
-      <div class="sheet-panel" role="dialog" aria-labelledby="editor-heading">
-        <header class="sheet-header">
-          <button type="button" class="btn-text" id="btn-editor-cancel">Cancel</button>
-          <h2 id="editor-heading">New coin</h2>
-          <button type="button" class="btn-text accent" id="btn-editor-save">Save</button>
-        </header>
-        <form id="editor-form" class="editor-form" autocomplete="off">
-          <label class="field">
-            <span>Title <em>*</em></span>
-            <input type="text" id="field-title" name="title" required maxlength="120" placeholder="e.g. DevConf badge" enterkeyhint="next" />
-          </label>
-          <label class="field">
-            <span>Notes</span>
-            <textarea id="field-notes" name="notes" maxlength="2000" rows="3" placeholder="Gate B, seat 12…"></textarea>
-          </label>
-          <div class="field">
-            <span>Top bar color</span>
-            <div class="accent-picker" id="accent-picker" role="radiogroup" aria-label="Top bar color">
-              <button type="button" class="accent-swatch" data-accent="0" style="--swatch: #6366f1" aria-label="Indigo" aria-checked="false" role="radio"></button>
-              <button type="button" class="accent-swatch" data-accent="1" style="--swatch: #06b6d4" aria-label="Cyan" aria-checked="false" role="radio"></button>
-              <button type="button" class="accent-swatch" data-accent="2" style="--swatch: #22c55e" aria-label="Green" aria-checked="false" role="radio"></button>
-              <button type="button" class="accent-swatch" data-accent="3" style="--swatch: #eab308" aria-label="Yellow" aria-checked="false" role="radio"></button>
-              <button type="button" class="accent-swatch" data-accent="4" style="--swatch: #f97316" aria-label="Orange" aria-checked="false" role="radio"></button>
-              <button type="button" class="accent-swatch" data-accent="5" style="--swatch: #ec4899" aria-label="Pink" aria-checked="false" role="radio"></button>
-            </div>
-          </div>
-          <div class="field">
-            <span>Images</span>
-            <div id="editor-thumbs" class="editor-thumbs hidden" aria-label="Coin images"></div>
-            <div class="image-tools">
-              <label class="btn-secondary file-btn">
-                Choose file
-                <input type="file" id="field-file" accept="image/*" hidden />
-              </label>
-              <label class="btn-secondary file-btn">
-                Camera
-                <input type="file" id="field-camera" accept="image/*" capture="environment" hidden />
-              </label>
-              <button type="button" class="btn-secondary btn-paste" id="btn-paste" tabindex="0">Paste</button>
-              <button type="button" class="btn-secondary danger-outline hidden" id="btn-clear-image">Clear</button>
-            </div>
-            <div id="image-preview-wrap" class="image-preview-wrap hidden">
-              <div id="image-preview-stage" class="image-preview-stage" aria-label="Swipe between images">
-                <img id="image-preview" alt="Preview" draggable="false" />
-                <img id="image-preview-peer" class="image-preview-peer hidden" alt="" aria-hidden="true" draggable="false" />
-              </div>
-              <div class="image-edit-row" id="image-edit-row">
-                <button type="button" class="btn-secondary" id="btn-crop-image">Crop &amp; rotate</button>
-                <button type="button" class="btn-secondary" id="btn-rotate-ccw" aria-label="Rotate left">↺ 90°</button>
-                <button type="button" class="btn-secondary" id="btn-rotate-cw" aria-label="Rotate right">↻ 90°</button>
-              </div>
-            </div>
-            <p class="hint" id="paste-hint">Copy a screenshot, then tap Paste. On iPhone, tap the small Paste bubble iOS shows (Apple requires it). Tap + to add more images, like a second ticket, then Save.</p>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <!-- Confirm dialog -->
-    <div id="confirm" class="confirm hidden" aria-hidden="true" role="alertdialog" aria-labelledby="confirm-title">
-      <div class="confirm-backdrop" id="confirm-backdrop"></div>
-      <div class="confirm-panel">
-        <h3 id="confirm-title">Are you sure you want to delete?</h3>
-        <p>This coin and all of its images will be deleted. This cannot be undone.</p>
-        <div class="confirm-actions">
-          <button type="button" class="btn-secondary" id="btn-confirm-cancel">Cancel</button>
-          <button type="button" class="btn-danger" id="btn-confirm-ok">Delete</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Crop / rotate overlay -->
-    <section id="cropper" class="cropper hidden" aria-hidden="true">
-      <header class="cropper-bar">
-        <button type="button" class="btn-text" id="btn-crop-cancel">Cancel</button>
-        <span>Crop &amp; rotate</span>
-        <button type="button" class="btn-text accent" id="btn-crop-apply">Apply</button>
-      </header>
-      <div class="cropper-stage" id="cropper-stage">
-        <img id="cropper-image" alt="Crop" draggable="false" />
-        <div class="cropper-shade" id="cropper-shade" aria-hidden="true"></div>
-        <div class="cropper-box" id="cropper-box">
-          <span class="cropper-edge edge-n" data-handle="n"></span>
-          <span class="cropper-edge edge-s" data-handle="s"></span>
-          <span class="cropper-edge edge-e" data-handle="e"></span>
-          <span class="cropper-edge edge-w" data-handle="w"></span>
-          <span class="cropper-handle handle-nw" data-handle="nw"></span>
-          <span class="cropper-handle handle-ne" data-handle="ne"></span>
-          <span class="cropper-handle handle-sw" data-handle="sw"></span>
-          <span class="cropper-handle handle-se" data-handle="se"></span>
-        </div>
-      </div>
-      <div class="cropper-tools">
-        <button type="button" class="btn-secondary" id="btn-crop-rotate-ccw" aria-label="Rotate counter-clockwise">↺ 90°</button>
-        <button type="button" class="btn-secondary" id="btn-crop-rotate-cw" aria-label="Rotate clockwise">↻ 90°</button>
-      </div>
-      <p class="cropper-hint">Drag edges to crop any shape · pinch to zoom · drag image to move · rotate 90°</p>
-    </section>
-
-
-    <!-- Attach image sheet (viewer +) -->
-    <div id="attach-sheet" class="confirm hidden" aria-hidden="true" role="dialog" aria-labelledby="attach-sheet-title">
-      <div class="confirm-backdrop" id="attach-sheet-backdrop"></div>
-      <div class="confirm-panel attach-panel">
-        <h3 id="attach-sheet-title">Add image</h3>
-        <p>Attach another photo to this coin. The wallet card still shows the main image.</p>
-        <div class="attach-actions">
-          <button type="button" class="btn-secondary btn-paste" id="btn-attach-paste" tabindex="0">Paste</button>
-          <label class="btn-secondary file-btn" id="btn-attach-file-label">
-            Photo library
-            <input type="file" id="attach-file" accept="image/*" hidden />
-          </label>
-          <label class="btn-secondary file-btn" id="btn-attach-camera-label">
-            Camera
-            <input type="file" id="attach-camera" accept="image/*" capture="environment" hidden />
-          </label>
-          <button type="button" class="btn-text" id="btn-attach-cancel">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Account sheet -->
-    <div id="account-sheet" class="confirm hidden" aria-hidden="true" role="dialog" aria-labelledby="account-sheet-title">
-      <div class="confirm-backdrop" id="account-sheet-backdrop"></div>
-      <div class="confirm-panel attach-panel">
-        <h3 id="account-sheet-title">Account</h3>
-        <p id="account-email">Signed in</p>
-        <div class="attach-actions">
-          <button type="button" class="btn-secondary" id="btn-sign-out">Sign out</button>
-          <button type="button" class="btn-secondary" id="btn-sign-out-all">Sign out of all devices</button>
-          <button type="button" class="btn-danger" id="btn-delete-account">Delete account</button>
-          <p class="unlock-links"><a href="/privacy">Privacy</a> · <a href="/support">Support</a></p>
-          <button type="button" class="btn-text" id="btn-account-close">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="toast" class="toast hidden" role="status"></div>
-  </div>
-  <script src="app.js?v=164"></script>
+  <footer><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a></footer>
+</main>
+<script>
+  // Older visits installed a service worker for the retired web app; remove it.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+  }
+</script>
 </body>
 </html>

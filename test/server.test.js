@@ -372,3 +372,27 @@ test('a stale email lookup does not lock the email out', async () => {
   const t = await signIn('ghost@example.com');
   assert.equal((await call('coins.js', { token: t })).status, 200);
 });
+
+test('sessions renew themselves while in use', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const fresh = await signIn('renew@example.com');
+  // A token used within a week is not reissued.
+  assert.equal((await call('coins.js', { token: fresh })).headers['x-coinpurse-token'], undefined);
+  // A token issued two weeks ago gets a fresh one, which works.
+  const realNow = Date.now;
+  let renewed;
+  try {
+    Date.now = () => realNow() + 14 * 24 * 60 * 60 * 1000;
+    const r = await call('coins.js', { token: fresh });
+    assert.equal(r.status, 200);
+    renewed = r.headers['x-coinpurse-token'];
+    assert.ok(renewed, 'no renewed token');
+    // A year after the original sign-in, the renewed token still works.
+    Date.now = () => realNow() + 370 * 24 * 60 * 60 * 1000;
+    assert.equal((await call('coins.js', { token: fresh })).status, 401);
+    assert.equal((await call('coins.js', { token: renewed })).status, 200);
+  } finally {
+    Date.now = realNow;
+  }
+});

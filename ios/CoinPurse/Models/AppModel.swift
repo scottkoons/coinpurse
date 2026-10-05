@@ -14,7 +14,12 @@ final class AppModel {
     var toast: String?
 
     private var token: String?
-    private var api: APIClient { APIClient(token: token) }
+    private var api: APIClient {
+        APIClient(token: token) { [weak self] renewed in
+            Keychain.saveToken(renewed)
+            self?.token = renewed
+        }
+    }
 
     // MARK: Session
 
