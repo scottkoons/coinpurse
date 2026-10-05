@@ -43,7 +43,7 @@ struct EditorView: View {
                 } header: {
                     Text("Picture")
                 } footer: {
-                    Text("Copy a screenshot or image in any app and Paste lights up. Or choose from Photos.")
+                    Text("Copy a screenshot or image in any app and Paste lights up. Or choose from Photos. Coin Purse is for everyday passes: please do not store credit cards, IDs or passwords.")
                 }
                 Section {
                     TextField("Title", text: $title)

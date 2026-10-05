@@ -15,9 +15,12 @@ enum APIError: LocalizedError {
 }
 
 /// Talks to the same server and endpoints as the web app.
-struct APIClient: Sendable {
+struct APIClient {
     var baseURL: URL = Config.baseURL
     var token: String?
+    /// The server sends a fresh session token about once a week; keep it so
+    /// the app never gets signed out while it is in use.
+    var onTokenRenewed: ((String) -> Void)?
 
     // MARK: Sign-in
 
@@ -135,8 +138,12 @@ struct APIClient: Sendable {
         } catch {
             throw APIError.network("Could not reach Coin Purse. Check your connection.")
         }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 0
         if status == 401 && token != nil { throw APIError.unauthorized }
+        if let renewed = http?.value(forHTTPHeaderField: "X-Coinpurse-Token"), !renewed.isEmpty {
+            onTokenRenewed?(renewed)
+        }
         guard (200..<300).contains(status) else {
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
             throw APIError.server(message ?? "Something went wrong (\(status))")

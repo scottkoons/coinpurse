@@ -44,9 +44,11 @@ function b64url(buf) {
 }
 
 function signPayload(payload, maxAgeMs) {
+  const now = Date.now();
   const body = {
     ...payload,
-    exp: Date.now() + (maxAgeMs || 1000 * 60 * 60 * 24 * 365),
+    iat: now,
+    exp: now + (maxAgeMs || 1000 * 60 * 60 * 24 * 365),
   };
   const data = b64url(JSON.stringify(body));
   return data + '.' + hmac(data);

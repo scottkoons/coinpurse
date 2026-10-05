@@ -14,7 +14,13 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-/** Session tokens last a year; bumping user.sessionVersion signs out every device. */
+/**
+ * Session tokens last a year from their last renewal, and the server renews
+ * them as they are used (see requireUser), so an app in use is never signed
+ * out. Bumping user.sessionVersion signs out every device.
+ */
+const RENEW_AFTER_MS = 1000 * 60 * 60 * 24 * 7;
+
 function issueSession(user) {
   return signPayload({
     typ: 'session',
@@ -42,6 +48,10 @@ async function requireUser(req, res) {
   if (!user || (payload.sv || 0) !== (user.sessionVersion || 0)) {
     json(res, 401, { error: 'Unauthorized' });
     return null;
+  }
+  // Hand back a fresh token once a week; the app stores it.
+  if (!payload.iat || Date.now() - payload.iat > RENEW_AFTER_MS) {
+    res.setHeader('X-Coinpurse-Token', issueSession(user));
   }
   return user;
 }

@@ -1,5 +1,5 @@
 const { json, readJsonBody, issueSession } = require('../lib/auth');
-const { signPayload, verifyPin, safeEqual } = require('../lib/crypto');
+const { verifyPin, safeEqual } = require('../lib/crypto');
 const { normalizeEmail, readLogin, writeLogin, findOrCreateUser, claimSlot } = require('../lib/users');
 const { reviewCode } = require('../lib/review');
 
@@ -46,12 +46,5 @@ module.exports = async function handler(req, res) {
 
   const user = await findOrCreateUser(email);
 
-  return json(res, 200, {
-    email: user.email,
-    token: issueSession(user),
-    // Older web app builds (cached by the service worker) still expect the
-    // PIN step; keep it working for accounts that already have a PIN.
-    needsPinSetup: !user.pinHash,
-    setupToken: signPayload({ typ: 'setup', uid: user.id, email: user.email, sv: user.sessionVersion || 0 }, 1000 * 60 * 30),
-  });
+  return json(res, 200, { email: user.email, token: issueSession(user) });
 };
