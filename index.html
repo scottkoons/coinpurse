@@ -154,6 +154,63 @@
     .art-big { font-size: 2.6rem; font-weight: 800; color: #111; letter-spacing: 0.04em; }
     .art-bars { width: 170px; height: 70px; background: repeating-linear-gradient(90deg, #111 0 3px, transparent 3px 5px, #111 5px 6px, transparent 6px 9px); }
 
+
+    /* ---------- What is in a coin (animated demo) ---------- */
+    .demo { padding: 60px 0; }
+    .demo-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 50px; align-items: center; }
+    .demo .screen { padding: 0; }
+    .demo-stack, .demo-viewer { position: absolute; inset: 0; transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+    .demo-stack { padding: 54px 14px 14px; }
+    .demo-viewer { background: #000; opacity: 0; transform: scale(0.92); pointer-events: none; display: flex; flex-direction: column; }
+    .demo.open .demo-viewer { opacity: 1; transform: none; }
+    .demo.open .demo-stack { opacity: 0; transform: scale(1.04); }
+    .dv-bar { padding: 50px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+    .dv-bar .back { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.12); display: grid; place-items: center; font-size: 0.9rem; }
+    .dv-title { text-align: center; }
+    .dv-title b { display: block; font-size: 0.95rem; }
+    .dv-title span { color: var(--muted); font-size: 0.7rem; }
+    .dv-track { flex: 1; position: relative; overflow: hidden; }
+    .dv-slides { position: absolute; inset: 0; display: flex; transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+    .demo.second .dv-slides { transform: translateX(-100%); }
+    .dv-slide { flex: 0 0 100%; display: grid; place-items: center; padding: 10px 18px; }
+    .ticket { width: 100%; max-width: 240px; border-radius: 14px; background: #fff; color: #111; overflow: hidden; box-shadow: 0 16px 30px rgba(0,0,0,0.5); }
+    .ticket-head { background: #16a34a; color: #fff; padding: 12px 14px; }
+    .ticket-head b { display: block; font-size: 1rem; letter-spacing: 0.04em; }
+    .ticket-head span { font-size: 0.72rem; opacity: 0.9; }
+    .ticket-body { padding: 14px; display: grid; place-items: center; gap: 10px; border-top: 2px dashed #d4d4d8; }
+    .ticket-body .art-qr { width: 110px; height: 110px; }
+    .ticket-body small { font-weight: 700; font-size: 0.8rem; }
+    .dv-thumbs { display: flex; gap: 8px; justify-content: center; padding: 12px 0 22px; }
+    .dv-thumbs i { width: 34px; height: 34px; border-radius: 8px; background: #e9f7ee; border: 2px solid transparent; }
+    .dv-thumbs i.on { border-color: #fff; }
+    .demo.second .dv-thumbs i:first-child { border-color: transparent; }
+    .demo.second .dv-thumbs i:nth-child(2) { border-color: #fff; }
+    .demo:not(.second) .dv-thumbs i:nth-child(2) { border-color: transparent; }
+    .finger {
+      position: absolute; width: 46px; height: 46px; border-radius: 50%;
+      background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.8);
+      opacity: 0; transform: scale(0.6); pointer-events: none; z-index: 80;
+      transition: opacity 0.25s ease, transform 0.25s ease, left 0.7s ease, top 0.7s ease;
+    }
+    .finger.show { opacity: 1; transform: scale(1); }
+    .finger.press { transform: scale(0.8); background: rgba(255,255,255,0.55); }
+    .steps { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 10px; }
+    .steps li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); transition: border-color 0.3s, color 0.3s, background 0.3s; }
+    .steps li b { color: var(--text); }
+    .steps li .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.06); color: var(--text); }
+    .steps li.on { border-color: rgba(129,140,248,0.55); background: rgba(129,140,248,0.10); color: var(--text); }
+    .steps li.on .n { background: var(--accent); color: #0b0a10; }
+    .anatomy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 46px; }
+    .part { padding: 20px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); }
+    .part .k { font-size: 1.6rem; margin-bottom: 8px; }
+    .part h3 { font-size: 1.05rem; margin-bottom: 6px; }
+    .part p { color: var(--muted); font-size: 0.93rem; margin: 0; }
+    @media (max-width: 860px) {
+      .demo-grid { grid-template-columns: 1fr; }
+      .anatomy { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 560px) { .anatomy { grid-template-columns: 1fr; } }
+
     /* ---------- Ways in ---------- */
     .ways { padding: 60px 0; }
     .ways-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 30px; }
@@ -280,6 +337,57 @@
         <h2>A stack, like cards in a wallet.</h2>
         <p class="lead" style="margin-top:16px">Swipe to flip, tap to open full screen, pinch to zoom.  A coin can hold up to six pictures, so two tailgate tickets live together in one coin instead of two.</p>
         <p class="lead">No typing required.  Skip the title and your coin is named Coin 1, Coin 2 and so on.  Add a name only when you want one.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="demo" id="demo">
+    <div class="wrap">
+      <div class="demo-grid">
+        <div class="reveal">
+          <div class="phone" aria-label="Opening a coin that holds two tailgate tickets">
+            <div class="screen">
+              <div class="demo-stack">
+                <div class="screen-title">Coin Purse</div>
+                <div class="screen-hint">Swipe to flip · tap to open</div>
+                <div class="deck" id="demo-deck"></div>
+              </div>
+              <div class="demo-viewer" aria-hidden="true">
+                <div class="dv-bar">
+                  <span class="back">‹</span>
+                  <div class="dv-title"><b>Tailgate tickets</b><span id="dv-count">1 of 2</span></div>
+                  <span style="width:28px"></span>
+                </div>
+                <div class="dv-track">
+                  <div class="dv-slides">
+                    <div class="dv-slide"><div class="ticket"><div class="ticket-head"><b>TAILGATE PASS</b><span>Saturday · Lot C</span></div><div class="ticket-body"><div class="art-qr"></div><small>Ticket 1 · Admit one</small></div></div></div>
+                    <div class="dv-slide"><div class="ticket"><div class="ticket-head"><b>TAILGATE PASS</b><span>Saturday · Lot C</span></div><div class="ticket-body"><div class="art-qr" style="transform:rotate(90deg)"></div><small>Ticket 2 · Admit one</small></div></div></div>
+                  </div>
+                </div>
+                <div class="dv-thumbs"><i class="on"></i><i></i></div>
+              </div>
+              <div class="finger" id="finger"></div>
+            </div>
+          </div>
+        </div>
+        <div class="reveal">
+          <p class="eyebrow">What is in a coin?</p>
+          <h2>One coin, everything that goes together.</h2>
+          <p class="lead" style="margin-top:16px">A coin is one thing you want handy, and it can hold up to six pictures.  Two tailgate tickets are one coin, not two.  Same for the front and back of a card, or every page of a return label.</p>
+          <ol class="steps" id="demo-steps">
+            <li data-step="0"><span class="n">1</span><span><b>Find it.</b>  The badge on the card shows how many pictures the coin holds.</span></li>
+            <li data-step="1"><span class="n">2</span><span><b>Tap to open.</b>  The coin fills the screen, ready to scan.</span></li>
+            <li data-step="2"><span class="n">3</span><span><b>Swipe for the next one.</b>  Ticket 2 is right there.  Pinch to zoom on any picture.</span></li>
+            <li data-step="3"><span class="n">4</span><span><b>Tap outside to close.</b>  Back to your purse.</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="anatomy">
+        <div class="part reveal"><div class="k">🏷️</div><h3>A name, if you want one</h3><p>Type one, or skip it and the coin is named Coin 1, Coin 2 and so on.</p></div>
+        <div class="part reveal"><div class="k">🖼️</div><h3>Up to six pictures</h3><p>Photos, screenshots or both.  The first is the one you see on the card.</p></div>
+        <div class="part reveal"><div class="k">📝</div><h3>Notes</h3><p>A gift card code, a seat number, a link.  Links, emails and phone numbers are tappable.</p></div>
+        <div class="part reveal"><div class="k">🎨</div><h3>A color</h3><p>A stripe across the top so you can spot it in the stack.</p></div>
       </div>
     </div>
   </section>
@@ -440,6 +548,69 @@
         layout();
       }, 2600);
     }
+
+
+    // ---------- What is in a coin: tap to open, swipe to ticket 2, tap outside ----------
+    (function () {
+      const demo = document.getElementById('demo');
+      const deckEl = document.getElementById('demo-deck');
+      const finger = document.getElementById('finger');
+      const count = document.getElementById('dv-count');
+      const steps = [...document.querySelectorAll('#demo-steps li')];
+      const items = [
+        { t: 'Return label', s: 'Drop off by Friday', c: '#6366f1' },
+        { t: 'Haircut card', s: 'Card # 4821 0937', c: '#f97316' },
+        { t: 'Coin 4', s: 'Shopping list', c: '#eab308' },
+        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, front: true },
+      ];
+      let y = 0;
+      items.forEach((c) => {
+        const el = document.createElement('div');
+        el.className = 'mini';
+        el.style.setProperty('--c', c.c);
+        el.style.setProperty('--art', '#e9f7ee');
+        el.style.transform = 'translateY(' + y + 'px)';
+        el.style.height = c.front ? '370px' : '64px';
+        el.innerHTML = '<div class="mini-head"><div class="mini-thumb">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') +
+          '</div><div><div class="mini-title">' + c.t + '</div><div class="mini-sub">' + c.s + '</div></div></div>' +
+          (c.front ? '<div class="mini-body"><div class="art-qr"></div></div>' : '');
+        deckEl.appendChild(el);
+        y += 52;
+      });
+      const setStep = (i) => steps.forEach((li, n) => li.classList.toggle('on', n === i));
+      const put = (x, yy) => { finger.style.left = x + '%'; finger.style.top = yy + '%'; };
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      async function tap() {
+        finger.classList.add('press'); await wait(180); finger.classList.remove('press');
+      }
+      async function loop() {
+        for (;;) {
+          demo.classList.remove('open', 'second'); count.textContent = '1 of 2';
+          finger.classList.remove('show'); setStep(0);
+          await wait(1800);
+          put(42, 62); finger.classList.add('show'); setStep(1);
+          await wait(700); await tap();
+          demo.classList.add('open');
+          await wait(1500);
+          setStep(2); put(78, 48); await wait(700);
+          put(14, 48); demo.classList.add('second'); count.textContent = '2 of 2';
+          await wait(1800);
+          setStep(3); put(46, 14); await wait(700); await tap();
+          demo.classList.remove('open', 'second');
+          finger.classList.remove('show');
+          await wait(1600);
+        }
+      }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        demo.classList.add('open'); setStep(1);
+        return;
+      }
+      // Start when the phone scrolls into view.
+      const io2 = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { io2.disconnect(); loop(); }
+      }, { threshold: 0.3 });
+      io2.observe(demo);
+    })();
 
     // Fade sections in as they scroll into view.
     const io = new IntersectionObserver((entries) => {
