@@ -46,7 +46,10 @@
     .badge svg { width: 20px; height: 20px; }
 
     /* ---------- Hero ---------- */
-    .hero { position: relative; padding: calc(40px + env(safe-area-inset-top)) 0 110px; overflow: hidden; }
+    .hero { position: relative; padding: calc(28px + env(safe-area-inset-top)) 0 84px; overflow: hidden; }
+    /* Fade the glow into the page at the bottom, so there is no hard edge. */
+    .hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 260px; background: linear-gradient(rgba(11,10,16,0), var(--bg) 85%); pointer-events: none; }
+    .hero > .wrap, .scroll-cue { z-index: 1; }
     /* Slowly moving aurora behind the hero. */
     .aurora { position: absolute; inset: -30% -20%; pointer-events: none; filter: blur(60px); opacity: 0.9; }
     .aurora i { position: absolute; border-radius: 50%; mix-blend-mode: screen; animation: blob 22s ease-in-out infinite; }
@@ -60,7 +63,7 @@
     .word { display: inline-block; opacity: 0; transform: translateY(0.5em) rotate(3deg); animation: word 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
     @keyframes word { to { opacity: 1; transform: none; } }
     .hero-grid { position: relative; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; margin-bottom: 56px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; margin-bottom: 32px; }
     .brand img { width: 34px; height: 34px; }
     .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); font-weight: 800; }
     /* Each word carries the silver sheen itself (a clipped gradient on the
@@ -78,7 +81,10 @@
     .sub-badge { display: block; margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
     .coin-stage { position: relative; display: grid; place-items: center; min-height: 440px; perspective: 1000px; }
     .coin-3d { transform-style: preserve-3d; will-change: transform; }
-    .coin { width: min(320px, 72vw); display: block; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.55)); animation: float 6s ease-in-out infinite; }
+    .coin { width: min(320px, 72vw); display: block; animation: float 6s ease-in-out infinite; }
+    /* A separate soft shadow under the coin (a filter on the tilting coin got clipped into a hard line). */
+    .coin-shadow { position: absolute; left: 50%; top: 50%; width: min(260px, 58vw); height: 70px; transform: translate(-50%, 150px); border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,0.55), transparent); filter: blur(8px); animation: shadow 6s ease-in-out infinite; pointer-events: none; }
+    @keyframes shadow { 0%, 100% { transform: translate(-50%, 150px) scale(1); } 50% { transform: translate(-50%, 150px) scale(0.82); } }
     /* Labels orbit the coin and stay upright. */
     .orbit { position: absolute; inset: 0; animation: orbit 60s linear infinite; pointer-events: none; }
     .orbit .chip { animation: counter 60s linear infinite; }
@@ -104,7 +110,7 @@
     @keyframes cue { 0% { opacity: 0; transform: translateY(0); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(12px); } }
 
     /* ---------- Wallet vs purse ---------- */
-    .compare { padding: 50px 0 30px; }
+    .compare { padding: 24px 0 0; }
     .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
     .compare-card { padding: 26px; border-radius: var(--radius); background: var(--bg-2); border: 1px solid var(--line); }
     .compare-card h3 { font-size: 1.3rem; margin-bottom: 6px; }
@@ -326,7 +332,7 @@
     .s-lock small { color: var(--muted); font-size: 0.75rem; }
 
     /* ---------- What is in a coin ---------- */
-    .coin-parts { padding: 60px 0; }
+    .coin-parts { padding: 8px 0 0; }
     .anatomy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 32px; }
     .part { padding: 20px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); }
     .part .k { font-size: 1.6rem; margin-bottom: 8px; }
@@ -334,7 +340,7 @@
     .part p { color: var(--muted); font-size: 0.93rem; margin: 0; }
 
     /* ---------- Uses ---------- */
-    .uses { padding: 60px 0; }
+    .uses { padding: 8px 0 0; }
     .uses-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
     .use { padding: 20px 22px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); transition: transform 0.25s, border-color 0.25s; }
     .use:hover { transform: translateY(-3px); border-color: rgba(129, 140, 248, 0.4); }
@@ -344,7 +350,7 @@
     .use p { color: var(--muted); margin: 8px 0 0; font-size: 0.95rem; }
 
     /* ---------- CTA + footer ---------- */
-    .cta { padding: 80px 0 60px; text-align: center; position: relative; overflow: hidden; }
+    .cta { padding: 20px 0 50px; text-align: center; position: relative; overflow: hidden; }
     .shower-coin { position: absolute; top: -60px; pointer-events: none; animation: fall linear forwards; }
     @keyframes fall { to { transform: translateY(var(--d)) rotate(var(--r)); opacity: 0; } }
     .cta img { width: 110px; animation: float 6s ease-in-out infinite; }
@@ -409,12 +415,13 @@
           <span class="sub-badge">Free.  No ads.  iPhone.</span>
         </div>
         <div class="coin-stage" aria-hidden="true">
+          <div class="coin-shadow" id="coin-shadow"></div>
           <div class="coin-3d" id="coin3d"><img class="coin" src="/img/coin.png" alt="" /></div>
           <div class="orbit">
             <span class="chip a"><i style="background:#22c55e"></i>Tailgate tickets · 2</span>
             <span class="chip b"><i style="background:#f97316"></i>Coffee gift card</span>
             <span class="chip c"><i style="background:#06b6d4"></i>Conference badge</span>
-            <span class="chip d"><i style="background:#ec4899"></i>Coin 7</span>
+            <span class="chip d"><i style="background:#ec4899"></i>Shopping list</span>
           </div>
         </div>
       </div>
@@ -728,8 +735,8 @@
       const phone = fit.querySelector('.phone');
       function sizePhone() {
         const box = fit.parentElement.getBoundingClientRect();
-        const pad = innerWidth <= 860 ? 16 : 40;
-        const s = Math.min(1, (box.height - pad) / 716, (box.width - 20) / 330);
+        const pad = innerWidth <= 860 ? 16 : 24;
+        const s = Math.min(1.15, (box.height - pad) / 716, (box.width - 20) / 330);
         fit.style.width = 330 * s + 'px';
         fit.style.height = 716 * s + 'px';
         phone.style.transformOrigin = '0 0';
@@ -1005,9 +1012,14 @@
         play(ch.dataset.step);
       }
       function onScroll() {
-        // The act covering the middle of the screen owns the phone.
-        const mid = innerHeight / 2;
-        const act = acts.find((a) => { const r = a.el.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; });
+        // The act that fills the most of the screen owns the phone, so an act
+        // scrolls in already showing its phone and first headline.
+        let act = null, best = 0;
+        acts.forEach((a) => {
+          const r = a.el.getBoundingClientRect();
+          const seen = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+          if (seen > best) { best = seen; act = a; }
+        });
         if (act !== currentAct) {
           currentAct = act; current = -1;
           if (!act) { run++; return; }
@@ -1022,6 +1034,8 @@
         const i = Math.floor(pos);
         if (i !== current) activate(act, i);
       }
+      // Every act starts with its first headline showing.
+      acts.forEach((a) => a.chapters[0].classList.add('active'));
       addEventListener('scroll', onScroll, { passive: true });
       addEventListener('resize', onScroll);
       setOrder(STACK);
@@ -1068,6 +1082,7 @@
             'translateY(' + (p * 120) + 'px) scale(' + (1 - p * 0.35) + ') ' +
             'rotateY(' + (mx * 18 + p * 540) + 'deg) rotateX(' + (-my * 14) + 'deg)';
           coin3d.style.opacity = String(1 - p * 0.8);
+          $('#coin-shadow').style.opacity = String(1 - p);
           requestAnimationFrame(frame);
         })();
         // The pinned iPhone leans gently toward the mouse.
