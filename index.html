@@ -51,11 +51,12 @@
     .hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 260px; background: linear-gradient(rgba(11,10,16,0), var(--bg) 85%); pointer-events: none; }
     .hero > .wrap, .scroll-cue { z-index: 1; }
     /* Slowly moving aurora behind the hero. */
-    .aurora { position: absolute; inset: -30% -20%; pointer-events: none; filter: blur(60px); opacity: 0.9; }
-    .aurora i { position: absolute; border-radius: 50%; mix-blend-mode: screen; animation: blob 22s ease-in-out infinite; }
-    .aurora i:nth-child(1) { width: 46vw; height: 46vw; left: 48%; top: 8%; background: rgba(129, 140, 248, 0.35); }
-    .aurora i:nth-child(2) { width: 38vw; height: 38vw; left: 8%; top: 0; background: rgba(34, 211, 238, 0.22); animation-delay: -7s; animation-duration: 26s; }
-    .aurora i:nth-child(3) { width: 30vw; height: 30vw; left: 30%; top: 38%; background: rgba(236, 72, 153, 0.16); animation-delay: -13s; animation-duration: 30s; }
+    /* Soft glows drawn as gradients (no blur filter or blend mode, so Safari never shows a seam). */
+    .aurora { position: absolute; inset: -30% -20%; pointer-events: none; opacity: 0.9; }
+    .aurora i { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, var(--g), transparent); animation: blob 22s ease-in-out infinite; }
+    .aurora i:nth-child(1) { width: 60vw; height: 60vw; left: 42%; top: 2%; --g: rgba(129, 140, 248, 0.42); }
+    .aurora i:nth-child(2) { width: 50vw; height: 50vw; left: 4%; top: -4%; --g: rgba(34, 211, 238, 0.28); animation-delay: -7s; animation-duration: 26s; }
+    .aurora i:nth-child(3) { width: 40vw; height: 40vw; left: 26%; top: 34%; --g: rgba(236, 72, 153, 0.2); animation-delay: -13s; animation-duration: 30s; }
     @keyframes blob { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(6vw, 4vh) scale(1.12); } 66% { transform: translate(-5vw, -3vh) scale(0.92); } }
     /* Little coins drifting up in the background. */
     .drift-coin { position: absolute; bottom: -80px; opacity: 0; pointer-events: none; animation: rise linear infinite; }
@@ -93,8 +94,7 @@
     @keyframes float { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-14px) rotate(4deg); } }
     .chip {
       position: absolute; padding: 9px 14px; border-radius: 999px;
-      background: rgba(27, 26, 36, 0.85); border: 1px solid var(--line);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      background: rgba(27, 26, 36, 0.92); border: 1px solid var(--line);
       font-size: 0.85rem; font-weight: 600; white-space: nowrap;
       animation: drift 7s ease-in-out infinite;
     }
