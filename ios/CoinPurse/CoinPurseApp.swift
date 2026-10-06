@@ -1,8 +1,11 @@
+import CoreSpotlight
 import SwiftUI
 
 @main
 struct CoinPurseApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    @State private var quick = QuickActions.shared
     @State private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -11,6 +14,13 @@ struct CoinPurseApp: App {
             RootView()
                 .environment(model)
                 .environment(lock)
+                .environment(quick)
+                // A coin tapped in iPhone Search opens here.
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String {
+                        quick.pending = .openCoin(id)
+                    }
+                }
                 .task {
                     await model.start()
                     // Launching into a signed-in purse: ask to unlock now.

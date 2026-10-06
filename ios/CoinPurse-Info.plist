@@ -5,6 +5,34 @@
 	<!-- HTTPS only, standard Apple encryption: exempt from export paperwork. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Press and hold the app icon. -->
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>pinSpot</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Pin My Spot</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>mappin.and.ellipse</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>voiceNote</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Voice Note</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>mic.fill</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>addPicture</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Add Picture</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>camera.fill</string>
+		</dict>
+	</array>
 	<!-- If Precise Location is off, a pin asks for it once, with this reason. -->
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
 	<dict>

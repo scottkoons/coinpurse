@@ -6,10 +6,32 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C100000000000000000000E1 /* CoinPurseShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* CoinPurseShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A100000000000000000000E0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C100000000000000000000E1 /* CoinPurseShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A10000000000000000000001 /* CoinPurse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoinPurse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000001 /* CoinPurseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoinPurseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* CoinPurse-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CoinPurse-Info.plist"; sourceTree = "<group>"; };
+		C10000000000000000000001 /* CoinPurseShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CoinPurseShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000002 /* CoinPurseShare-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CoinPurseShare-Info.plist"; sourceTree = "<group>"; };
+		A10000000000000000000003 /* CoinPurse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoinPurse.entitlements; sourceTree = "<group>"; };
+		C10000000000000000000003 /* CoinPurseShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoinPurseShare.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +45,16 @@
 			path = CoinPurseUITests;
 			sourceTree = "<group>";
 		};
+		C10000000000000000000010 /* CoinPurseShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CoinPurseShare;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000010 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +64,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A10000000000000000000040;
 			remoteInfo = CoinPurse;
+		};
+		C10000000000000000000090 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000080 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10000000000000000000040;
+			remoteInfo = CoinPurseShare;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -50,6 +89,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000000000000000000020 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,8 +103,13 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000010 /* CoinPurse */,
+				D10000000000000000000010 /* Shared */,
+				C10000000000000000000010 /* CoinPurseShare */,
 				B10000000000000000000010 /* CoinPurseUITests */,
 				A10000000000000000000002 /* CoinPurse-Info.plist */,
+				C10000000000000000000002 /* CoinPurseShare-Info.plist */,
+				A10000000000000000000003 /* CoinPurse.entitlements */,
+				C10000000000000000000003 /* CoinPurseShare.entitlements */,
 				A10000000000000000000031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -68,6 +119,7 @@
 			children = (
 				A10000000000000000000001 /* CoinPurse.app */,
 				B10000000000000000000001 /* CoinPurseUITests.xctest */,
+				C10000000000000000000001 /* CoinPurseShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,13 +134,16 @@
 				A10000000000000000000050 /* Sources */,
 				A10000000000000000000020 /* Frameworks */,
 				A10000000000000000000060 /* Resources */,
+				A100000000000000000000E0 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C10000000000000000000091 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000010 /* CoinPurse */,
+				D10000000000000000000010 /* Shared */,
 			);
 			name = CoinPurse;
 			packageProductDependencies = (
@@ -120,6 +175,29 @@
 			productReference = B10000000000000000000001 /* CoinPurseUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		C10000000000000000000040 /* CoinPurseShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000070 /* Build configuration list for PBXNativeTarget "CoinPurseShare" */;
+			buildPhases = (
+				C10000000000000000000050 /* Sources */,
+				C10000000000000000000020 /* Frameworks */,
+				C10000000000000000000060 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C10000000000000000000010 /* CoinPurseShare */,
+				D10000000000000000000010 /* Shared */,
+			);
+			name = CoinPurseShare;
+			packageProductDependencies = (
+			);
+			productName = CoinPurseShare;
+			productReference = C10000000000000000000001 /* CoinPurseShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -136,6 +214,9 @@
 					B10000000000000000000040 = {
 						CreatedOnToolsVersion = 26.0;
 						TestTargetID = A10000000000000000000040;
+					};
+					C10000000000000000000040 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -155,6 +236,7 @@
 			targets = (
 				A10000000000000000000040 /* CoinPurse */,
 				B10000000000000000000040 /* CoinPurseUITests */,
+				C10000000000000000000040 /* CoinPurseShare */,
 			);
 		};
 /* End PBXProject section */
@@ -168,6 +250,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B10000000000000000000060 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000060 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -191,6 +280,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000000000000000000050 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -198,6 +294,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000040 /* CoinPurse */;
 			targetProxy = B10000000000000000000090 /* PBXContainerItemProxy */;
+		};
+		C10000000000000000000091 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C10000000000000000000040 /* CoinPurseShare */;
+			targetProxy = C10000000000000000000090 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -258,6 +359,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CoinPurse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MAWR9G7Y7A;
@@ -298,6 +400,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CoinPurse.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MAWR9G7Y7A;
@@ -369,6 +472,66 @@
 			};
 			name = Release;
 		};
+		C10000000000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = CoinPurseShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MAWR9G7Y7A;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CoinPurseShare-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Coin Purse";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yetignome.coinpurse.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C10000000000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = CoinPurseShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MAWR9G7Y7A;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CoinPurseShare-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Coin Purse";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yetignome.coinpurse.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -395,6 +558,15 @@
 			buildConfigurations = (
 				B10000000000000000000071 /* Debug */,
 				B10000000000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10000000000000000000070 /* Build configuration list for PBXNativeTarget "CoinPurseShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10000000000000000000071 /* Debug */,
+				C10000000000000000000072 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

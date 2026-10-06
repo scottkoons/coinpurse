@@ -47,6 +47,8 @@ final class AppModel {
             UserDefaults.standard.set(true, forKey: "hasLaunched")
         }
         token = Keychain.loadToken()
+        // So "Share to Coin Purse" is signed in too (older versions kept it private).
+        if token != nil { Keychain.shareExistingToken() }
         guard token != nil else {
             phase = .signedOut
             return
@@ -83,6 +85,7 @@ final class AppModel {
         coins = []
         coinsLoaded = false
         Self.removeSnapshot()
+        SpotlightIndex.clear()
         email = ""
         await ImageCache.shared.removeAll()
         phase = .signedOut
@@ -319,10 +322,23 @@ final class AppModel {
 
     private func saveSnapshot() {
         guard phase == .signedIn, coinsLoaded || !coins.isEmpty else { return }
+        scheduleSpotlight()
         let snap = Snapshot(email: email, coins: coins)
         guard let data = try? JSONEncoder().encode(snap) else { return }
         // Protected while the phone is locked.
         try? data.write(to: Self.snapshotURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    private var spotlightTask: Task<Void, Never>?
+
+    /// Many quick changes (a refresh, several uploads) become one index update.
+    private func scheduleSpotlight() {
+        spotlightTask?.cancel()
+        spotlightTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, phase == .signedIn else { return }
+            SpotlightIndex.update(coins)
+        }
     }
 
     private func loadSnapshot() {

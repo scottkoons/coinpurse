@@ -7,7 +7,7 @@ enum PictureLoader {
     static func data(from providers: [NSItemProvider]) async -> Data? {
         guard let provider = providers.first(where: { $0.canLoadObject(ofClass: UIImage.self) }) else { return nil }
         let image: UIImage? = await withCheckedContinuation { cont in
-            _ = provider.loadObject(ofClass: UIImage.self) { object, _ in
+            _ = provider.loadObject(ofClass: UIImage.self) { @Sendable object, _ in
                 cont.resume(returning: object as? UIImage)
             }
         }

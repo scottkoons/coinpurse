@@ -580,6 +580,86 @@ final class CoinPurseUITests: XCTestCase {
         wait(for: [done], timeout: 10)
     }
 
+    /// Share to Coin Purse: two pictures added to an existing coin, then saved
+    /// as a new coin (TEST_RUNNER_SHARE=1). The app shows the same screen the
+    /// Share extension uses.
+    @MainActor
+    func testShareToCoinPurse() throws {
+        guard ProcessInfo.processInfo.environment["SHARE"] == "1" else { throw XCTSkip("Set SHARE=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
+        UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "T1")
+        app.buttons["addPicture"].tap()
+        let title = app.textFields["titleField"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Tickets")
+        tapPaste()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Tickets").waitForExistence(timeout: 15))
+        app.terminate()
+
+        // Shared from Messages: add both pictures to Tickets.
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestNoLock", "-uiTestShare"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        let save = app.buttons["shareSave"]
+        XCTAssertTrue(save.waitForExistence(timeout: 20), "share screen did not open")
+        XCTAssertTrue(app.staticTexts["2 pictures"].exists)
+        snap("s01-share-new")
+        app.buttons["Add to a Coin"].tap()
+        let tickets = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Tickets'")).firstMatch
+        XCTAssertTrue(tickets.waitForExistence(timeout: 5))
+        XCTAssertFalse(save.isEnabled, "Save before choosing a coin")
+        tickets.tap()
+        XCTAssertTrue(save.isEnabled)
+        snap("s02-share-existing")
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 20), "share did not finish")
+        card("Tickets").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["Page 1 of 3"].waitForExistence(timeout: 10), "Tickets should hold 3 pictures")
+        app.buttons["Done"].tap()
+        app.terminate()
+
+        // Shared again: a new coin with a title.
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestNoLock", "-uiTestShare"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        XCTAssertTrue(save.waitForExistence(timeout: 20))
+        let shareTitle = app.textFields["shareTitle"]
+        shareTitle.tap()
+        shareTitle.typeText("Shared tickets")
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 20))
+        XCTAssertTrue(card("Shared tickets").waitForExistence(timeout: 15))
+        card("Shared tickets").tap()
+        XCTAssertTrue(app.descendants(matching: .any)["Page 1 of 2"].waitForExistence(timeout: 10))
+        snap("s03-shared-coin")
+    }
+
+    /// Quick actions open the right screen (TEST_RUNNER_QUICK=1).
+    @MainActor
+    func testQuickActions() throws {
+        guard ProcessInfo.processInfo.environment["QUICK"] == "1" else { throw XCTSkip("Set QUICK=1 to run") }
+        for (action, check) in [("pinSpot", "Pin your spot"), ("voiceNote", "Voice note"), ("addPicture", "New coin")] {
+            app = XCUIApplication()
+            app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestQuickAction", action, "-uiTestPin", "38.834,-104.821"]
+            app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+            app.launch()
+            signIn()
+            XCTAssertTrue(app.staticTexts[check].waitForExistence(timeout: 15), "\(action) did not open \(check)")
+            snap("q-\(action)")
+            app.terminate()
+        }
+    }
+
     /// What Apple Maps shows after tapping a pin (TEST_RUNNER_MAPS=1, design purse).
     @MainActor
     func testMapsDirections() throws {

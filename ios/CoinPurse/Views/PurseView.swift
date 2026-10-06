@@ -8,6 +8,7 @@ struct CoinRef: Identifiable, Hashable { let id: String }
 /// only ever scrolls; sideways only happens inside an open coin.
 struct PurseView: View {
     @Environment(AppModel.self) private var model
+    @Environment(QuickActions.self) private var quick
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cards
     /// How much of each tucked-in card shows; grows with larger text.
@@ -23,6 +24,7 @@ struct PurseView: View {
     @State private var showReorder = false
     @State private var pendingDelete: Coin?
     @State private var searching = false
+    @State private var testShare = false
     @State private var query = ""
     @FocusState private var searchFocused: Bool
 
@@ -60,6 +62,22 @@ struct PurseView: View {
         }
         .onChange(of: model.coins.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
+            runQuickAction()
+        }
+        // From the icon menu, Siri, Shortcuts or the Action Button.
+        .onChange(of: quick.pending, initial: true) { _, _ in runQuickAction() }
+        .onAppear {
+            #if DEBUG
+            if let test = UserDefaults.standard.string(forKey: "uiTestQuickAction") {
+                quick.pending = QuickAction(shortcutType: test)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-uiTestShare") {
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    testShare = true
+                }
+            }
+            #endif
         }
         .sheet(isPresented: $addingPicture) { EditorView(coinId: nil) }
         .sheet(isPresented: $addingPin) { EditorView(coinId: nil, startsWithPin: true) }
@@ -67,6 +85,15 @@ struct PurseView: View {
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
+        #if DEBUG
+        // UI tests open the Share to Coin Purse screen with two sample pictures.
+        .sheet(isPresented: $testShare) {
+            ShareView(load: { ShareSamples.input() }, onDone: {
+                testShare = false
+                Task { await model.refresh() }
+            }, onCancel: { testShare = false })
+        }
+        #endif
         .alert(
             "Are you sure you want to delete?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -200,6 +227,32 @@ struct PurseView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             await model.deleteCoin(id)
+        }
+    }
+
+    private func runQuickAction() {
+        guard let action = quick.pending else { return }
+        if case .openCoin(let id) = action {
+            // Wait for the purse to load; a coin that no longer exists is dropped.
+            guard model.coinsLoaded || model.coin(id) != nil else { return }
+            quick.pending = nil
+            guard model.coin(id) != nil else { return }
+            endSearch()
+            openCoin(id)
+            return
+        }
+        quick.pending = nil
+        // Start from the purse itself, whatever was open.
+        openId = nil
+        endSearch()
+        editing = nil
+        showAccount = false
+        showReorder = false
+        switch action {
+        case .addPicture: addingPicture = true
+        case .voiceNote: recordingVoice = true
+        case .pinSpot: addingPin = true
+        case .openCoin: break
         }
     }
 
@@ -416,3 +469,26 @@ struct ReorderView: View {
         .onAppear { ids = model.coins.map(\.id) }
     }
 }
+
+#if DEBUG
+/// Two pictures, as if shared from Messages (UI tests only).
+enum ShareSamples {
+    static func input() -> ShareInput {
+        var input = ShareInput()
+        for (n, color) in [(1, UIColor.systemBlue), (2, UIColor.systemOrange)] {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { ctx in
+                color.setFill()
+                ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+                ("Shared \(n)" as NSString).draw(at: CGPoint(x: 60, y: 80), withAttributes: [
+                    .font: UIFont.boldSystemFont(ofSize: 72), .foregroundColor: UIColor.white,
+                ])
+            }
+            if let jpeg = ImageProcessing.uploadData(from: image) {
+                input.images.append(jpeg)
+                input.previews.append(image)
+            }
+        }
+        return input
+    }
+}
+#endif
