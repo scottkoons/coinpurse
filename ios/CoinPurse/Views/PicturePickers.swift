@@ -38,34 +38,59 @@ struct PictureSourceButtons: View {
     @State private var showCamera = false
     @State private var loading = false
 
-    var body: some View {
-        VStack(spacing: 10) {
-            // Apple's secure Paste control: one tap, no "Allow Paste" prompt.
-            // iOS dims it by itself until the clipboard holds a picture.
-            PasteButton(supportedContentTypes: [.image]) { providers in
-                Task { await deliver(await PictureLoader.data(from: providers)) }
-            }
-            .labelStyle(.titleAndIcon)
-            .buttonBorderShape(.capsule)
-            .tint(.accentColor)
+    private static var hasCamera: Bool {
+        #if DEBUG
+        // UI tests show the button in the Simulator to check the layout.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestShowCamera") { return true }
+        #endif
+        return UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
 
-            HStack(spacing: 10) {
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label("Photos", systemImage: "photo.on.rectangle")
+    // Apple's secure Paste control: one tap, no "Allow Paste" prompt.
+    // iOS dims it by itself until the clipboard holds a picture.
+    private var paste: some View {
+        PasteButton(supportedContentTypes: [.image]) { providers in
+            Task { await deliver(await PictureLoader.data(from: providers)) }
+        }
+        .labelStyle(.titleAndIcon)
+        .buttonBorderShape(.capsule)
+        .tint(.accentColor)
+    }
+
+    @ViewBuilder private var others: some View {
+        Group {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Label("Photos", systemImage: "photo.on.rectangle")
+                    .lineLimit(1)
+            }
+            if Self.hasCamera {
+                Button { showCamera = true } label: {
+                    Label("Camera", systemImage: "camera")
                         .lineLimit(1)
                 }
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button { showCamera = true } label: {
-                        Label("Camera", systemImage: "camera")
-                            .lineLimit(1)
-                    }
+            }
+        }
+        // Same compact pill shape as Paste, which iOS sizes itself.
+        .labelStyle(.titleAndIcon)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .fixedSize()
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            // All three on one line; with very large text they wrap to two.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    paste
+                    others
+                }
+                .font(.subheadline.weight(.semibold))
+                VStack(spacing: 10) {
+                    paste
+                    HStack(spacing: 10) { others }
                 }
             }
-            // Same compact pill shape as Paste, which iOS sizes itself.
-            .labelStyle(.titleAndIcon)
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .fixedSize()
 
             if loading { ProgressView() }
         }
