@@ -504,3 +504,52 @@ test('a burst of untitled coins gets unique numbers and none are lost', async ()
   const after = (await call('coins.js', { token: t })).data.coins;
   assert.equal(after.filter((c) => c.title === 'Once').length, 1);
 });
+
+test('odd and oversized input is handled safely', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('odd@example.com');
+  const made = await call('coins.js', { method: 'POST', token: t, body: { title: 'x'.repeat(5000), notes: 'n'.repeat(9000) } });
+  assert.equal(made.status, 201);
+  assert.equal(made.data.coin.title.length, 200, 'long title not trimmed');
+  assert.equal(made.data.coin.notes.length, 5000, 'long notes not trimmed');
+  const id = made.data.coin.id;
+  const up = (body, type) => call('coins/[id]/image.js', { method: 'POST', token: t, query: { id }, body, headers: { 'content-type': type } });
+  // Not a picture, whatever the label says.
+  assert.equal((await up(Buffer.from('<html><script>alert(1)</script></html>'), 'image/jpeg')).status, 415);
+  assert.equal((await up(Buffer.from('GIF89a....'), 'image/gif')).status, 415);
+  assert.equal((await up(Buffer.alloc(0), 'image/jpeg')).status, 400);
+  // Too big.
+  const huge = Buffer.concat([JPEG, Buffer.alloc(4 * 1024 * 1024 + 10)]);
+  assert.equal((await up(huge, 'image/jpeg')).status, 413);
+  // Real PNG and WebP headers pass.
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+  assert.equal((await up(png, 'image/png')).status, 200);
+  const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.from([1, 0, 0, 0]), Buffer.from('WEBPVP8 ')]);
+  assert.equal((await up(webp, 'image/webp')).status, 200);
+  // Ids that try to reach other folders are refused.
+  for (const bad of ['../../etc', 'a/b', 'short', '', 'x'.repeat(200), 'abc def ghi']) {
+    assert.equal((await call('coins/[id].js', { method: 'PUT', token: t, query: { id: bad }, body: { title: 'y' } })).status, 400, bad);
+  }
+  // Reorder with duplicates and unknown ids keeps every coin exactly once.
+  const second = (await call('coins.js', { method: 'POST', token: t, body: { title: 'Second' } })).data.coin.id;
+  const r = await call('coins/reorder.js', { method: 'POST', token: t, body: { ids: [id, id, 'nope-nope-nope', second] } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.coins.map((c) => c.id), [id, second]);
+  assert.equal((await call('coins/reorder.js', { method: 'POST', token: t, body: { ids: [] } })).status, 400);
+  // Bad JSON is refused politely.
+  const raw = await call('coins.js', { method: 'POST', token: t, body: Buffer.from('{not json'), headers: { 'content-type': 'application/json' } });
+  assert.ok(raw.status >= 400 && raw.status < 500, 'bad JSON should be a client error, got ' + raw.status);
+});
+
+test('a purse stops at 500 coins', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('full@example.com');
+  for (let i = 0; i < 500; i += 50) {
+    await Promise.all(Array.from({ length: 50 }, (_, k) => call('coins.js', { method: 'POST', token: t, body: { title: 'C' + (i + k) } })));
+  }
+  assert.equal((await call('coins.js', { token: t })).data.coins.length, 500);
+  const extra = await call('coins.js', { method: 'POST', token: t, body: { title: 'One too many' } });
+  assert.equal(extra.status, 400);
+});
