@@ -700,7 +700,9 @@ final class CoinPurseUITests: XCTestCase {
         guard ProcessInfo.processInfo.environment["QUICK"] == "1" else { throw XCTSkip("Set QUICK=1 to run") }
         for (action, check) in [("pinSpot", "Pin your spot"), ("voiceNote", "Voice note"), ("addPicture", "New coin")] {
             app = XCUIApplication()
-            app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestQuickAction", action, "-uiTestPin", "38.834,-104.821"]
+            // Simulated speech: the simulator's microphone is unreliable when several run at once.
+            app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestQuickAction", action, "-uiTestPin", "38.834,-104.821",
+                                    "-uiTestVoiceText", "Quick note"]
             app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
             app.launch()
             signIn()

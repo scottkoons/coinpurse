@@ -54,7 +54,9 @@ final class VoiceCapture {
             Task { @MainActor in await self?.engineStopped() }
         }
         do {
-            try engine.start()
+            // Turning the microphone on talks to iOS's audio service and can be
+            // slow; do it off the main thread so the screen never freezes.
+            try await Task.detached(priority: .userInitiated) { try engine.start() }.value
             guard mine == generation else { engine.cancel(); return }
             self.engine = engine
             state = .listening
