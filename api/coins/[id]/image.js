@@ -38,12 +38,13 @@ module.exports = async function handler(req, res) {
   const blob = await putBlob(pathname, upload.buf, { contentType: upload.contentType });
 
   try {
-    const coin = await patchCoinImage(user.id, id, {
+    const { coin, before } = await patchCoinImage(user.id, id, {
       imageUrl: blob.url,
       imagePath: pathname,
     });
-    // Each upload has a unique path; drop the image it replaced.
-    await deleteOwnedImage(user.id, existing);
+    // Each upload has a unique path; drop the image it replaced (as it was at
+    // the moment of saving, not when this request started).
+    await deleteOwnedImage(user.id, before);
     const shown = presentCoin(coin, user.id);
     return json(res, 200, { coin: shown, url: shown.imageUrl });
   } catch (e) {

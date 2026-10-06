@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const { requireUser, json, readJsonBody } = require('./lib/auth');
 const {
   readIndexDocument,
-  upsertCoin,
+  mutateIndex,
+  sortCoinsByOrder,
   nextFrontSortOrder,
   isValidCoinId,
   MAX_COINS,
@@ -31,44 +32,47 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST') {
     const data = await readJsonBody(req, res);
     if (!data) return;
-    const doc = await readIndexDocument(user.id);
-    if (doc.status === 'error') {
-      return json(res, 503, { error: 'Could not read coin index' });
-    }
-    const existing = doc.coins;
-    // A title is optional: untitled coins are named Coin 1, Coin 2, ...
-    const title = cleanTitle(data.title) || nextDefaultTitle(existing);
     // Clients may pick the id (so a retried Save does not duplicate the coin),
     // but only a plain one.
     const id = isValidCoinId(data.id) ? data.id : crypto.randomUUID();
-    // Never revive a deleted id (stale client / retry after toss).
-    if (doc.deletedIds[id]) {
-      return json(res, 409, { error: 'Coin was deleted — create a new coin' });
-    }
     const pin = data.pin === undefined ? { ok: true, value: null } : cleanPin(data.pin);
     if (!pin.ok) return json(res, 400, { error: 'That map pin is not a real place' });
-    const already = existing.find((c) => c.id === id);
-    if (already) return json(res, 200, { coin: presentCoin(already, user.id) });
-    if (existing.length >= MAX_COINS) {
-      return json(res, 400, { error: `A purse holds at most ${MAX_COINS} coins` });
+    let outcome;
+    try {
+      // Decided against the latest purse, so coins created at the same moment
+      // are all kept and never share a "Coin N" name.
+      outcome = await mutateIndex(user.id, (doc) => {
+        // Never revive a deleted id (stale client / retry after toss).
+        if (doc.deletedIds[id]) return { result: { status: 409 } };
+        const already = doc.coins.find((c) => c.id === id);
+        if (already) return { result: { status: 200, coin: already } };
+        if (doc.coins.length >= MAX_COINS) return { result: { status: 400 } };
+        const now = Date.now();
+        const coin = {
+          id,
+          // A title is optional: untitled coins are named Coin 1, Coin 2, ...
+          title: cleanTitle(data.title) || nextDefaultTitle(doc.coins),
+          notes: cleanNotes(data.notes),
+          accent: validAccent(data.accent) ? data.accent : Math.floor(Math.random() * 6),
+          // Pictures are only ever set by the upload endpoints, never by the client.
+          imageUrl: null,
+          imagePath: null,
+          attachments: [],
+          pin: pin.value,
+          sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : nextFrontSortOrder(doc.coins),
+          createdAt: now,
+          updatedAt: now,
+        };
+        const coins = sortCoinsByOrder([...doc.coins, coin]);
+        return { coins, result: { status: 201, coin } };
+      });
+    } catch (e) {
+      console.error('create coin', e);
+      return json(res, 503, { error: 'Could not save the coin; try again' });
     }
-    const now = Date.now();
-    const coin = {
-      id,
-      title,
-      notes: cleanNotes(data.notes),
-      accent: validAccent(data.accent) ? data.accent : Math.floor(Math.random() * 6),
-      // Pictures are only ever set by the upload endpoints, never by the client.
-      imageUrl: null,
-      imagePath: null,
-      attachments: [],
-      pin: pin.value,
-      sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : nextFrontSortOrder(existing),
-      createdAt: now,
-      updatedAt: now,
-    };
-    const saved = await upsertCoin(user.id, coin);
-    return json(res, 201, { coin: presentCoin(saved, user.id) });
+    if (outcome.status === 409) return json(res, 409, { error: 'Coin was deleted — create a new coin' });
+    if (outcome.status === 400) return json(res, 400, { error: `A purse holds at most ${MAX_COINS} coins` });
+    return json(res, outcome.status, { coin: presentCoin(outcome.coin, user.id) });
   }
 
   return json(res, 405, { error: 'Method not allowed' });
