@@ -21,26 +21,18 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     func testFullFlow() throws {
         app = XCUIApplication()
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestShowCamera", "-uiTestVoiceText", "Milk, eggs, avocados, coffee and bread"]
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestShowCamera",
+                                "-uiTestPin", "38.83402,-104.82151",
+                                "-uiTestVoiceText", "Milk, eggs, avocados, coffee and bread"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = ProcessInfo.processInfo.environment["BASE_URL"] ?? "http://localhost:3000"
         app.launch()
-
-        // Sign in with the local server's reviewer account.
-        let email = app.textFields["you@example.com"]
-        XCTAssertTrue(email.waitForExistence(timeout: 10))
-        email.tap()
-        email.typeText("review@example.com")
-        app.buttons["Email me a code"].tap()
-        let code = app.textFields["6-digit code"]
-        XCTAssertTrue(code.waitForExistence(timeout: 10))
-        code.tap()
-        code.typeText("123456")
-        XCTAssertTrue(app.staticTexts["Purse is empty"].waitForExistence(timeout: 10))
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
         snap("1-empty")
 
-        // First coin: paste a picture with one tap.
+        // A picture coin: paste with one tap, title, notes with links, a second picture.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "QR 1")
-        app.buttons["addCoin"].tap()
+        app.buttons["addPicture"].tap()
         let title = app.textFields["titleField"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         snap("2a-editor-empty")
@@ -53,9 +45,6 @@ final class CoinPurseUITests: XCTestCase {
         }
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5), "pasted picture did not appear")
-        snap("2-editor-pasted")
-
-        // Add an extra picture through "+" (Paste again).
         UIPasteboard.general.image = Self.sample(color: .systemPink, label: "Back")
         let addPicture = app.buttons["Add picture"].firstMatch
         if !addPicture.waitForExistence(timeout: 2) { app.swipeUp() }
@@ -63,118 +52,110 @@ final class CoinPurseUITests: XCTestCase {
         tapPaste()
         snap("2b-editor-extras")
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.otherElements["frontCard"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["2 pictures · Tap to open"].waitForExistence(timeout: 5))
+        XCTAssertTrue(card("Conference badge").waitForExistence(timeout: 15))
         snap("3-one-coin")
 
-        // Second coin.
-        UIPasteboard.general.image = Self.sample(color: .systemOrange, label: "Haircut")
-        app.buttons["addCoin"].tap()
-        if !title.waitForExistence(timeout: 5) {
-            dump("tree-add-coin")
-            XCTFail("editor did not open")
-        }
+        // A second coin.
+        UIPasteboard.general.image = Self.sample(color: .systemOrange, label: "Gift")
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
-        title.typeText("Haircut card")
+        title.typeText("Gift card")
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5))
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Haircut card"].waitForExistence(timeout: 15))
-        snap("4-two-coins")
+        XCTAssertTrue(card("Gift card").waitForExistence(timeout: 15))
 
-        // A quick coin: picture only, no title, is named Coin 1.
+        // A quick coin: picture only, so it is named Coin 1. Then toss it.
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "Note")
-        app.buttons["addCoin"].tap()
+        app.buttons["addPicture"].tap()
         XCTAssertTrue(app.staticTexts["Leave the title blank and it is saved as Coin 1."].waitForExistence(timeout: 5))
         tapPaste()
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Coin 1"].waitForExistence(timeout: 15))
-        snap("4b-quick-coin")
-        app.buttons["Delete Coin 1"].firstMatch.tap()
+        XCTAssertTrue(card("Coin 1").waitForExistence(timeout: 15))
+        snap("4-three-coins")
+        card("Coin 1").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Delete"].tap()
         app.alerts.buttons["Delete"].tap()
-        XCTAssertTrue(app.staticTexts["Coin 1"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(card("Coin 1").waitForNonExistence(timeout: 10), "Coin 1 was not deleted")
 
-        // The new coin is open at the top. Swipe sideways to flip to the other one.
-        let card = app.otherElements["frontCard"]
-        let badgeHint = card.staticTexts["2 pictures · Tap to open"]
-        let singleHint = card.staticTexts["Tap to open full screen"]
-        XCTAssertTrue(singleHint.exists, "new coin should be open at the top")
-        card.swipeLeft(velocity: .fast)
-        XCTAssertTrue(badgeHint.waitForExistence(timeout: 3), "swipe did not flip")
-        snap("5-flipped")
-        card.swipeRight(velocity: .fast)
-        XCTAssertTrue(singleHint.waitForExistence(timeout: 3), "swipe right did not flip back")
-        card.swipeLeft(velocity: .fast)
-        XCTAssertTrue(badgeHint.waitForExistence(timeout: 3))
-
-        // Open the coin with two pictures.
-        badgeHint.tap()
-        XCTAssertTrue(app.staticTexts["1 of 2"].waitForExistence(timeout: 5))
-        snap("6-viewer")
-        // Typed notes show in the viewer with tappable links.
+        // Open the coin with two pictures: swipe between them, notes have links.
+        card("Conference badge").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(1)
+        snap("5-open")
         XCTAssertTrue(app.links["hello@example.com"].waitForExistence(timeout: 5), "email in notes is not a link")
         XCTAssertTrue(app.links["https://coinpurse.yetignome.com/support"].exists, "web address in notes is not a link")
-        app.swipeLeft()
-        XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        openCoin.swipeLeft()
+        XCTAssertTrue(app.descendants(matching: .any)["Page 2 of 2"].waitForExistence(timeout: 3), "swipe did not reach picture 2")
 
-        // Share one picture: the share sheet opens.
-        app.buttons["Share"].tap()
+        // Full size: the viewer opens on the same picture, with share and crop.
+        openCoin.buttons["Picture 2"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
+        snap("6-viewer")
+        app.buttons["viewerShare"].tap()
         let shareSheet = app.otherElements["ActivityListView"]
         XCTAssertTrue(shareSheet.waitForExistence(timeout: 10) || app.navigationBars["UIActivityContentView"].waitForExistence(timeout: 2))
         snap("7-share")
         app.swipeDown(velocity: .fast)
         sleep(1)
         if app.buttons["Close"].exists { app.buttons["Close"].tap() }
-
-        // Crop: open and apply.
-        XCTAssertTrue(app.buttons["Crop"].waitForExistence(timeout: 5))
-        app.buttons["Crop"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["viewerCrop"].waitForExistence(timeout: 5))
+        app.buttons["viewerCrop"].tap()
+        XCTAssertTrue(app.buttons["cropDone"].waitForExistence(timeout: 5))
         snap("8-crop")
         app.buttons["Rotate right"].tap()
-        app.buttons["Done"].tap()
+        app.buttons["cropDone"].tap()
         sleep(2)
-
         app.buttons["Back"].tap()
 
-        // Open the coin without notes and tap the empty space above its picture.
-        card.swipeRight(velocity: .fast)
-        let singleHint2 = card.staticTexts["Tap to open full screen"]
-        XCTAssertTrue(singleHint2.waitForExistence(timeout: 3))
-        singleHint2.tap()
-        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
-        XCTAssertTrue(app.buttons["Back"].waitForNonExistence(timeout: 5), "tap outside did not close")
-        snap("8b-closed-by-tap")
+        // Drop a map pin on this coin, then remove it.
+        XCTAssertTrue(app.buttons["Add Pin"].waitForExistence(timeout: 5))
+        app.buttons["Add Pin"].tap()
+        XCTAssertTrue(app.buttons["Move Pin"].waitForExistence(timeout: 10), "pin was not added")
+        XCTAssertTrue(openCoin.descendants(matching: .any)["pinMap"].waitForExistence(timeout: 5))
+        snap("8b-pinned")
+        app.buttons["Move Pin"].tap()
+        app.buttons["Remove Pin"].tap()
+        XCTAssertTrue(app.buttons["Add Pin"].waitForExistence(timeout: 10), "pin was not removed")
 
-        // Delete the haircut coin with its trash can.
-        app.buttons["Delete Haircut card"].firstMatch.tap()
-        XCTAssertTrue(app.alerts["Are you sure you want to delete?"].waitForExistence(timeout: 5))
-        snap("9-delete-confirm")
-        app.alerts.buttons["Delete"].tap()
-        XCTAssertTrue(app.staticTexts["Haircut card"].waitForNonExistence(timeout: 10))
+        // Back into the stack, by swiping the card down.
+        openCoin.swipeDown(velocity: .slow)
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "swipe down did not close the coin")
 
-        // Voice note: say a quick list, and it is saved as a text coin.
+        // A voice note, saved just as it was said.
         app.buttons["voiceNote"].tap()
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         snap("12-voice-listening")
         app.buttons["Done"].tap()
         let voiceText = app.descendants(matching: .any)["voiceText"]
         XCTAssertTrue(voiceText.waitForExistence(timeout: 5))
-        // Saved just as it was said.
         XCTAssertEqual(voiceText.value as? String, "Milk, eggs, avocados, coffee and bread")
-        snap("13-voice-review")
         let voiceTitle = app.textFields["voiceTitle"]
         voiceTitle.tap()
         voiceTitle.typeText("Groceries")
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Groceries"].waitForExistence(timeout: 15))
-        snap("14-voice-coin")
-        app.otherElements["frontCard"].staticTexts["Tap to open"].tap()
-        let noteText = app.descendants(matching: .any)["noteText"]
-        XCTAssertTrue(noteText.waitForExistence(timeout: 5), "text coin did not open")
-        snap("15-voice-viewer")
-        app.buttons["Back"].tap()
+        XCTAssertTrue(card("Groceries").waitForExistence(timeout: 15))
+        card("Groceries").tap()
+        XCTAssertTrue(app.descendants(matching: .any)["noteText"].waitForExistence(timeout: 5), "text coin did not open")
+        snap("15-voice-open")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // Pin your spot from the bottom bar: it finds you straight away.
+        app.buttons["addPin"].tap()
+        XCTAssertTrue(app.staticTexts["Within 26 ft"].waitForExistence(timeout: 10) || app.buttons["Move Pin Here"].waitForExistence(timeout: 5),
+                      "Pin did not find a spot")
+        title.tap()
+        title.typeText("Car")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Car").waitForExistence(timeout: 15))
+        card("Car").tap()
+        XCTAssertTrue(openCoin.descendants(matching: .any)["pinMap"].waitForExistence(timeout: 5), "pin coin shows no map")
+        snap("16-pin-coin")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // Delete the account.
         app.buttons["Account"].tap()
@@ -186,14 +167,100 @@ final class CoinPurseUITests: XCTestCase {
         snap("11-deleted")
     }
 
-    /// A full purse, put through its paces. Run only on request
-    /// (TEST_RUNNER_TOUR=1) against a local server already filled with coins
-    /// for review@example.com.
+    /// A full purse (30 coins from the scratchpad seed script), put through its
+    /// paces. Run only on request (TEST_RUNNER_TOUR=1).
     @MainActor
     func testFullPurse() throws {
         guard ProcessInfo.processInfo.environment["TOUR"] == "1" else { throw XCTSkip("Set TOUR=1 to run") }
         app = XCUIApplication()
         app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestVoiceText", "Remind me to call the vet about Rosie"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
+        XCTAssertTrue(card("Garage code").waitForExistence(timeout: 15))
+        sleep(2)
+        XCTAssertEqual(cards.count, 30)
+        snap("tour-0-top")
+
+        // Open and put back the first eight coins, one after another.
+        let started = Date()
+        for i in 0..<8 {
+            let c = cards.element(boundBy: i)
+            let name = c.label
+            c.tap()
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(name) did not open")
+            XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, name, "opened the wrong coin")
+            app.buttons["Done"].tap()
+            XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        }
+        print("TOUR open+close x8: \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
+
+        // Scroll to the bottom: the last coin can be opened too.
+        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+        for i in 1...6 {
+            low.press(forDuration: 0.05, thenDragTo: high)
+            sleep(1)
+            snap("tour-\(i)")
+        }
+        let last = cards.element(boundBy: 29)
+        XCTAssertTrue(last.isHittable, "the last coin should be reachable")
+        let lastName = last.label
+        last.tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, lastName)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        for _ in 1...8 { high.press(forDuration: 0.05, thenDragTo: low) }
+
+        // Search by a word in the notes.
+        app.buttons["Search"].tap()
+        app.textFields["searchField"].typeText("slots")
+        XCTAssertTrue(card("Parking B3").waitForExistence(timeout: 3))
+        // Two notes mention slots: Parking B3 and the parking voice note.
+        XCTAssertEqual(cards.count, 2)
+        snap("tour-search")
+        card("Parking B3").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        app.buttons["Cancel"].tap()
+
+        // Add a voice note; untitled, so it takes the next number (the seed has a Coin 1).
+        app.buttons["voiceNote"].tap()
+        XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 5))
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Coin 2").waitForExistence(timeout: 15))
+
+        // Delete five coins from the top, one after another.
+        for _ in 0..<5 {
+            let top = cards.element(boundBy: 0)
+            let name = top.label
+            top.tap()
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+            app.buttons["Delete"].tap()
+            app.alerts.buttons["Delete"].tap()
+            XCTAssertTrue(card(name).waitForNonExistence(timeout: 10), "\(name) was not deleted")
+        }
+        // 30 + 1 added - 5 deleted, and still 26 after a refresh.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+        sleep(3)
+        XCTAssertEqual(cards.count, 26)
+        snap("tour-final")
+    }
+
+    /// Screenshots of every screen in the design, against a sample purse
+    /// (scratchpad seed_design.py). Run only on request (TEST_RUNNER_DESIGN=1).
+    @MainActor
+    func testDesignTour() throws {
+        guard ProcessInfo.processInfo.environment["DESIGN"] == "1" else { throw XCTSkip("Set DESIGN=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestShowCamera",
+                                "-uiTestPin", "38.83402,-104.82151",
+                                "-uiTestVoiceText", "Remind me to call the vet about Rosie on Thursday"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
         app.launch()
         let email = app.textFields["you@example.com"]
@@ -205,113 +272,101 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(code.waitForExistence(timeout: 10))
         code.tap()
         code.typeText("123456")
-        let card = app.otherElements["frontCard"]
-        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Parking spot"].waitForExistence(timeout: 15))
+        sleep(4)
+        snap("d01-purse")
+
+        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        low.press(forDuration: 0.05, thenDragTo: high)
+        sleep(2)
+        snap("d02-purse-scrolled")
+        high.press(forDuration: 0.05, thenDragTo: low)
+        sleep(1)
+
+        // Open the parking coin: map first.
+        app.buttons["Parking spot"].tap()
+        let open = app.otherElements["openCoin"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
         sleep(3)
-
-        // 1. What a long purse looks like, top to bottom.
-        snap("tour-0-top")
-        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72))
-        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
-        for i in 1...7 {
-            low.press(forDuration: 0.05, thenDragTo: high)
-            sleep(1)
-            snap("tour-\(i)")
-        }
-        for _ in 1...8 { high.press(forDuration: 0.05, thenDragTo: low) }
-        sleep(1)
-
-        // 2. Flip through every coin sideways; each swipe opens the next one.
-        XCTAssertTrue(card.isHittable, "the open coin should be on screen at the top")
-        var seen: [String] = [frontTitle()]
-        let started = Date()
-        for _ in 1..<30 {
-            card.swipeLeft(velocity: .fast)
-            usleep(500_000)
-            seen.append(frontTitle())
-        }
-        let flipSeconds = Date().timeIntervalSince(started)
-        XCTAssertEqual(Set(seen).count, 30, "flipping did not visit all 30 coins: \(seen)")
-        print("TOUR flips: 29 in \(String(format: "%.1f", flipSeconds)) s")
-        snap("tour-flipped-to-last")
-
-        // Tapping a strip opens that coin at the top.
-        let strip = app.otherElements.matching(identifier: "strip")
-            .containing(NSPredicate(format: "label == 'Dentist'")).firstMatch
-        XCTAssertTrue(strip.exists)
-        for _ in 1...6 where !strip.isHittable { low.press(forDuration: 0.05, thenDragTo: high) }
-        strip.tap()
-        sleep(1)
-        XCTAssertEqual(frontTitle(), "Dentist")
-        XCTAssertTrue(card.isHittable, "tapping a strip should scroll back to the open coin")
-
-        // Search by a word in the notes.
-        app.buttons["Search"].tap()
-        app.textFields["searchField"].typeText("slots")
-        XCTAssertTrue(app.staticTexts["Parking B3"].waitForExistence(timeout: 3))
-        snap("tour-search")
-        app.staticTexts["Parking B3"].tap()
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        XCTAssertEqual(frontTitle(), "Parking B3")
-
-        // 3. Add a picture coin; it goes to the front.
-        UIPasteboard.general.image = Self.sample(color: .systemIndigo, label: "New")
-        app.buttons["addCoin"].tap()
-        let title = app.textFields["titleField"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
-        title.typeText("Stress test coin")
-        tapPaste()
-        app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Stress test coin"].waitForExistence(timeout: 15))
-        XCTAssertEqual(frontTitle(), "Stress test coin")
-
-        // 4. Add a voice note; untitled, so it takes the next number (the
-        // seeded purse already has a Coin 1).
-        app.buttons["voiceNote"].tap()
-        XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
+        snap("d03-open-pin")
+        open.swipeLeft()
+        sleep(2)
+        snap("d04-open-pin-photo")
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 5))
-        app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Coin 2"].waitForExistence(timeout: 15))
-        XCTAssertEqual(frontTitle(), "Coin 2")
-        snap("tour-8-after-adding")
+        sleep(1)
 
-        // 5. Open the voice note, then edit its title.
-        app.otherElements["frontCard"].staticTexts["Tap to open"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["noteText"].waitForExistence(timeout: 5))
-        app.buttons["Edit"].firstMatch.tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
-        title.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
-        title.typeText("Call the vet")
-        app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Call the vet"].waitForExistence(timeout: 10))
+        app.buttons["Tailgate tickets"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        sleep(2)
+        snap("d05-open-tickets")
+        open.buttons["Picture 1"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
+        sleep(2)
+        snap("d06-full-screen")
         app.buttons["Back"].tap()
+        sleep(1)
+        app.buttons["Done"].tap()
+        sleep(1)
 
-        // 6. Delete five coins from the front, one after another.
-        for _ in 0..<5 {
-            let doomed = frontTitle()
-            card.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Delete'")).firstMatch.tap()
-            XCTAssertTrue(app.alerts.buttons["Delete"].waitForExistence(timeout: 5))
-            app.alerts.buttons["Delete"].tap()
-            XCTAssertTrue(app.staticTexts[doomed].waitForNonExistence(timeout: 10), "\(doomed) was not deleted")
-        }
-        snap("tour-9-after-deleting")
+        app.buttons["Email Jim back"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        sleep(2)
+        snap("d07-open-note")
+        // Swipe down to put it back.
+        open.swipeDown(velocity: .slow)
+        sleep(2)
+        XCTAssertFalse(open.exists, "swipe down should put the coin back")
 
-        // 7. Pull to refresh keeps the same purse: 30 + 2 added - 5 deleted.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
-        sleep(3)
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'of 27 · Swipe sideways to flip'")).firstMatch
-            .waitForExistence(timeout: 5), "expected 27 coins after refresh")
-        snap("tour-10-final")
+        app.buttons["addPin"].tap()
+        sleep(4)
+        snap("d08-pin")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        app.buttons["voiceNote"].tap()
+        sleep(2)
+        snap("d09-voice")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        app.buttons["addPicture"].tap()
+        sleep(2)
+        snap("d10-new-coin")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        app.buttons["Search"].tap()
+        app.textFields["searchField"].typeText("code")
+        sleep(1)
+        snap("d11-search")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        app.buttons["Coffee gift card"].press(forDuration: 1.2)
+        sleep(2)
+        snap("d12-menu")
     }
 
     @MainActor
-    private func frontTitle() -> String {
-        app.otherElements["frontCard"].staticTexts["coinTitle"].firstMatch.label
+    private var openCoin: XCUIElement { app.otherElements["openCoin"] }
+
+    @MainActor
+    private func card(_ name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "stackCard").matching(NSPredicate(format: "label == %@", name)).firstMatch
+    }
+
+    @MainActor
+    private func signIn() {
+        let email = app.textFields["you@example.com"]
+        XCTAssertTrue(email.waitForExistence(timeout: 10))
+        email.tap()
+        email.typeText("review@example.com")
+        app.buttons["Email me a code"].tap()
+        let code = app.textFields["6-digit code"]
+        XCTAssertTrue(code.waitForExistence(timeout: 10))
+        code.tap()
+        code.typeText("123456")
     }
 
     // MARK: Helpers

@@ -1,7 +1,7 @@
 const { requireUser, json, readJsonBody } = require('../lib/auth');
 const { readIndexDocument, upsertCoin, removeCoin, isValidCoinId } = require('../lib/store');
 const { presentCoin } = require('../lib/imageurl');
-const { cleanTitle, cleanNotes, validAccent } = require('../lib/coinfields');
+const { cleanTitle, cleanNotes, validAccent, cleanPin } = require('../lib/coinfields');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -22,7 +22,10 @@ module.exports = async function handler(req, res) {
     }
     const existing = doc.coins.find((c) => c.id === id);
     if (!existing) return json(res, 404, { error: 'Not found' });
-    // Only text, color and order can change here. Picture fields sent by a
+    // A pin is only changed when the request includes one (null removes it).
+    const pin = data.pin === undefined ? { ok: true, value: existing.pin || null } : cleanPin(data.pin);
+    if (!pin.ok) return json(res, 400, { error: 'That map pin is not a real place' });
+    // Only text, color, pin and order can change here. Picture fields sent by a
     // client are ignored; pictures change only through the upload endpoints.
     const coin = {
       ...existing,
@@ -30,6 +33,7 @@ module.exports = async function handler(req, res) {
       title: cleanTitle(data.title) || existing.title,
       notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
       accent: validAccent(data.accent) ? data.accent : existing.accent,
+      pin: pin.value,
       sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : existing.sortOrder,
       updatedAt: Date.now(),
     };

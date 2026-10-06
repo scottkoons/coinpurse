@@ -117,10 +117,10 @@ final class AppModel {
     /// Create the coin if it does not exist yet, otherwise update its text and color.
     /// Safe to repeat: the server treats a second create with the same id as a no-op.
     @discardableResult
-    func saveCoinDetails(id: String, title: String, notes: String, accent: Int) async throws -> Coin {
+    func saveCoinDetails(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
         let coin: Coin
         if self.coin(id) == nil {
-            let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent)
+            let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent, pin: pin)
             // If the create was a retry, make sure the text is current.
             // (A blank title means the server picked a name like "Coin 3".)
             coin = ((title.isEmpty || created.title == title) && created.notes == notes && created.accent == accent)
@@ -131,6 +131,11 @@ final class AppModel {
         }
         upsert(coin)
         return coin
+    }
+
+    /// Drops, moves or (with nil) removes the map pin on a coin.
+    func setPin(_ pin: Pin?, on coinId: String) async throws {
+        upsert(try await api.setPin(id: coinId, pin: pin))
     }
 
     func uploadMainPicture(coinId: String, jpeg: Data) async throws {
