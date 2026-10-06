@@ -31,6 +31,13 @@ struct CoinPurseApp: App {
                     // nothing to lock. Launching into a saved session stays locked.
                     if new == .signedOut || old == .signedOut { lock.isLocked = false }
                 }
+                .onChange(of: lock.isLocked) { wasLocked, locked in
+                    // Just unlocked: pick up coins added meanwhile (like ones
+                    // shared from Photos or Messages).
+                    if wasLocked, !locked, model.phase == .signedIn {
+                        Task { await model.refresh() }
+                    }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     lock.scenePhaseChanged(phase, signedIn: model.phase == .signedIn)
                     if phase == .active, model.phase == .signedIn, !lock.isLocked {

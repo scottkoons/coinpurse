@@ -331,6 +331,25 @@ final class CoinPurseUITests: XCTestCase {
         snap("s03-end")
     }
 
+    /// Coins added elsewhere (Photos share sheet, another iPhone) appear when
+    /// you come back to the app, without pulling to refresh (TEST_RUNNER_RETURN=1).
+    @MainActor
+    func testComesBackFresh() throws {
+        guard ProcessInfo.processInfo.environment["RETURN"] == "1" else { throw XCTSkip("Set RETURN=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.press(.home)
+        serverAddCoin(title: "Shared from Photos")
+        sleep(2)
+        app.activate()
+        XCTAssertTrue(card("Shared from Photos").waitForExistence(timeout: 10), "new coin did not appear on return")
+        snap("r01-back")
+    }
+
     /// Screenshots of every screen in the design, against a sample purse
     /// (scratchpad seed_design.py). Run only on request (TEST_RUNNER_DESIGN=1).
     @MainActor
@@ -582,6 +601,33 @@ final class CoinPurseUITests: XCTestCase {
 
     /// No signal: the purse still opens from the copy saved on the phone,
     /// changes fail clearly and nothing is lost (TEST_RUNNER_OFFLINE=1).
+    /// Adds a coin straight on the server, the way the share extension or
+    /// another iPhone would, behind the app's back.
+    @MainActor
+    private func serverAddCoin(title: String) {
+        func send(_ req: URLRequest) -> Data? {
+            let done = expectation(description: "server")
+            var out: Data?
+            URLSession.shared.dataTask(with: req) { data, _, _ in out = data; done.fulfill() }.resume()
+            wait(for: [done], timeout: 15)
+            return out
+        }
+        func json(_ path: String, _ body: [String: Any], token: String? = nil) -> Data? {
+            var req = URLRequest(url: URL(string: Self.baseURL + path)!)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            return send(req)
+        }
+        _ = json("/api/auth/request-link", ["email": "review@example.com"])
+        guard let auth = json("/api/auth/verify-code", ["email": "review@example.com", "code": "123456"]),
+              let token = (try? JSONSerialization.jsonObject(with: auth) as? [String: Any])?["token"] as? String else {
+            XCTFail("could not sign in to the test server"); return
+        }
+        XCTAssertNotNil(json("/api/coins", ["title": title, "notes": "Added elsewhere", "accent": 2], token: token))
+    }
+
     @MainActor
     func testOffline() throws {
         guard ProcessInfo.processInfo.environment["OFFLINE"] == "1" else { throw XCTSkip("Set OFFLINE=1 to run") }
