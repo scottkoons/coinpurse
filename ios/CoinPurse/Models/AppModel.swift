@@ -9,7 +9,8 @@ final class AppModel {
     var phase: Phase = .loading
     var email: String = ""
     var coins: [Coin] = [] {
-        didSet { saveSnapshot() }
+        // Only a signed-in purse is kept on the phone.
+        didSet { if token != nil { saveSnapshot() } }
     }
     /// False until the purse has been read once (from the phone or the server),
     /// so a slow start shows a spinner instead of "Your purse is empty".
@@ -118,11 +119,14 @@ final class AppModel {
     // MARK: Coins
 
     func refresh() async {
-        guard token != nil else { return }
+        guard let asked = token else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         do {
             let list = try await api.coins()
+            // Signed out (or into another account) while this was on its way:
+            // these coins belong to nobody here now.
+            guard token == asked else { return }
             coins = list.coins.filter { !deleting.contains($0.id) }
             if let e = list.email { email = e }
             isOffline = false
