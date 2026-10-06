@@ -293,8 +293,12 @@ struct PurseView: View {
                 Text("Coin Purse")
                     .font(.system(.title, design: .rounded).weight(.bold))
                     .accessibilityAddTraits(.isHeader)
+                    .layoutPriority(1)
                 if model.isOffline {
+                    // At the largest text sizes, just the symbol: the words would
+                    // break the title and themselves mid-word.
                     Label("Offline", systemImage: "wifi.slash")
+                        .labelStyle(OfflineLabelStyle(compact: typeSize.isAccessibilitySize))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
@@ -524,3 +528,16 @@ enum ShareSamples {
     }
 }
 #endif
+
+/// The Offline badge: symbol and word, or just the symbol when space is short.
+private struct OfflineLabelStyle: LabelStyle {
+    let compact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if compact {
+            configuration.icon
+        } else {
+            Label(configuration)
+        }
+    }
+}

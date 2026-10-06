@@ -760,8 +760,9 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Could not reach Coin Purse'")).firstMatch
             .waitForExistence(timeout: 70), "offline save shows no message")
-        XCTAssertEqual(title.value as? String, "Offline coin")
         snap("o03-offline-save")
+        reveal(title)
+        XCTAssertEqual(title.value as? String, "Offline coin")
         app.buttons["Cancel"].tap()
 
         // Deleting fails and the coin comes back.
@@ -773,8 +774,9 @@ final class CoinPurseUITests: XCTestCase {
 
         // Signal back: a pull to refresh clears the note and everything works.
         setServerOffline(false)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+        // Pull down from the cards, below the title (tall at large text sizes).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
         XCTAssertTrue(offlineNote.waitForNonExistence(timeout: 15), "offline note did not clear")
         app.buttons["addPicture"].tap()
         XCTAssertTrue(reveal(title))
