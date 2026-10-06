@@ -55,7 +55,7 @@ struct CoinCardHeader: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
                     // Open, the whole name shows, even at the largest text sizes.
-                    .lineLimit(isOpen ? 3 : 1)
+                    .lineLimit(isOpen ? (typeSize.isAccessibilitySize ? 2 : 3) : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
                 Text(subtitle)
@@ -84,8 +84,10 @@ struct CoinCardHeader: View {
         .padding(.leading, 14)
         .padding(.trailing, onDelete == nil ? 16 : 6)
         .padding(.vertical, isOpen ? 8 : 0)
-        // In the stack every top is the same height; open, it grows with its text.
+        // In the stack every top is the same height; open, it grows with its text
+        // and claims all of that height (the picture or map takes what is left).
         .frame(minHeight: height, maxHeight: isOpen ? nil : height)
+        .fixedSize(horizontal: false, vertical: isOpen)
     }
 
     /// Small symbols: more than one picture, a map pin, a note.

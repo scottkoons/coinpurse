@@ -15,6 +15,7 @@ struct SignInView: View {
         // Scrolls when space is short (small iPhone, keyboard up, large text),
         // so nothing is ever cut off.
         GeometryReader { geo in
+        ScrollViewReader { scroller in
         ScrollView {
         VStack(spacing: 20) {
             Spacer(minLength: 0)
@@ -87,6 +88,8 @@ struct SignInView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id("error")
             }
             Spacer(minLength: 0)
             HStack(spacing: 16) {
@@ -100,6 +103,13 @@ struct SignInView: View {
         .frame(minHeight: geo.size.height)
         }
         .scrollDismissesKeyboard(.interactively)
+        // A problem is always seen and heard, even with the keyboard up.
+        .onChange(of: error) { _, message in
+            guard let message else { return }
+            withAnimation { scroller.scrollTo("error", anchor: .bottom) }
+            AccessibilityNotification.Announcement(message).post()
+        }
+        }
         }
         .onAppear { focused = .email }
     }
