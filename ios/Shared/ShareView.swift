@@ -99,7 +99,16 @@ struct ShareView: View {
     }
 
     private var form: some View {
+        ScrollViewReader { scroller in
         Form {
+            // At the top, where it is seen even with the keyboard up.
+            if let error {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                }
+                .id("shareError")
+            }
             if !input.previews.isEmpty {
                 Section {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -172,9 +181,12 @@ struct ShareView: View {
                     }
                 }
             }
-            if let error {
-                Section { Text(error).foregroundStyle(.red) }
-            }
+        }
+        .onChange(of: error) { _, message in
+            guard let message else { return }
+            withAnimation { scroller.scrollTo("shareError", anchor: .top) }
+            AccessibilityNotification.Announcement(message).post()
+        }
         }
     }
 

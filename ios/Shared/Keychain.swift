@@ -68,6 +68,39 @@ nonisolated enum Keychain {
         SecItemDelete(old as CFDictionary)
     }
 
+    #if DEBUG
+    private static let debugServerAccount = "debugServer"
+
+    /// Debug builds only: the local test server, so the Share extension
+    /// talks to the same server as the app under test.
+    static func saveDebugServer(_ address: String) {
+        let match: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: debugServerAccount,
+        ]
+        SecItemDelete(match as CFDictionary)
+        var add = match
+        add[kSecValueData as String] = Data(address.utf8)
+        add[kSecAttrAccessGroup as String] = sharedGroup
+        SecItemAdd(add as CFDictionary, nil)
+    }
+
+    static func loadDebugServer() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: debugServerAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var out: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let data = out as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+    #endif
+
     static func deleteToken() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

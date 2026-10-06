@@ -350,6 +350,69 @@ final class CoinPurseUITests: XCTestCase {
         snap("r01-back")
     }
 
+    /// The real share extension, from Apple's Photos app: pick a photo, Share,
+    /// Coin Purse, name it, Save; it is in the purse (TEST_RUNNER_PHOTOS=1).
+    @MainActor
+    func testShareFromPhotos() throws {
+        guard ProcessInfo.processInfo.environment["PHOTOS"] == "1" else { throw XCTSkip("Set PHOTOS=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.press(.home)
+
+        let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        photos.launch()
+        // First run of Photos shows a welcome; get past it.
+        for name in ["Continue", "Not Now", "Don’t Allow"] where photos.buttons[name].waitForExistence(timeout: 2) {
+            photos.buttons[name].tap()
+        }
+        // Photos may reopen on the last photo it showed, or on the grid.
+        let share = photos.buttons["Share"].firstMatch
+        if !share.waitForExistence(timeout: 3) {
+            let photo = photos.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
+            if !photo.waitForExistence(timeout: 10) { dumpOf(photos, "p00-grid"); XCTFail("no photo in Photos"); return }
+            // Photos marks its grid images as not hittable; tap where it is.
+            photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        if !share.waitForExistence(timeout: 5) { dumpOf(photos, "p01-photo"); XCTFail("no Share button"); return }
+        share.tap()
+        sleep(2)
+        var target = photos.descendants(matching: .any).matching(NSPredicate(format: "label == 'Coin Purse'")).firstMatch
+        if !target.waitForExistence(timeout: 5) {
+            let more = photos.descendants(matching: .any).matching(NSPredicate(format: "label == 'More'")).firstMatch
+            if more.exists { more.tap(); sleep(2) }
+            target = photos.descendants(matching: .any).matching(NSPredicate(format: "label == 'Coin Purse'")).firstMatch
+        }
+        if !target.waitForExistence(timeout: 5) { dumpOf(photos, "p02-sheet"); XCTFail("Coin Purse is not in the share sheet"); return }
+        snap("p02-sheet")
+        target.tap()
+        let title = photos.textFields["shareTitle"]
+        if !title.waitForExistence(timeout: 15) { dumpOf(photos, "p03-extension"); XCTFail("share extension did not open"); return }
+        snap("p03-extension")
+        title.tap()
+        title.typeText("From Photos")
+        photos.buttons["shareSave"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 30), "share extension did not finish")
+        photos.terminate()
+
+        app.activate()
+        XCTAssertTrue(card("From Photos").waitForExistence(timeout: 15), "shared photo is not in the purse")
+        tapCard("From Photos")
+        XCTAssertTrue(openCoin.buttons["Picture 1"].waitForExistence(timeout: 10), "shared coin has no picture")
+        snap("p04-in-purse")
+    }
+
+    @MainActor
+    private func dumpOf(_ other: XCUIApplication, _ name: String) {
+        snap(name)
+        if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] {
+            try? other.debugDescription.write(toFile: dir + "/\(name).txt", atomically: true, encoding: .utf8)
+        }
+    }
+
     /// Screenshots of every screen in the design, against a sample purse
     /// (scratchpad seed_design.py). Run only on request (TEST_RUNNER_DESIGN=1).
     @MainActor

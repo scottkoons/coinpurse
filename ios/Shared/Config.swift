@@ -9,6 +9,13 @@ nonisolated enum Config {
         let override = ProcessInfo.processInfo.environment["COINPURSE_BASE_URL"]
             ?? UserDefaults.standard.string(forKey: "COINPURSE_BASE_URL")
         if let override, let url = URL(string: override) {
+            // Tests: tell the Share extension too, which iOS starts without
+            // the app's environment.
+            Keychain.saveDebugServer(override)
+            return url
+        }
+        if Bundle.main.bundleURL.pathExtension == "appex",
+           let shared = Keychain.loadDebugServer(), let url = URL(string: shared) {
             return url
         }
         #endif
