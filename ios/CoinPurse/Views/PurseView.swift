@@ -3,51 +3,45 @@ import SwiftUI
 /// Identifies which coin a sheet or full-screen view is showing.
 struct CoinRef: Identifiable, Hashable { let id: String }
 
-/// The wallet: peeking title strips on top, the front card open below them.
+/// The purse: the open coin at the top (swipe sideways to flip), and every
+/// other coin as a strip below it. Scrolling up and down only ever scrolls.
 struct PurseView: View {
     @Environment(AppModel.self) private var model
 
-    /// Display order, front card first. Separate from the saved order so
-    /// flipping through cards never rewrites the purse.
-    @State private var order: [String] = []
-    @State private var drag: CGFloat = 0
+    /// The coin shown open at the top.
+    @State private var frontId: String?
     @State private var viewing: CoinRef?
-    @State private var editing: CoinRef?
     @State private var addingNew = false
     @State private var recordingVoice = false
     @State private var showAccount = false
     @State private var showReorder = false
     @State private var pendingDelete: Coin?
+    @State private var searching = false
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
 
-    private let flipDistance: CGFloat = 72
+    /// Search shows up once a purse is big enough to need it.
+    private let searchThreshold = 6
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if model.coins.isEmpty {
-                    emptyState
-                } else {
-                    deck
-                }
-            }
-            .navigationTitle("Coin Purse")
-            .safeAreaInset(edge: .bottom, spacing: 0) { addBar }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAccount = true } label: {
-                        Image(systemName: "person.crop.circle")
-                    }
-                    .accessibilityLabel("Account")
-                }
+        Group {
+            if model.coins.isEmpty {
+                emptyState
+            } else if searching && !trimmedQuery.isEmpty {
+                searchResults
+            } else {
+                purse
             }
         }
-        .onAppear(perform: syncOrder)
-        .onChange(of: model.coins.map(\.id)) { _, _ in syncOrder() }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .safeAreaInset(edge: .bottom, spacing: 0) { addBar }
+        .onAppear { syncFront(old: [], new: model.coins.map(\.id)) }
+        .onChange(of: model.coins.map(\.id)) { old, new in syncFront(old: old, new: new) }
         .fullScreenCover(item: $viewing) { ref in
             ViewerView(coinId: ref.id)
-        }
-        .sheet(item: $editing) { ref in
-            EditorView(coinId: ref.id)
         }
         .sheet(isPresented: $addingNew) {
             EditorView(coinId: nil)
@@ -75,44 +69,111 @@ struct PurseView: View {
         }
     }
 
-    // MARK: Deck
+    // MARK: Header
 
-    private var deck: some View {
-        let coins = order.compactMap { model.coin($0) }
-        let peeks = Array(coins.dropFirst())
-        let peekHeight = CGFloat(peeks.count) * CardMetrics.peek
-        return ScrollView {
-            VStack(spacing: 12) {
-                if coins.count > 1 {
-                    Text("Swipe to flip · tap to open · long-press to rearrange")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                ZStack(alignment: .top) {
-                    ForEach(Array(peeks.enumerated()), id: \.element.id) { slot, coin in
-                        CoinCardHeader(coin: coin) { pendingDelete = coin }
-                            .frame(height: CardMetrics.peek + 24, alignment: .top)
-                            .cardBackground(coin.accentColor)
-                            .offset(y: CGFloat(slot) * CardMetrics.peek)
-                            .zIndex(Double(slot))
-                            .onTapGesture { bringForward(coin.id) }
-                            .onLongPressGesture { startReorder() }
-                    }
-                    if let front = coins.first {
-                        frontCard(front, total: coins.count)
-                            .offset(y: peekHeight + drag)
-                            .zIndex(1000)
+    /// "Coin Purse" on the same line as search and account, to save room.
+    private var header: some View {
+        HStack(spacing: 8) {
+            if searching {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Search titles and notes", text: $query)
+                        .focused($searchFocused)
+                        .submitLabel(.search)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("searchField")
+                    if !query.isEmpty {
+                        Button { query = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .accessibilityLabel("Clear search")
                     }
                 }
-                .frame(height: peekHeight + 520, alignment: .top)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
+                .frame(height: 40)
+                .background(Color.white.opacity(0.1), in: Capsule())
+                Button("Cancel") { endSearch() }
+                    .padding(.leading, 4)
+            } else {
+                Text("Coin Purse")
+                    .font(.title.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if model.coins.count >= searchThreshold {
+                    Button {
+                        searching = true
+                        searchFocused = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Search")
+                }
+                Button { showAccount = true } label: {
+                    Image(systemName: "person.crop.circle")
+                        .font(.title2)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Account")
             }
-            .padding(.top, 8)
         }
-        .refreshable { await model.refresh() }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(Color.black)
     }
 
-    private func frontCard(_ coin: Coin, total: Int) -> some View {
+    // MARK: Purse
+
+    private var purse: some View {
+        let coins = model.coins
+        let front = frontId.flatMap { model.coin($0) } ?? coins.first
+        let position = (front.flatMap { f in coins.firstIndex { $0.id == f.id } } ?? 0) + 1
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 10) {
+                    // Scroll target: the very top of the purse.
+                    Color.clear.frame(height: 0).id("top")
+                    // The open coin. Swiping sideways flips to the next or previous one.
+                    TabView(selection: Binding(get: { front?.id ?? "" }, set: { frontId = $0 })) {
+                        ForEach(coins) { coin in
+                            openCard(coin, isFront: coin.id == front?.id)
+                                .padding(.horizontal, 16)
+                                .tag(coin.id)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .frame(height: OpenCard.height)
+                    .sensoryFeedback(.selection, trigger: frontId)
+
+                    if coins.count > 1 {
+                        Text("\(position) of \(coins.count) · Swipe sideways to flip")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 4)
+                    }
+
+                    // Everything else, in your saved order. Tap one to open it at the top.
+                    ForEach(coins.filter { $0.id != front?.id }) { coin in
+                        strip(coin) {
+                            frontId = coin.id
+                            // Scroll up once the list has updated, so the coin you
+                            // tapped is right there at the top.
+                            DispatchQueue.main.async {
+                                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 16)
+            }
+            .refreshable { await model.refresh() }
+        }
+    }
+
+    private func openCard(_ coin: Coin, isFront: Bool) -> some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin) { pendingDelete = coin }
             Group {
@@ -123,7 +184,7 @@ struct PurseView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 380)
+            .frame(height: OpenCard.pictureHeight)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal, 14)
             Text(coin.pictures.count > 1 ? "\(coin.pictures.count) pictures · Tap to open"
@@ -135,63 +196,73 @@ struct PurseView: View {
         .cardBackground(coin.accentColor)
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("frontCard")
+        .accessibilityIdentifier(isFront ? "frontCard" : "card")
         .onTapGesture { viewing = CoinRef(id: coin.id) }
         .onLongPressGesture { startReorder() }
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 12)
-                .onChanged { value in
-                    guard total > 1 else { return }
-                    drag = value.translation.height
-                }
-                .onEnded { value in
-                    let dy = value.translation.height
-                    let predicted = value.predictedEndTranslation.height
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
-                        if total > 1 && (dy > flipDistance || predicted > 240) {
-                            flip(by: 1)
-                        } else if total > 1 && (dy < -flipDistance || predicted < -240) {
-                            flip(by: -1)
+    }
+
+    private func strip(_ coin: Coin, onTap: @escaping () -> Void) -> some View {
+        CoinCardHeader(coin: coin) { pendingDelete = coin }
+            .cardBackground(coin.accentColor)
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("strip")
+            .padding(.horizontal, 16)
+            .onTapGesture(perform: onTap)
+            .onLongPressGesture { startReorder() }
+    }
+
+    // MARK: Search
+
+    private var searchResults: some View {
+        let q = trimmedQuery
+        let results = model.coins.filter {
+            $0.title.localizedStandardContains(q) || $0.notes.localizedStandardContains(q)
+        }
+        return Group {
+            if results.isEmpty {
+                ContentUnavailableView.search(text: q)
+            } else {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(results) { coin in
+                            strip(coin) {
+                                frontId = coin.id
+                                endSearch()
+                            }
                         }
-                        drag = 0
                     }
+                    .padding(.vertical, 8)
                 }
-        )
-        .sensoryFeedback(.selection, trigger: order.first)
+                .scrollDismissesKeyboard(.immediately)
+            }
+        }
+    }
+
+    private func endSearch() {
+        searching = false
+        searchFocused = false
+        query = ""
     }
 
     // MARK: Order
 
-    /// Keep the display order in step with the purse: new coins go to the
-    /// front, deleted ones drop out.
-    private func syncOrder() {
-        let ids = model.coins.map(\.id)
-        let known = Set(order)
-        let newOnes = ids.filter { !known.contains($0) }
-        let present = Set(ids)
-        order = newOnes + order.filter { present.contains($0) }
-    }
-
-    /// Move to the next (+1) or previous (-1) card in saved order. The old
-    /// front card becomes the top peek, like the web app.
-    private func flip(by direction: Int) {
-        let ring = model.coins.map(\.id)
-        guard ring.count > 1, let current = order.first, let i = ring.firstIndex(of: current) else { return }
-        let next = ring[(i + direction + ring.count) % ring.count]
-        bringForward(next)
-    }
-
-    private func bringForward(_ id: String) {
-        guard let current = order.first, id != current else { return }
-        let ring = model.coins.map(\.id)
-        guard let start = ring.firstIndex(of: current) else { return }
-        var rest: [String] = []
-        for step in 1..<ring.count {
-            let other = ring[(start + step) % ring.count]
-            if other != id && other != current { rest.append(other) }
+    /// New coins open at the top. When the open coin is deleted, the next one
+    /// in the purse takes its place.
+    private func syncFront(old: [String], new: [String]) {
+        let known = Set(old)
+        if !old.isEmpty, let added = new.first(where: { !known.contains($0) }) {
+            frontId = added
+            return
         }
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
-            order = [id, current] + rest
+        if let current = frontId, new.contains(current) { return }
+        if let current = frontId, let i = old.firstIndex(of: current) {
+            // The coin after it in the old order, or the one before at the end.
+            let after = old[(i + 1)...].first { new.contains($0) }
+            let before = old[..<i].last { new.contains($0) }
+            frontId = after ?? before ?? new.first
+        } else {
+            frontId = new.first
         }
     }
 
@@ -227,7 +298,7 @@ struct PurseView: View {
         .padding(.top, 14)
         .padding(.bottom, 6)
         .background {
-            // Cards scroll under the bar and fade out instead of being cut off.
+            // Coins scroll under the bar and fade out instead of being cut off.
             LinearGradient(colors: [.black.opacity(0), .black.opacity(0.92), .black], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
@@ -245,13 +316,19 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Purse is empty")
                 .font(.title2.bold())
-            Text("Snap or paste a QR code, a ticket or a gift card with Add Coin.  Or tap Voice Note and say a quick list or reminder.")
+            Text("Snap or paste a QR code, a ticket or a gift card with Add Coin.  Or tap Voice Note and say a quick note or reminder.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
         }
         .padding(32)
         .frame(maxHeight: .infinity)
     }
+}
+
+enum OpenCard {
+    static let pictureHeight: CGFloat = 380
+    /// Header strip, picture and the "Tap to open" line.
+    static let height: CGFloat = CardMetrics.peek + pictureHeight + 44
 }
 
 /// Long-press opens this: drag the handles to set the saved order.
@@ -300,9 +377,18 @@ struct ReorderView: View {
 struct NoteFace: View {
     let notes: String
 
+    /// A code or a few words shows big; longer notes get smaller type.
+    private var font: Font {
+        switch notes.count {
+        case ..<25: return .system(size: 40, weight: .bold)
+        case ..<90: return .title.weight(.semibold)
+        default: return .title3.weight(.medium)
+        }
+    }
+
     var body: some View {
         Text(notes)
-            .font(.title3.weight(.medium))
+            .font(font)
             .foregroundStyle(.white.opacity(0.92))
             .lineSpacing(4)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

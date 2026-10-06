@@ -43,6 +43,7 @@ struct CoinCardHeader: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.headline)
                     .lineLimit(1)
+                    .accessibilityIdentifier("coinTitle")
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
