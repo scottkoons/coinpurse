@@ -264,7 +264,8 @@ final class CoinPurseUITests: XCTestCase {
     func testStress() throws {
         guard ProcessInfo.processInfo.environment["STRESS"] == "1" else { throw XCTSkip("Set STRESS=1 to run") }
         app = XCUIApplication()
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        // Simulated speech, in case a tap ever lands on Voice.
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestVoiceText", "Stress"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
         app.launch()
         signIn()
@@ -275,8 +276,14 @@ final class CoinPurseUITests: XCTestCase {
         // 1. Open and Done with no pause, many times.
         for n in 0..<16 {
             // Tap where the card is, even while the last coin is still closing.
-            let f = card(names[n % names.count]).frame
-            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
+            let name = names[n % names.count]
+            let f = card(name).frame
+            if f.midY > app.buttons["addPicture"].frame.minY - 8 {
+                // Under the add bar (large text): bring it up first, never tap the bar.
+                tapCard(name)
+            } else {
+                app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
+            }
             let done = app.buttons["Done"]
             if done.waitForExistence(timeout: 3) { done.tap() }
         }
