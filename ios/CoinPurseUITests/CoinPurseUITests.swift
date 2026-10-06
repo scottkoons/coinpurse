@@ -257,6 +257,80 @@ final class CoinPurseUITests: XCTestCase {
         snap("tour-final")
     }
 
+    /// Hammering the purse: opening and closing faster than the animations,
+    /// tapping two cards at once, paging mid-open, swiping down repeatedly.
+    /// Nothing may crash, get stuck open or half open, or be deleted
+    /// (TEST_RUNNER_STRESS=1, design purse).
+    @MainActor
+    func testStress() throws {
+        guard ProcessInfo.processInfo.environment["STRESS"] == "1" else { throw XCTSkip("Set STRESS=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        let before = serverCoinCount()
+        let names = ["Parking spot", "Tailgate tickets", "Coffee gift card", "Email Jim back"]
+
+        // 1. Open and Done with no pause, many times.
+        for n in 0..<16 {
+            card(names[n % names.count]).tap()
+            let done = app.buttons["Done"]
+            if done.waitForExistence(timeout: 3) { done.tap() }
+        }
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "a coin stayed open after rapid open and close")
+        XCTAssertTrue(card("Parking spot").isHittable, "stack not usable after rapid open and close")
+
+        // 2. A quick double tap on a card: the coin opens, and the second tap
+        // does not land on its picture and jump to full screen.
+        card("Tailgate tickets").doubleTap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(1)
+        XCTAssertFalse(app.buttons["viewerShare"].exists, "double tap opened the picture full screen")
+        XCTAssertEqual(app.otherElements.matching(identifier: "openCoin").count, 1, "two coins open at once")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // 3. Paging while it is still opening, then flicking back and forth.
+        card("Parking spot").tap()
+        openCoin.swipeLeft()
+        for _ in 0..<6 { openCoin.swipeRight(); openCoin.swipeLeft() }
+        XCTAssertTrue(openCoin.exists)
+        snap("s01-after-paging")
+
+        // 4. Swipe down repeatedly: it closes once and the stack takes taps again.
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        start.press(forDuration: 0.02, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)), withVelocity: .fast, thenHoldForDuration: 0)
+        start.press(forDuration: 0.02, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)), withVelocity: .fast, thenHoldForDuration: 0)
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "swipe down did not put the coin back")
+        card("Email Jim back").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "stack ignored taps after swipe-down")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // 5. Search typed and cleared fast while cards come and go.
+        app.buttons["Search"].tap()
+        let field = app.textFields["searchField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        for word in ["p", "pa", "par", "xyz", "", "coffee", "gar"] {
+            field.tap()
+            if let current = field.value as? String, !current.isEmpty, current != field.placeholderValue {
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+            }
+            field.typeText(word)
+        }
+        XCTAssertTrue(card("Garage code").waitForExistence(timeout: 5), "search for 'gar' did not find Garage code")
+        snap("s02-search")
+        app.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 5), "stack did not come back after search")
+
+        // Still alive, nothing lost.
+        XCTAssertEqual(app.state, .runningForeground, "app is no longer running")
+        XCTAssertEqual(serverCoinCount(), before, "stress changed the number of coins")
+        snap("s03-end")
+    }
+
     /// Screenshots of every screen in the design, against a sample purse
     /// (scratchpad seed_design.py). Run only on request (TEST_RUNNER_DESIGN=1).
     @MainActor

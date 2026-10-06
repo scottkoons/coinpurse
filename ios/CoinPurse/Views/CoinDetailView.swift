@@ -39,6 +39,9 @@ struct CoinDetailView: View {
     @GestureState private var dragging = false
     @State private var closing = false
     @State private var appeared = false
+    /// False while the card is still flying open: a quick second tap on the
+    /// card must not land on a picture or the map and open something else.
+    @State private var settled = false
     @State private var fullScreen: FullScreenPicture?
     @State private var editing = false
     @State private var sharing: ShareItems?
@@ -105,6 +108,10 @@ struct CoinDetailView: View {
         }
         .onAppear {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.9).delay(0.1)) { appeared = true }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(450))
+            settled = true
         }
         .onChange(of: pages.count) { _, count in
             if page >= count { page = max(0, count - 1) }
@@ -177,6 +184,7 @@ struct CoinDetailView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            .allowsHitTesting(settled)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.horizontal, 10)
             .padding(.bottom, 10)

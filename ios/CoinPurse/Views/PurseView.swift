@@ -170,14 +170,17 @@ struct PurseView: View {
                 // A tucked-in card is drawn only as far as you can see it (its top,
                 // plus a little behind the next card's rounded corners), so it grows
                 // straight from that when it opens.
-                .frame(height: isLast ? CardMetrics.stackHeight + peek - CardMetrics.peek : peek + 30)
-                // Each card shows only its top; the one after it covers the rest.
-                .frame(height: isLast ? CardMetrics.stackHeight + peek - CardMetrics.peek : peek, alignment: .top)
+                .frame(height: isLast ? lastCardHeight : peek + 30)
+                // Every row is exactly one card top tall, so the lazy stack always
+                // knows the full height (the last card hangs below its row, into
+                // the room left under the stack).
+                .frame(height: peek, alignment: .top)
                 // To VoiceOver, each card is one button exactly the size of what
                 // you can see (the card itself reaches down behind the next one).
                 .accessibilityHidden(true)
-                .overlay {
+                .overlay(alignment: .top) {
                     Color.clear
+                        .frame(height: isLast ? lastCardHeight : peek)
                         .accessibilityElement()
                         .accessibilityLabel(coin.title)
                         .accessibilityAddTraits(.isButton)
@@ -192,8 +195,12 @@ struct PurseView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .padding(.bottom, 20)
+        // Room for the last card, which hangs below its row.
+        .padding(.bottom, 20 + lastCardHeight - peek)
     }
+
+    /// The last card shows whole.
+    private var lastCardHeight: CGFloat { CardMetrics.stackHeight + peek - CardMetrics.peek }
 
     @ViewBuilder private func menu(for coin: Coin) -> some View {
         Button { openCoin(coin.id) } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
