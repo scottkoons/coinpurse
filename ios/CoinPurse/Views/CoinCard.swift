@@ -37,6 +37,9 @@ struct CoinCardView: View {
 struct CoinCardHeader: View {
     let coin: Coin
     var onDelete: (() -> Void)?
+    /// Open, the note shows in full below, so the second line gives details
+    /// (pin time, pictures, date) instead of repeating it.
+    var isOpen = false
     @ScaledMetric(relativeTo: .headline) private var height: CGFloat = CardMetrics.header
     @ScaledMetric(relativeTo: .headline) private var emblem: CGFloat = 26
 
@@ -51,8 +54,9 @@ struct CoinCardHeader: View {
                     .accessibilityIdentifier("coinTitle")
                 Text(subtitle)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(1)
+                    .foregroundStyle(.white)
+                    .lineLimit(isOpen ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: isOpen)
             }
             Spacer(minLength: 4)
             contents
@@ -73,7 +77,9 @@ struct CoinCardHeader: View {
         .foregroundStyle(.white)
         .padding(.leading, 14)
         .padding(.trailing, onDelete == nil ? 16 : 6)
-        .frame(height: height)
+        .padding(.vertical, isOpen ? 8 : 0)
+        // In the stack every top is the same height; open, it grows with its text.
+        .frame(minHeight: height, maxHeight: isOpen ? nil : height)
     }
 
     /// Small symbols: more than one picture, a map pin, a note.
@@ -91,16 +97,28 @@ struct CoinCardHeader: View {
         }
         .font(.caption.weight(.bold))
         .labelStyle(.titleAndIcon)
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle(.white)
     }
 
     /// The start of the note, else when it was pinned, else the date.
     private var subtitle: String {
+        if isOpen { return details }
         let firstLine = coin.notes.split(separator: "\n").first.map(String.init) ?? ""
         if !firstLine.isEmpty { return firstLine }
         if let pin = coin.pin { return pin.pinnedLabel }
         guard let ms = coin.updatedAt ?? coin.createdAt else { return "" }
         return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)
+    }
+
+    /// "Pinned at 2:14 PM · 2 pictures", or the date for a plain note.
+    private var details: String {
+        var parts: [String] = []
+        if let pin = coin.pin { parts.append(pin.pinnedLabel) }
+        if coin.pictures.count > 1 { parts.append("\(coin.pictures.count) pictures") }
+        if parts.isEmpty, let ms = coin.updatedAt ?? coin.createdAt {
+            parts.append(Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted))
+        }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -198,10 +216,9 @@ struct CardSurface: ViewModifier {
         content
             .background {
                 ZStack {
-                    LinearGradient(colors: [AccentPalette.color(accent), AccentPalette.deep(accent)],
+                    // Deep enough everywhere for white text (no light sheen over the title).
+                    LinearGradient(colors: [AccentPalette.cardColors(accent).top, AccentPalette.cardColors(accent).bottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
-                    LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0)],
-                                   startPoint: .top, endPoint: .center)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))

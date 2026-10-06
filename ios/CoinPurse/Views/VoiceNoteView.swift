@@ -142,6 +142,9 @@ struct VoiceNoteView: View {
 
                 Text(capture.state == .listening ? "Listening.  Tap when you are done."
                      : capture.state == .stopping ? "Finishing…" : "Getting ready…")
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

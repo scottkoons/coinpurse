@@ -192,8 +192,6 @@ struct PurseView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 20)
-        // Very large text sizes would no longer fit a card's top.
-        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 
     @ViewBuilder private func menu(for coin: Coin) -> some View {
@@ -473,22 +471,30 @@ struct ReorderView: View {
 }
 
 #if DEBUG
-/// Two pictures, as if shared from Messages (UI tests only).
+/// Two pictures, as if shared from Photos (UI tests only): big camera-size
+/// photos stored sideways, read through the same code the Share extension uses.
 enum ShareSamples {
     static func input() -> ShareInput {
         var input = ShareInput()
         for (n, color) in [(1, UIColor.systemBlue), (2, UIColor.systemOrange)] {
-            let image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { ctx in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let raw = UIGraphicsImageRenderer(size: CGSize(width: 4000, height: 3000), format: format).image { ctx in
                 color.setFill()
-                ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
-                ("Shared \(n)" as NSString).draw(at: CGPoint(x: 60, y: 80), withAttributes: [
-                    .font: UIFont.boldSystemFont(ofSize: 72), .foregroundColor: UIColor.white,
+                ctx.fill(CGRect(x: 0, y: 0, width: 4000, height: 3000))
+                ("Shared \(n)" as NSString).draw(at: CGPoint(x: 200, y: 200), withAttributes: [
+                    .font: UIFont.boldSystemFont(ofSize: 360), .foregroundColor: UIColor.white,
                 ])
             }
-            if let jpeg = ImageProcessing.uploadData(from: image) {
-                input.images.append(jpeg)
-                input.previews.append(image)
-            }
+            // Like a portrait camera photo: pixels sideways, turned upright by its orientation tag.
+            guard let cg = raw.cgImage,
+                  let file = UIImage(cgImage: cg, scale: 1, orientation: .right).jpegData(compressionQuality: 0.9),
+                  let jpeg = ImageProcessing.uploadData(fromFile: file),
+                  let preview = UIImage(data: jpeg) else { continue }
+            // Upright portrait, shrunk: 1200 x 1600.
+            assert(preview.size.width < preview.size.height && max(preview.size.width, preview.size.height) <= 1600)
+            input.images.append(jpeg)
+            input.previews.append(preview)
         }
         return input
     }

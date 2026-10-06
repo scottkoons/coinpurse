@@ -159,6 +159,7 @@ struct EditorView: View {
                 .foregroundStyle(.secondary)
                 Button { Task { await locate() } } label: {
                     Label(locating ? "Finding where you are…" : "Move Pin Here", systemImage: "location.fill")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .disabled(locating)
                 Button("Remove Pin", role: .destructive) {
@@ -216,6 +217,7 @@ struct EditorView: View {
                     VStack(spacing: 6) {
                         Image(systemName: "photo.badge.plus")
                             .font(.title)
+                            .accessibilityHidden(true)
                         Text("No picture yet")
                             .font(.subheadline)
                     }

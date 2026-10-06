@@ -17,6 +17,11 @@ module.exports = async function handler(req, res) {
   if (!Array.isArray(ids) || !ids.length || ids.length > 1000) {
     return json(res, 400, { error: 'ids array required' });
   }
-  const coins = await reorderCoins(user.id, ids.map(String));
-  return json(res, 200, { coins: coins.map((c) => presentCoin(c, user.id)) });
+  try {
+    const coins = await reorderCoins(user.id, ids.map(String));
+    return json(res, 200, { coins: coins.map((c) => presentCoin(c, user.id)) });
+  } catch (e) {
+    console.error('reorder', e);
+    return json(res, 503, { error: 'Could not save the order; try again' });
+  }
 };

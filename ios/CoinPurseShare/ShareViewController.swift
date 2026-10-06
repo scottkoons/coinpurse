@@ -32,11 +32,13 @@ enum ShareLoader {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 guard input.images.count < Config.maxExtraPictures + 1,
-                      let data = await data(provider, type: .image),
-                      let image = UIImage(data: data),
-                      let jpeg = ImageProcessing.uploadData(from: image) else { continue }
+                      let data = await data(provider, type: .image) else { continue }
+                // Shrunk off the main thread while reading, one picture at a time.
+                guard let jpeg = await Task.detached(priority: .userInitiated, operation: {
+                    ImageProcessing.uploadData(fromFile: data)
+                }).value, let preview = UIImage(data: jpeg) else { continue }
                 input.images.append(jpeg)
-                input.previews.append(UIImage(data: jpeg) ?? image)
+                input.previews.append(preview)
             } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
                       let url = await url(provider) {
                 texts.append(url.absoluteString)

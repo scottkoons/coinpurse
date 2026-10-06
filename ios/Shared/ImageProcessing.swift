@@ -1,6 +1,27 @@
+import ImageIO
 import UIKit
 
 nonisolated enum ImageProcessing {
+    /// Upload-ready JPEG straight from a picture file's bytes, decoding only
+    /// a small version (never the full 12 to 48 MP photo). Used by the Share
+    /// extension, which iOS stops if it uses much memory.
+    static func uploadData(fromFile data: Data) -> Data? {
+        autoreleasepool {
+            guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary)
+            else { return nil }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                // Upright, like the camera intended.
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                // Longest side; a portrait photo comes out 1200 x 1600.
+                kCGImageSourceThumbnailMaxPixelSize: Config.maxImageWidth * 4 / 3,
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let small = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+            return UIImage(cgImage: small).jpegData(compressionQuality: Config.jpegQuality)
+        }
+    }
+
     /// Upright, at most 1200 px wide, JPEG: the same as the web app uploads.
     static func uploadData(from image: UIImage) -> Data? {
         let upright = normalized(image)

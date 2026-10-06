@@ -88,6 +88,20 @@ enum AccentPalette {
     /// What VoiceOver calls each color.
     static let names = ["Indigo", "Teal", "Green", "Yellow", "Orange", "Pink"]
 
+    /// Card faces: deeper shades of the same six colors, so white text on
+    /// them is easy to read (meets Apple's contrast guidance).
+    private static let cardTop: [UInt32] = [0x4F46E5, 0x0E7490, 0x15803D, 0xB45309, 0xC2410C, 0xBE185D]
+    private static let cardBottom: [UInt32] = [0x312E81, 0x164E63, 0x14532D, 0x78350F, 0x7C2D12, 0x831843]
+
+    static func cardColors(_ index: Int) -> (top: Color, bottom: Color) {
+        let i = (index % hex.count + hex.count) % hex.count
+        return (rgb(cardTop[i]), rgb(cardBottom[i]))
+    }
+
+    private static func rgb(_ v: UInt32) -> Color {
+        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    }
+
     static func color(_ index: Int) -> Color { shade(index, 1) }
 
     /// The same color, darker: the far corner of a card's gradient.

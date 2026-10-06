@@ -160,7 +160,8 @@ struct ViewerView: View {
             .accessibilityLabel("Back")
             Spacer(minLength: 0)
             VStack(spacing: 1) {
-                Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(2)
+                    .multilineTextAlignment(.center)
                 if pictures.count > 1 {
                     Text("\(index + 1) of \(pictures.count)").font(.caption2).foregroundStyle(.secondary)
                 }

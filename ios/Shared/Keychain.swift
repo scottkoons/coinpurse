@@ -42,10 +42,30 @@ nonisolated enum Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Moves a token saved by an older version into the shared group.
+    private static let appGroup = "MAWR9G7Y7A.com.yetignome.coinpurse"
+
+    /// Moves a token saved by an older version into the shared group, once.
+    /// The shared copy is added before the old one is removed, so being
+    /// stopped half way never signs anyone out.
     static func shareExistingToken() {
+        var shared: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: sharedGroup,
+        ]
+        if SecItemCopyMatching(shared as CFDictionary, nil) == errSecSuccess { return }
         guard let token = loadToken() else { return }
-        saveToken(token)
+        shared[kSecValueData as String] = Data(token.utf8)
+        shared[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        guard SecItemAdd(shared as CFDictionary, nil) == errSecSuccess else { return }
+        let old: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: appGroup,
+        ]
+        SecItemDelete(old as CFDictionary)
     }
 
     static func deleteToken() {

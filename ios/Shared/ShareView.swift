@@ -30,6 +30,8 @@ struct ShareView: View {
     /// tapping Save again after a failure never duplicates anything.
     @State private var draftId = UUID().uuidString.lowercased()
     @State private var uploaded = 0
+    /// Set once the coin has a main picture from this share (survives a retry).
+    @State private var sentMain = false
 
     private let token = Keychain.loadToken()
     private static let maxPictures = Config.maxExtraPictures + 1
@@ -200,13 +202,12 @@ struct ShareView: View {
             case .existing:
                 guard let coin = chosenCoin else { return }
                 let fitting = Array(input.images.prefix(room(in: coin)))
-                var hasMain = coin.imageUrl != nil
                 for (i, jpeg) in fitting.enumerated() where i >= uploaded {
-                    if hasMain {
+                    if coin.imageUrl != nil || sentMain {
                         _ = try await api.addPicture(coinId: coin.id, jpeg: jpeg)
                     } else {
                         _ = try await api.uploadMainPicture(coinId: coin.id, jpeg: jpeg)
-                        hasMain = true
+                        sentMain = true
                     }
                     uploaded = i + 1
                 }

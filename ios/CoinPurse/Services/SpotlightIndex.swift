@@ -12,10 +12,11 @@ enum SpotlightIndex {
         let items = coins.map { coin -> CSSearchableItem in
             let attributes = CSSearchableItemAttributeSet(contentType: .content)
             attributes.title = coin.title
+            // Titles only, never notes (they can hold a gate code), just as
+            // Apple Notes shows only the title of a locked note.
             var details: [String] = []
-            if !coin.notes.isEmpty { details.append(coin.notes) }
             if coin.pin != nil { details.append("Map pin") }
-            if coin.pictures.count > 1 { details.append("\(coin.pictures.count) pictures") }
+            if !coin.pictures.isEmpty { details.append(coin.pictures.count == 1 ? "1 picture" : "\(coin.pictures.count) pictures") }
             attributes.contentDescription = details.joined(separator: " · ")
             attributes.keywords = ["Coin Purse", "coin"]
             return CSSearchableItem(uniqueIdentifier: coin.id, domainIdentifier: domain, attributeSet: attributes)

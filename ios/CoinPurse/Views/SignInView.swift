@@ -12,8 +12,12 @@ struct SignInView: View {
     enum Field { case email, code }
 
     var body: some View {
+        // Scrolls when space is short (small iPhone, keyboard up, large text),
+        // so nothing is ever cut off.
+        GeometryReader { geo in
+        ScrollView {
         VStack(spacing: 20) {
-            Spacer()
+            Spacer(minLength: 0)
             Image("Logo")
                 .resizable()
                 .scaledToFit()
@@ -28,11 +32,14 @@ struct SignInView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             Text(sentTo == nil
                  ? "Sign in with your email. We will send you a 6-digit code."
                  : "Enter the 6-digit code we sent to \(sentTo ?? "").")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if sentTo == nil {
                 TextField("you@example.com", text: $email)
@@ -81,15 +88,19 @@ struct SignInView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
-            Spacer()
+            Spacer(minLength: 0)
             HStack(spacing: 16) {
                 Link("Privacy", destination: Config.baseURL.appendingPathComponent("privacy"))
                 Link("Support", destination: Config.baseURL.appendingPathComponent("support"))
             }
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .frame(minHeight: 44)
         }
         .padding(24)
+        .frame(minHeight: geo.size.height)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        }
         .onAppear { focused = .email }
     }
 

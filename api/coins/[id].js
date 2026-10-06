@@ -35,12 +35,18 @@ module.exports = async function handler(req, res) {
     } catch (e) {
       if (e.code === 'TOMBSTONED') return json(res, 410, { error: 'Coin was deleted' });
       if (e.code === 'NOT_FOUND') return json(res, 404, { error: 'Not found' });
-      throw e;
+      console.error('update coin', e);
+      return json(res, 503, { error: 'Could not save the coin; try again' });
     }
   }
 
   if (req.method === 'DELETE') {
-    await removeCoin(user.id, id);
+    try {
+      await removeCoin(user.id, id);
+    } catch (e) {
+      console.error('delete coin', e);
+      return json(res, 503, { error: 'Could not delete the coin; try again' });
+    }
     return json(res, 200, { ok: true });
   }
 

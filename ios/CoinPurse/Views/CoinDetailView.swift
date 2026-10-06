@@ -80,15 +80,20 @@ struct CoinDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 6 + drag)
                     .simultaneousGesture(dragToClose, including: isScrollingNote ? .subviews : .all)
-                VStack(spacing: 14) {
-                    pageDots
-                    if let notesBelow { notesPanel(notesBelow) }
-                    actions
+                // Under the card: scrolls only if large text makes it too tall.
+                ScrollView {
+                    VStack(spacing: 14) {
+                        pageDots
+                        if let notesBelow { notesPanel(notesBelow) }
+                        actions
+                    }
+                    .padding(.top, 12)
+                    // Clear of the coins peeking up at the bottom.
+                    .padding(.bottom, 64)
                 }
-                .padding(.top, 12)
+                .scrollBounceBehavior(.basedOnSize)
                 .opacity(appeared ? max(0, 1 - drag / 140) : 0)
                 .offset(y: appeared || reduceMotion ? 0 : 28)
-                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .bottom) {
@@ -97,7 +102,6 @@ struct CoinDetailView: View {
                     .offset(y: appeared ? 0 : 60)
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .onAppear {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.9).delay(0.1)) { appeared = true }
         }
@@ -159,7 +163,7 @@ struct CoinDetailView: View {
 
     private var card: some View {
         VStack(spacing: 0) {
-            CoinCardHeader(coin: coin)
+            CoinCardHeader(coin: coin, isOpen: true)
                 // The title bar always drags the coin down, even over a long note.
                 .contentShape(Rectangle())
                 .gesture(isScrollingNote ? dragToClose : nil)
@@ -245,7 +249,7 @@ struct CoinDetailView: View {
     private var pageDots: some View {
         VStack(spacing: 10) {
             if pages.count > 1 {
-                HStack(spacing: 8) {
+                HStack(spacing: 0) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { i, p in
                         Group {
                             if case .map = p {
@@ -256,7 +260,9 @@ struct CoinDetailView: View {
                             }
                         }
                         .foregroundStyle(.primary.opacity(i == page ? 1 : 0.3))
-                        .frame(width: 12, height: 12)
+                        // A full-size touch target around each small dot.
+                        .frame(width: 28, height: 44)
+                        .contentShape(Rectangle())
                         .onTapGesture { withAnimation { page = i } }
                     }
                 }
@@ -275,19 +281,19 @@ struct CoinDetailView: View {
     }
 
     private func notesPanel(_ text: String) -> some View {
-        ScrollView {
-            Text(LinkedText.make(text))
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .tint(AccentPalette.color(coin.accent))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxHeight: 54)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        let words = Text(LinkedText.make(text))
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+            .tint(Color.accentColor)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+        // Shown in full at any text size (the area under the card scrolls).
+        return words
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(minHeight: 44)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 16)
     }
 
@@ -320,7 +326,7 @@ struct CoinDetailView: View {
                 .glassCircle()
                 Text(title)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
             }
             .frame(maxWidth: .infinity)
             // The whole column takes the tap, not just the symbol.

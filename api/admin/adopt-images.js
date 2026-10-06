@@ -1,7 +1,7 @@
 const { json } = require('../lib/auth');
 const { requireAdmin } = require('../lib/admin');
 const { listPage, readBlobBuffer, putBlob } = require('../lib/blob');
-const { readIndexDocument, writeIndexDocument } = require('../lib/store');
+const { readIndexDocument, mutateIndex } = require('../lib/store');
 const { pathOfImage, ownsPath } = require('../lib/imageurl');
 
 /**
@@ -52,15 +52,32 @@ module.exports = async function handler(req, res) {
     if (doc.status !== 'ok') continue;
     let moved = 0;
     const skipped = [];
+    // Old path -> new copy. Copies are made first (slow), then applied to the
+    // purse as it is at that moment, so changes made meanwhile are kept.
+    const copies = new Map();
     for (const coin of doc.coins) {
       const items = [[coin, coin.id], ...(Array.isArray(coin.attachments) ? coin.attachments : []).map((a) => [a, `${coin.id}-${a.id}`])];
       for (const [item, tag] of items) {
+        const from = pathOfImage(item);
         const r = await adopt(uid, item, tag);
-        if (r === 'moved') moved++;
+        if (r === 'moved') {
+          moved++;
+          copies.set(from, { imagePath: item.imagePath, imageUrl: item.imageUrl });
+        }
         if (r === 'skipped') skipped.push({ coin: coin.id, path: pathOfImage(item) });
       }
     }
-    if (moved) await writeIndexDocument(uid, { coins: doc.coins, deletedIds: doc.deletedIds });
+    if (moved) {
+      await mutateIndex(uid, (latest) => {
+        // Only where the coin still shows the original picture.
+        const fix = (it) => {
+          const copy = it && copies.get(pathOfImage(it));
+          return copy ? { ...it, ...copy } : it;
+        };
+        const coins = latest.coins.map((c) => ({ ...fix(c), attachments: (c.attachments || []).map(fix) }));
+        return { coins };
+      });
+    }
     if (moved || skipped.length) report.push({ uid, moved, skipped });
   }
   return json(res, 200, { report, done: !page.hasMore, cursor: page.hasMore ? page.cursor : null });
