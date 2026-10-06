@@ -24,7 +24,7 @@ struct CropView: View {
                 Spacer()
                 Button("Reset") { withAnimation { box = CGRect(x: 0, y: 0, width: 1, height: 1) } }
                 Spacer()
-                Button("Done") { onDone(result()) }.bold()
+                Button("Done") { onDone(result()) }.bold().accessibilityIdentifier("cropDone")
             }
             .padding()
             GeometryReader { geo in

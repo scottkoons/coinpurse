@@ -155,7 +155,8 @@ for (const mode of modes) {
     assert.deepEqual(img.buf, JPEG);
     // Tampered path, signature or expiry fail.
     assert.equal((await call('img.js', { query: { ...q, p: q.p.replace(/\.jpg$/, '.png') } })).status, 404);
-    assert.equal((await call('img.js', { query: { ...q, s: 'x' + q.s.slice(1) } })).status, 404);
+    // (Change the first letter to one it is not, or roughly 1 run in 64 "tampers" nothing.)
+    assert.equal((await call('img.js', { query: { ...q, s: (q.s[0] === 'x' ? 'y' : 'x') + q.s.slice(1) } })).status, 404);
     assert.equal((await call('img.js', { query: { ...q, e: String(Number(q.e) + 1) } })).status, 404);
     assert.equal((await call('img.js', { query: { ...q, e: '1' } })).status, 404);
   });
@@ -415,4 +416,31 @@ test('untitled coins are named Coin 1, Coin 2, ...', async () => {
   const r = await call('coins/[id].js', { method: 'PUT', token: t, query: { id: pass.id }, body: { title: '' } });
   assert.equal(r.status, 200);
   assert.equal(r.data.coin.title, 'Dev conference pass');
+});
+
+test('a coin can hold a map pin, move it, and lose it', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('parker@example.com');
+  const made = await call('coins.js', { method: 'POST', token: t, body: { title: 'Car', pin: { lat: 38.8339, lng: -104.8214, acc: 8, at: 1791000000000 } } });
+  assert.equal(made.status, 201);
+  assert.deepEqual(made.data.coin.pin, { lat: 38.8339, lng: -104.8214, acc: 8, at: 1791000000000 });
+  const id = made.data.coin.id;
+  const put = (body) => call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body });
+  // Editing the title leaves the pin alone.
+  assert.equal((await put({ title: 'My car' })).data.coin.pin.lat, 38.8339);
+  // Moving the pin.
+  assert.equal((await put({ pin: { lat: 38.9, lng: -104.7 } })).data.coin.pin.lng, -104.7);
+  // Nonsense is refused and changes nothing.
+  for (const bad of [{ lat: 91, lng: 0 }, { lat: 'x', lng: 1 }, { lat: 1 }, 'here', 5]) {
+    assert.equal((await put({ pin: bad })).status, 400, JSON.stringify(bad));
+  }
+  assert.equal((await call('coins.js', { token: t })).data.coins[0].pin.lat, 38.9);
+  // Removing it.
+  assert.equal((await put({ pin: null })).data.coin.pin, null);
+  // Coins without a pin say so plainly.
+  assert.equal((await call('coins.js', { method: 'POST', token: t, body: {} })).data.coin.pin, null);
+  // Another account cannot touch it.
+  const other = await signIn('snoop@example.com');
+  assert.equal((await call('coins/[id].js', { method: 'PUT', token: other, query: { id }, body: { pin: { lat: 1, lng: 1 } } })).status, 404);
 });

@@ -27,6 +27,7 @@ Good for:
 • Where you parked, or a sign you want to remember
 • A photo of a handwritten list or note
 • A quick note to yourself, just by talking: who to call back, or where you parked
+• A map pin for where you parked, with walking directions back in Apple Maps
 
 Made to be quick:
 • One-tap Paste, with no "Allow Paste" prompt
@@ -59,10 +60,11 @@ qr code,pass,badge,conference,event,return label,screenshot,notes,list,loyalty,p
 
 ## App Review notes
 
-Sign in with the review account: enter the email in REVIEW_EMAIL, tap "Email me a code", then enter the 6-digit REVIEW_CODE (both set in Vercel; no email is sent to this address).  Delete Account is in Account (person icon, top right).  Voice Note (bottom right) uses the microphone and Apple speech recognition only while recording, to create a text coin.
+Sign in with the review account: enter the email in REVIEW_EMAIL, tap "Email me a code", then enter the 6-digit REVIEW_CODE (both set in Vercel; no email is sent to this address).  Delete Account is in Account (person icon, top right).  Pin (bottom right) reads the location once to save a spot on a coin.  Voice Note (bottom middle) uses the microphone and Apple speech recognition only while recording, to create a text coin.
 
 ## App Privacy answers
 
 - Data collected: Email Address (linked to user, App Functionality), Photos (linked to user, App Functionality), Other User Content: coin titles, notes and voice note text (linked to user, App Functionality).
+- Precise Location (linked to user, App Functionality): only when the person taps Add Pin; the spot is saved on that coin and deleted with it.  Never collected in the background.
 - Audio: not collected.  Voice notes are turned into text by Apple speech recognition (on the iPhone when it supports it); the recording is never saved or sent to our server, only the text the person saves.
 - Tracking: none.  No third-party analytics or ads.

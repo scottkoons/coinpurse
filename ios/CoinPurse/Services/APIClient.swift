@@ -56,9 +56,17 @@ struct APIClient {
         try await send("GET", "/api/coins")
     }
 
-    func createCoin(id: String, title: String, notes: String, accent: Int) async throws -> Coin {
-        let r: CoinResult = try await send("POST", "/api/coins", json: [
-            "id": id, "title": title, "notes": notes, "accent": accent,
+    func createCoin(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
+        var body: [String: Any] = ["id": id, "title": title, "notes": notes, "accent": accent]
+        if let pin { body["pin"] = pin.json }
+        let r: CoinResult = try await send("POST", "/api/coins", json: body)
+        return r.coin
+    }
+
+    /// Sets, moves or (with nil) removes a coin's map pin.
+    func setPin(id: String, pin: Pin?) async throws -> Coin {
+        let r: CoinResult = try await send("PUT", "/api/coins/\(id.urlPathSafe)", json: [
+            "pin": pin.map { $0.json as Any } ?? NSNull(),
         ])
         return r.coin
     }

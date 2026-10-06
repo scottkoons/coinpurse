@@ -3,15 +3,17 @@ import SwiftUI
 /// Identifies which coin a sheet or full-screen view is showing.
 struct CoinRef: Identifiable, Hashable { let id: String }
 
-/// The purse: the open coin at the top (swipe sideways to flip), and every
-/// other coin as a strip below it. Scrolling up and down only ever scrolls.
+/// The purse: coins stacked like cards in Wallet, each showing its colored
+/// top. Scroll to browse, tap one and it slides out of the stack. Up and down
+/// only ever scrolls; sideways only happens inside an open coin.
 struct PurseView: View {
     @Environment(AppModel.self) private var model
+    @Namespace private var cards
 
-    /// The coin shown open at the top.
-    @State private var frontId: String?
-    @State private var viewing: CoinRef?
-    @State private var addingNew = false
+    @State private var openId: String?
+    @State private var editing: CoinRef?
+    @State private var addingPicture = false
+    @State private var addingPin = false
     @State private var recordingVoice = false
     @State private var showAccount = false
     @State private var showReorder = false
@@ -20,41 +22,45 @@ struct PurseView: View {
     @State private var query = ""
     @FocusState private var searchFocused: Bool
 
+    /// One spring for opening and closing, so the card and the stack move together.
+    static let cardSpring = Animation.spring(response: 0.5, dampingFraction: 0.86)
     /// Search shows up once a purse is big enough to need it.
     private let searchThreshold = 6
+
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+    private var visibleCoins: [Coin] {
+        let q = trimmedQuery
+        guard searching, !q.isEmpty else { return model.coins }
+        return model.coins.filter { $0.title.localizedStandardContains(q) || $0.notes.localizedStandardContains(q) }
+    }
 
     var body: some View {
-        Group {
-            if model.coins.isEmpty {
-                emptyState
-            } else if searching && !trimmedQuery.isEmpty {
-                searchResults
-            } else {
-                purse
+        GeometryReader { geo in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                stackLayer(screenHeight: geo.size.height)
+                if let id = openId, let coin = model.coin(id) {
+                    CoinDetailView(
+                        coin: coin,
+                        namespace: cards,
+                        pile: pile(after: id),
+                        onClose: closeCoin,
+                        onDelete: { deleteOpenCoin(id) }
+                    )
+                    .transition(.identity)
+                    .zIndex(10)
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-        .safeAreaInset(edge: .top, spacing: 0) { header }
-        .safeAreaInset(edge: .bottom, spacing: 0) { addBar }
-        .onAppear { syncFront(old: [], new: model.coins.map(\.id)) }
-        .onChange(of: model.coins.map(\.id)) { old, new in syncFront(old: old, new: new) }
-        .fullScreenCover(item: $viewing) { ref in
-            ViewerView(coinId: ref.id)
+        .onChange(of: model.coins.map(\.id)) { _, ids in
+            if let id = openId, !ids.contains(id) { openId = nil }
         }
-        .sheet(isPresented: $addingNew) {
-            EditorView(coinId: nil)
-        }
-        .sheet(isPresented: $recordingVoice) {
-            VoiceNoteView()
-        }
-        .sheet(isPresented: $showAccount) {
-            AccountView()
-        }
-        .sheet(isPresented: $showReorder) {
-            ReorderView()
-        }
+        .sheet(isPresented: $addingPicture) { EditorView(coinId: nil) }
+        .sheet(isPresented: $addingPin) { EditorView(coinId: nil, startsWithPin: true) }
+        .sheet(isPresented: $recordingVoice) { VoiceNoteView() }
+        .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
+        .sheet(isPresented: $showAccount) { AccountView() }
+        .sheet(isPresented: $showReorder) { ReorderView() }
         .alert(
             "Are you sure you want to delete?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -65,7 +71,119 @@ struct PurseView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { coin in
-            Text("“\(coin.title)” and all of its pictures will be deleted. This cannot be undone.")
+            Text("“\(coin.title)” and everything in it will be deleted. This cannot be undone.")
+        }
+    }
+
+    // MARK: The stack
+
+    private func stackLayer(screenHeight: CGFloat) -> some View {
+        let isOpen = openId != nil
+        return ScrollView {
+            if model.coins.isEmpty {
+                emptyState
+                    .frame(minHeight: screenHeight - 220)
+            } else if visibleCoins.isEmpty {
+                ContentUnavailableView.search(text: trimmedQuery)
+                    .padding(.top, 60)
+            } else {
+                stack(screenHeight: screenHeight)
+            }
+        }
+        .scrollDisabled(isOpen)
+        .scrollDismissesKeyboard(.immediately)
+        .refreshable { await model.refresh() }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            header
+                .opacity(isOpen ? 0 : 1)
+                .offset(y: isOpen ? -16 : 0)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !searching {
+                addBar
+                    .opacity(isOpen ? 0 : 1)
+                    .offset(y: isOpen ? 110 : 0)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+
+    private func stack(screenHeight: CGFloat) -> some View {
+        let coins = visibleCoins
+        return VStack(spacing: 0) {
+            ForEach(Array(coins.enumerated()), id: \.element.id) { i, coin in
+                let isLast = i == coins.count - 1
+                ZStack(alignment: .top) {
+                    if openId == coin.id {
+                        // Holds the card's place while it is out of the stack.
+                        Color.clear
+                    } else {
+                        CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
+                            .matchedGeometryEffect(id: coin.id, in: cards)
+                            .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
+                            .onTapGesture { openCoin(coin.id) }
+                            .contextMenu { menu(for: coin) }
+                    }
+                }
+                // A tucked-in card is drawn only as far as you can see it (its top,
+                // plus a little behind the next card's rounded corners), so it grows
+                // straight from that when it opens.
+                .frame(height: isLast ? CardMetrics.stackHeight : CardMetrics.peek + 30)
+                // Each card shows only its top; the one after it covers the rest.
+                .frame(height: isLast ? CardMetrics.stackHeight : CardMetrics.peek, alignment: .top)
+                // To VoiceOver, each card is one button exactly the size of what
+                // you can see (the card itself reaches down behind the next one).
+                .accessibilityHidden(true)
+                .overlay {
+                    Color.clear
+                        .accessibilityElement()
+                        .accessibilityLabel(coin.title)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityIdentifier("stackCard")
+                        .accessibilityAction { openCoin(coin.id) }
+                        .accessibilityAction(named: "Delete") { pendingDelete = coin }
+                }
+                .zIndex(Double(i))
+                // While a coin is out, the rest of the stack drops out of sight.
+                .offset(y: openId == nil || openId == coin.id ? 0 : screenHeight + CGFloat(i) * 8)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 20)
+    }
+
+    @ViewBuilder private func menu(for coin: Coin) -> some View {
+        Button { openCoin(coin.id) } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
+        Button { editing = CoinRef(id: coin.id) } label: { Label("Edit", systemImage: "pencil") }
+        Button { showReorder = true } label: { Label("Rearrange", systemImage: "arrow.up.arrow.down") }
+        Divider()
+        Button(role: .destructive) { pendingDelete = coin } label: { Label("Delete", systemImage: "trash") }
+    }
+
+    /// The coins after this one (wrapping around), for the pile under an open coin.
+    private func pile(after id: String) -> [Coin] {
+        let list = model.coins
+        guard let i = list.firstIndex(where: { $0.id == id }) else { return [] }
+        return Array((list[(i + 1)...] + list[..<i]).prefix(3))
+    }
+
+    private func openCoin(_ id: String) {
+        searchFocused = false
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        withAnimation(Self.cardSpring) { openId = id }
+    }
+
+    private func closeCoin() {
+        withAnimation(Self.cardSpring) { openId = nil }
+    }
+
+    /// The card goes back into the stack first, then leaves it.
+    private func deleteOpenCoin(_ id: String) {
+        closeCoin()
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            await model.deleteCoin(id)
         }
     }
 
@@ -73,7 +191,7 @@ struct PurseView: View {
 
     /// "Coin Purse" on the same line as search and account, to save room.
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             if searching {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -89,246 +207,136 @@ struct PurseView: View {
                         .accessibilityLabel("Clear search")
                     }
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 40)
-                .background(Color.white.opacity(0.1), in: Capsule())
+                .padding(.horizontal, 14)
+                .frame(height: 42)
+                .glassCapsule()
                 Button("Cancel") { endSearch() }
-                    .padding(.leading, 4)
+                    .foregroundStyle(.white)
             } else {
                 Text("Coin Purse")
-                    .font(.title.bold())
+                    .font(.system(.title, design: .rounded).weight(.bold))
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 if model.coins.count >= searchThreshold {
-                    Button {
-                        searching = true
+                    circleButton("magnifyingglass", label: "Search") {
+                        withAnimation(.snappy) { searching = true }
                         searchFocused = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.title3)
-                            .frame(width: 44, height: 44)
                     }
-                    .accessibilityLabel("Search")
                 }
-                Button { showAccount = true } label: {
-                    Image(systemName: "person.crop.circle")
-                        .font(.title2)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Account")
+                circleButton("person.fill", label: "Account") { showAccount = true }
             }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .background(Color.black)
-    }
-
-    // MARK: Purse
-
-    private var purse: some View {
-        let coins = model.coins
-        let front = frontId.flatMap { model.coin($0) } ?? coins.first
-        let position = (front.flatMap { f in coins.firstIndex { $0.id == f.id } } ?? 0) + 1
-        return ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 10) {
-                    // Scroll target: the very top of the purse.
-                    Color.clear.frame(height: 0).id("top")
-                    // The open coin. Swiping sideways flips to the next or previous one.
-                    TabView(selection: Binding(get: { front?.id ?? "" }, set: { frontId = $0 })) {
-                        ForEach(coins) { coin in
-                            openCard(coin, isFront: coin.id == front?.id)
-                                .padding(.horizontal, 16)
-                                .tag(coin.id)
-                        }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .frame(height: OpenCard.height)
-                    .sensoryFeedback(.selection, trigger: frontId)
-
-                    if coins.count > 1 {
-                        Text("\(position) of \(coins.count) · Swipe sideways to flip")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 4)
-                    }
-
-                    // Everything else, in your saved order. Tap one to open it at the top.
-                    ForEach(coins.filter { $0.id != front?.id }) { coin in
-                        strip(coin) {
-                            frontId = coin.id
-                            // Scroll up once the list has updated, so the coin you
-                            // tapped is right there at the top.
-                            DispatchQueue.main.async {
-                                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.bottom, 16)
+        .background(alignment: .top) {
+            VStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 18)
+                    .padding(.bottom, -18)
             }
-            .refreshable { await model.refresh() }
+            .ignoresSafeArea(edges: .top)
         }
     }
 
-    private func openCard(_ coin: Coin, isFront: Bool) -> some View {
-        VStack(spacing: 0) {
-            CoinCardHeader(coin: coin) { pendingDelete = coin }
-            Group {
-                if coin.pictures.isEmpty {
-                    NoteFace(notes: coin.notes)
-                } else {
-                    CachedImage(picture: coin.pictures.first)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: OpenCard.pictureHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 14)
-            Text(coin.pictures.count > 1 ? "\(coin.pictures.count) pictures · Tap to open"
-                 : coin.pictures.isEmpty ? "Tap to open" : "Tap to open full screen")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 12)
+    private func circleButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 42, height: 42)
+                .glassCircle()
         }
-        .cardBackground(coin.accentColor)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(isFront ? "frontCard" : "card")
-        .onTapGesture { viewing = CoinRef(id: coin.id) }
-        .onLongPressGesture { startReorder() }
-    }
-
-    private func strip(_ coin: Coin, onTap: @escaping () -> Void) -> some View {
-        CoinCardHeader(coin: coin) { pendingDelete = coin }
-            .cardBackground(coin.accentColor)
-            .contentShape(Rectangle())
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("strip")
-            .padding(.horizontal, 16)
-            .onTapGesture(perform: onTap)
-            .onLongPressGesture { startReorder() }
-    }
-
-    // MARK: Search
-
-    private var searchResults: some View {
-        let q = trimmedQuery
-        let results = model.coins.filter {
-            $0.title.localizedStandardContains(q) || $0.notes.localizedStandardContains(q)
-        }
-        return Group {
-            if results.isEmpty {
-                ContentUnavailableView.search(text: q)
-            } else {
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(results) { coin in
-                            strip(coin) {
-                                frontId = coin.id
-                                endSearch()
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                .scrollDismissesKeyboard(.immediately)
-            }
-        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(label)
     }
 
     private func endSearch() {
-        searching = false
+        withAnimation(.snappy) { searching = false }
         searchFocused = false
         query = ""
     }
 
-    // MARK: Order
-
-    /// New coins open at the top. When the open coin is deleted, the next one
-    /// in the purse takes its place.
-    private func syncFront(old: [String], new: [String]) {
-        let known = Set(old)
-        if !old.isEmpty, let added = new.first(where: { !known.contains($0) }) {
-            frontId = added
-            return
-        }
-        if let current = frontId, new.contains(current) { return }
-        if let current = frontId, let i = old.firstIndex(of: current) {
-            // The coin after it in the old order, or the one before at the end.
-            let after = old[(i + 1)...].first { new.contains($0) }
-            let before = old[..<i].last { new.contains($0) }
-            frontId = after ?? before ?? new.first
-        } else {
-            frontId = new.first
-        }
-    }
-
-    private func startReorder() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        showReorder = true
-    }
-
     // MARK: Add
 
-    /// Two big buttons where your thumb is: a picture coin or a voice note.
+    /// Three ways to add a coin, where your thumb is.
     private var addBar: some View {
-        HStack(spacing: 12) {
-            Button { addingNew = true } label: {
-                Label("Add Coin", systemImage: "plus")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 34)
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("addCoin")
-            Button { recordingVoice = true } label: {
-                Label("Voice Note", systemImage: "mic.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 34)
-            }
-            .buttonStyle(.bordered)
-            .tint(.white)
-            .accessibilityIdentifier("voiceNote")
+        HStack(spacing: 0) {
+            barButton("Picture", "camera.fill", id: "addPicture", hint: "Add a picture coin") { addingPicture = true }
+            Divider().frame(height: 30).overlay(.white.opacity(0.15))
+            barButton("Voice", "mic.fill", id: "voiceNote", hint: "Add a voice note") { recordingVoice = true }
+            Divider().frame(height: 30).overlay(.white.opacity(0.15))
+            barButton("Pin", "mappin.and.ellipse", id: "addPin", hint: "Pin where you are") { addingPin = true }
         }
-        .buttonBorderShape(.capsule)
-        .controlSize(.large)
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 8)
+        .frame(height: 66)
+        .glassCapsule()
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
         .background {
-            // Coins scroll under the bar and fade out instead of being cut off.
-            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.92), .black], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
+    }
+
+    private func barButton(_ title: String, _ icon: String, id: String, hint: String,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .semibold))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(hint)
+        .accessibilityIdentifier(id)
     }
 
     // MARK: Empty
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Image("Logo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 80, height: 80)
-                .opacity(0.85)
+                .frame(width: 96, height: 96)
+                .shadow(color: .white.opacity(0.15), radius: 20)
                 .accessibilityHidden(true)
-            Text("Purse is empty")
-                .font(.title2.bold())
-            Text("Snap or paste a QR code, a ticket or a gift card with Add Coin.  Or tap Voice Note and say a quick note or reminder.")
+            Text("Your purse is empty")
+                .font(.system(.title2, design: .rounded).weight(.bold))
+            Text("Snap a ticket or a QR code, say a quick note, or pin where you parked.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 40)
         }
-        .padding(32)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 }
 
-enum OpenCard {
-    static let pictureHeight: CGFloat = 380
-    /// Header strip, picture and the "Tap to open" line.
-    static let height: CGFloat = CardMetrics.peek + pictureHeight + 44
+extension View {
+    /// Apple's Liquid Glass on iOS 26, frosted glass before that.
+    @ViewBuilder func glassCapsule() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            self.background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.12)))
+        }
+    }
+
+    @ViewBuilder func glassCircle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            self.background(.ultraThinMaterial, in: Circle())
+        }
+    }
 }
 
 /// Long-press opens this: drag the handles to set the saved order.
@@ -370,32 +378,5 @@ struct ReorderView: View {
             }
         }
         .onAppear { ids = model.coins.map(\.id) }
-    }
-}
-
-/// The front of a coin with no picture: its text, like a note card.
-struct NoteFace: View {
-    let notes: String
-
-    /// A code or a few words shows big; longer notes get smaller type.
-    private var font: Font {
-        switch notes.count {
-        case ..<25: return .system(size: 40, weight: .bold)
-        case ..<90: return .title.weight(.semibold)
-        default: return .title3.weight(.medium)
-        }
-    }
-
-    var body: some View {
-        Text(notes)
-            .font(font)
-            .foregroundStyle(.white.opacity(0.92))
-            .lineSpacing(4)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(18)
-            .background(Color.white.opacity(0.05))
-            // Long notes fade out at the bottom; tap to read them all.
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0.8), .init(color: .clear, location: 1)],
-                                 startPoint: .top, endPoint: .bottom))
     }
 }

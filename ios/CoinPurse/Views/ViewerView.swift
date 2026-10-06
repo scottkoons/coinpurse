@@ -6,7 +6,12 @@ struct ViewerView: View {
     @Environment(\.dismiss) private var dismiss
     let coinId: String
 
-    @State private var index = 0
+    @State private var index: Int
+
+    init(coinId: String, startIndex: Int = 0) {
+        self.coinId = coinId
+        _index = State(initialValue: startIndex)
+    }
     @State private var images: [String: UIImage] = [:]
     @State private var share: ShareImage?
     @State private var editing = false
@@ -235,6 +240,7 @@ struct ViewerView: View {
             .frame(minWidth: 60, minHeight: 44)
         }
         .foregroundStyle(.white)
+        .accessibilityIdentifier("viewer" + title)
     }
 
     // MARK: Actions

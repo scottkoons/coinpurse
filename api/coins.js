@@ -8,7 +8,7 @@ const {
   MAX_COINS,
 } = require('./lib/store');
 const { presentCoin } = require('./lib/imageurl');
-const { cleanTitle, cleanNotes, validAccent, nextDefaultTitle } = require('./lib/coinfields');
+const { cleanTitle, cleanNotes, validAccent, nextDefaultTitle, cleanPin } = require('./lib/coinfields');
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
@@ -45,6 +45,8 @@ module.exports = async function handler(req, res) {
     if (doc.deletedIds[id]) {
       return json(res, 409, { error: 'Coin was deleted — create a new coin' });
     }
+    const pin = data.pin === undefined ? { ok: true, value: null } : cleanPin(data.pin);
+    if (!pin.ok) return json(res, 400, { error: 'That map pin is not a real place' });
     const already = existing.find((c) => c.id === id);
     if (already) return json(res, 200, { coin: presentCoin(already, user.id) });
     if (existing.length >= MAX_COINS) {
@@ -60,6 +62,7 @@ module.exports = async function handler(req, res) {
       imageUrl: null,
       imagePath: null,
       attachments: [],
+      pin: pin.value,
       sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : nextFrontSortOrder(existing),
       createdAt: now,
       updatedAt: now,

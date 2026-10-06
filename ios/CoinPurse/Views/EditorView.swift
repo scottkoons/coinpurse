@@ -7,13 +7,15 @@ struct StagedPicture: Identifiable, Equatable {
     var image: UIImage
 }
 
-/// Add or edit a coin: title, notes, color, main picture and extras.
+/// Add or edit a coin: title, notes, color, map pin, main picture and extras.
 struct EditorView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     /// nil when adding a new coin.
     let coinId: String?
+    /// Opened from Pin: find where you are right away, map first.
+    var startsWithPin = false
 
     @State private var draftId = UUID().uuidString.lowercased()
     @State private var title = ""
@@ -27,6 +29,11 @@ struct EditorView: View {
     @State private var saving = false
     @State private var error: String?
     @State private var loaded = false
+    @State private var pin: Pin?
+    @State private var pinChanged = false
+    @State private var locating = false
+    @State private var pinError: String?
+    @State private var finder = LocationFinder()
     @FocusState private var titleFocused: Bool
 
     private var id: String { coinId ?? draftId }
@@ -37,7 +44,7 @@ struct EditorView: View {
     /// A quick coin needs only a picture; a title or notes alone (like a
     /// pasted gift card code) is fine too.
     private var canSave: Bool {
-        existing != nil || stagedMain != nil
+        existing != nil || stagedMain != nil || pin != nil
             || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -45,10 +52,11 @@ struct EditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if startsWithPin { pinSection }
                 Section {
                     mainPicture
                 } header: {
-                    Text("Picture")
+                    Text(startsWithPin ? "Photo of the spot (optional)" : "Picture")
                 } footer: {
                     Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
                 }
@@ -74,13 +82,14 @@ struct EditorView: View {
                         Text("More pictures (\(extrasCount) of \(Config.maxExtraPictures))")
                     }
                 }
+                if !startsWithPin { pinSection }
                 if let error {
                     Section { Text(error).foregroundStyle(.red) }
                 }
             }
             .disabled(saving)
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(coinId == nil ? "New coin" : "Edit coin")
+            .navigationTitle(coinId != nil ? "Edit coin" : startsWithPin ? "Pin your spot" : "New coin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -128,6 +137,67 @@ struct EditorView: View {
     }
 
     // MARK: Sections
+
+    /// Where you are now, saved on the coin. Tap it later for walking directions.
+    private var pinSection: some View {
+        Section {
+            if let pin {
+                PinMapView(pin: pin, tint: AccentPalette.color(accent))
+                    .frame(height: 190)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                HStack {
+                    Text(pin.pinnedLabel)
+                    Spacer()
+                    if let acc = pin.acc {
+                        Text("Within " + Measurement(value: acc.rounded(), unit: UnitLength.meters)
+                            .formatted(.measurement(width: .abbreviated, usage: .road)))
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                Button { Task { await locate() } } label: {
+                    Label(locating ? "Finding where you are…" : "Move Pin Here", systemImage: "location.fill")
+                }
+                .disabled(locating)
+                Button("Remove Pin", role: .destructive) {
+                    withAnimation { self.pin = nil }
+                    pinChanged = true
+                }
+            } else if locating {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Finding where you are…").foregroundStyle(.secondary)
+                }
+            } else {
+                Button { Task { await locate() } } label: {
+                    Label("Pin where I am now", systemImage: "mappin.and.ellipse")
+                }
+                .accessibilityIdentifier("pinHere")
+            }
+            if let pinError {
+                Text(pinError).font(.footnote).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Map pin")
+        } footer: {
+            Text("Tap the pin later for walking directions in Apple Maps.  Your location is only used when you tap.")
+        }
+    }
+
+    private func locate() async {
+        locating = true
+        pinError = nil
+        defer { locating = false }
+        do {
+            let found = try await finder.currentPin()
+            withAnimation { pin = found }
+            pinChanged = true
+        } catch is CancellationError {
+        } catch {
+            pinError = error.localizedDescription
+        }
+    }
 
     private var mainPicture: some View {
         VStack(spacing: 12) {
@@ -219,9 +289,12 @@ struct EditorView: View {
             title = coin.title
             notes = coin.notes
             accent = coin.accent
+            pin = coin.pin
         } else {
             // No keyboard yet: the Paste button is the first thing to see.
             accent = model.suggestedAccent()
+            // From Pin: start finding you straight away.
+            if startsWithPin { Task { await locate() } }
         }
     }
 
@@ -246,7 +319,12 @@ struct EditorView: View {
         error = nil
         defer { saving = false }
         do {
-            try await model.saveCoinDetails(id: id, title: name, notes: notes, accent: accent)
+            let isNew = existing == nil
+            try await model.saveCoinDetails(id: id, title: name, notes: notes, accent: accent, pin: isNew ? pin : nil)
+            if !isNew && pinChanged {
+                try await model.setPin(pin, on: id)
+            }
+            pinChanged = false
             if let main = stagedMain {
                 try await model.uploadMainPicture(coinId: id, jpeg: main.data)
                 stagedMain = nil
