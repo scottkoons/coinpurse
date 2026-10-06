@@ -26,12 +26,12 @@ Good for:
 • Someone's email address you need for a moment
 • Where you parked, or a sign you want to remember
 • A photo of a handwritten list or note
-• A quick grocery list or reminder, just by talking
+• A quick note to yourself, just by talking: who to call back, or where you parked
 
 Made to be quick:
 • One-tap Paste, with no "Allow Paste" prompt
 • Take a photo, choose a photo, or paste a screenshot
-• Voice Note: say a list or a reminder and it becomes text, with a pause between items making a list
+• Voice Note: say a quick note or reminder and it becomes text
 • No typing needed: untitled coins are named Coin 1, Coin 2 and so on
 • Up to 6 pictures per coin; swipe between them
 • Tap web links, email addresses and phone numbers right in your pictures

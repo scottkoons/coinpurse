@@ -10,9 +10,6 @@ struct VoiceNoteView: View {
 
     @State private var capture = VoiceCapture()
     @State private var text = ""
-    /// What the words looked like straight from the microphone, so the list
-    /// button can use the pauses until you edit the text yourself.
-    @State private var heard = ""
     @State private var title = ""
     @State private var accent = 0
     @State private var saving = false
@@ -20,7 +17,6 @@ struct VoiceNoteView: View {
     @State private var started = false
     @FocusState private var editing: Bool
 
-    private var isList: Bool { VoiceCapture.isList(text) }
     private var canSave: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
@@ -95,12 +91,12 @@ struct VoiceNoteView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Start talking…")
                                     .font(.title.bold())
-                                Text("Say a quick list or a reminder.  For a list, pause between items, like “milk … eggs … bread.”")
+                                Text("Say a quick note or reminder, like where you parked or who to call back.")
                                     .font(.body)
                                     .foregroundStyle(.secondary)
                             }
                         } else {
-                            Text(capture.pausedLines.isEmpty ? capture.transcript : capture.pausedLines)
+                            Text(capture.transcript)
                                 .font(.title2.weight(.semibold))
                                 .accessibilityIdentifier("liveTranscript")
                         }
@@ -159,23 +155,13 @@ struct VoiceNoteView: View {
                     .lineLimit(3...14)
                     .focused($editing)
                     .accessibilityIdentifier("voiceText")
-                HStack(spacing: 10) {
-                    Button {
-                        text = isList ? VoiceCapture.asSentence(text) : VoiceCapture.asList(text == heard ? capture.pausedLines : text)
-                    } label: {
-                        Label(isList ? "Show as text" : "Make it a list",
-                              systemImage: isList ? "text.alignleft" : "list.bullet")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    Button {
-                        Task { await keepTalking() }
-                    } label: {
-                        Label("Keep talking", systemImage: "mic.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
+                Button {
+                    Task { await keepTalking() }
+                } label: {
+                    Label("Keep talking", systemImage: "mic.fill")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
                 .labelStyle(.titleAndIcon)
                 .font(.subheadline.weight(.semibold))
                 .listRowBackground(Color.clear)
@@ -225,19 +211,13 @@ struct VoiceNoteView: View {
 
     private func finish() async {
         await capture.finish()
-        heard = capture.transcript
-        // Sounds like a list (several short items)? Show it as one.
-        let items = VoiceCapture.asList(capture.pausedLines).split(separator: "\n")
-        let short = items.allSatisfy { $0.split(separator: " ").count <= 5 }
-        text = items.count >= 3 && short ? VoiceCapture.asList(capture.pausedLines) : capture.transcript
+        // Saved just as you said it.
+        text = capture.transcript
     }
 
     private func keepTalking() async {
-        let wasList = isList
-        let before = text
         // Continue from what is on screen now, including any edits.
-        capture.transcript = wasList ? VoiceCapture.asSentence(before) : before
-        capture.pausedLines = wasList ? before.replacingOccurrences(of: "• ", with: "") : before
+        capture.transcript = text
         await capture.start()
     }
 

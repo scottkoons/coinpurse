@@ -161,12 +161,9 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Done"].tap()
         let voiceText = app.descendants(matching: .any)["voiceText"]
         XCTAssertTrue(voiceText.waitForExistence(timeout: 5))
-        let said = voiceText.value as? String ?? ""
-        XCTAssertTrue(said.hasPrefix("• Milk\n• Eggs"), "voice note did not become a list: \(said)")
+        // Saved just as it was said.
+        XCTAssertEqual(voiceText.value as? String, "Milk, eggs, avocados, coffee and bread")
         snap("13-voice-review")
-        app.buttons["Show as text"].tap()
-        XCTAssertTrue(app.buttons["Make it a list"].waitForExistence(timeout: 3))
-        app.buttons["Make it a list"].tap()
         let voiceTitle = app.textFields["voiceTitle"]
         voiceTitle.tap()
         voiceTitle.typeText("Groceries")
