@@ -607,9 +607,26 @@ final class CoinPurseUITests: XCTestCase {
         }
         app.activate()
         pause(1.5)
-        app.buttons["Done"].tap()
+        // Back to the whole purse: tap the stack at the bottom, like Wallet.
+        chapter("back")
+        app.buttons["allCoins"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
-        pause(1)
+        pause(2)
+
+        // Peek: touch and hold a card to see it, let go and it drops back.
+        chapter("peek")
+        let peekFrame = card("Coffee gift card").frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: peekFrame.midX, dy: peekFrame.midY)).press(forDuration: 2.2)
+        pause(1.5)
+
+        // Move: hold and drag a card to the top.
+        chapter("move")
+        let moveFrame = card("Tailgate tickets").frame
+        let firstFrame = card("Parking spot").frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: moveFrame.midX, dy: moveFrame.midY))
+            .press(forDuration: 0.8, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: firstFrame.midX, dy: firstFrame.minY + 12)), withVelocity: .slow, thenHoldForDuration: 0.6)
+        pause(2)
 
         // Two tickets in one coin, full size at the gate.
         chapter("tickets")
