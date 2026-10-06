@@ -42,11 +42,15 @@ struct CoinCardHeader: View {
     var isOpen = false
     @ScaledMetric(relativeTo: .headline) private var height: CGFloat = CardMetrics.header
     @ScaledMetric(relativeTo: .headline) private var emblem: CGFloat = 26
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 10) {
             // Every card carries a silver coin, like a pass carries its logo.
-            CoinEmblem(size: emblem)
+            // At the largest text sizes the title gets that room instead.
+            if !typeSize.isAccessibilitySize {
+                CoinEmblem(size: emblem)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
@@ -59,7 +63,7 @@ struct CoinCardHeader: View {
                     .fixedSize(horizontal: false, vertical: isOpen)
             }
             Spacer(minLength: 4)
-            contents
+            if !typeSize.isAccessibilitySize { contents }
             if let onDelete {
                 Button(action: onDelete) {
                     Image(systemName: "trash")

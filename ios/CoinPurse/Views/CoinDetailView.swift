@@ -48,6 +48,7 @@ struct CoinDetailView: View {
     @State private var locationOff = false
     @State private var finder = LocationFinder()
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var pages: [CoinPage] { coin.pages }
     /// A note long enough to need scrolling: there, dragging down scrolls the
@@ -69,7 +70,7 @@ struct CoinDetailView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let reserved: CGFloat = 52 + 6 + 36 + actionSize + 44 + 58 + (notesBelow == nil ? 0 : 86)
+            let reserved: CGFloat = 52 + 6 + 36 + min(actionSize, 80) + 44 + 58 + (notesBelow == nil ? 0 : 86)
             let cardHeight = max(300, min(geo.size.height - reserved, 620))
             VStack(spacing: 0) {
                 topBar
@@ -150,7 +151,8 @@ struct CoinDetailView: View {
                 Text("Done")
                     .font(.headline)
                     .padding(.horizontal, 20)
-                    .frame(height: 40)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 40)
                     .glassCapsule()
             }
             .buttonStyle(.plain)
@@ -158,7 +160,7 @@ struct CoinDetailView: View {
             .accessibilityIdentifier("Done")
         }
         .padding(.horizontal, 16)
-        .frame(height: 52)
+        .frame(minHeight: 52)
     }
 
     private var card: some View {
@@ -298,7 +300,10 @@ struct CoinDetailView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 0) {
+        // Four across; at the largest text sizes, one full-width row each.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 0))
+        return layout {
             actionButton("Share", "square.and.arrow.up") { Task { await share() } }
             actionButton(coin.pin == nil ? "Add Pin" : "Move Pin", "mappin.and.ellipse", busy: locating) {
                 if coin.pin == nil { Task { await dropPin() } } else { confirmMovePin = true }
@@ -306,31 +311,49 @@ struct CoinDetailView: View {
             actionButton("Edit", "pencil") { editing = true }
             actionButton("Delete", "trash", tint: .red) { confirmDelete = true }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, typeSize.isAccessibilitySize ? 16 : 20)
     }
 
     private func actionButton(_ title: String, _ icon: String, tint: Color = .primary, busy: Bool = false,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 7) {
-                ZStack {
-                    if busy {
-                        ProgressView()
-                    } else {
-                        Image(systemName: icon)
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(tint)
+            if typeSize.isAccessibilitySize {
+                HStack(spacing: 14) {
+                    Group {
+                        if busy { ProgressView() } else { Image(systemName: icon).foregroundStyle(tint) }
                     }
+                    .font(.title3.weight(.semibold))
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(tint == .red ? .red : .primary)
+                    Spacer(minLength: 0)
                 }
-                .frame(width: actionSize, height: actionSize)
-                .glassCircle()
-                Text(title)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.primary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .glassPanel()
+                .contentShape(Rectangle())
+            } else {
+                VStack(spacing: 7) {
+                    ZStack {
+                        if busy {
+                            ProgressView()
+                        } else {
+                            Image(systemName: icon)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(tint)
+                        }
+                    }
+                    .frame(width: actionSize, height: actionSize)
+                    .glassCircle()
+                    Text(title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity)
+                // The whole column takes the tap, not just the symbol.
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity)
-            // The whole column takes the tap, not just the symbol.
-            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .disabled(busy)

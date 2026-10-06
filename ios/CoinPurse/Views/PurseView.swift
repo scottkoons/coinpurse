@@ -14,6 +14,7 @@ struct PurseView: View {
     /// How much of each tucked-in card shows; grows with larger text.
     @ScaledMetric(relativeTo: .headline) private var peek: CGFloat = CardMetrics.peek
     @ScaledMetric(relativeTo: .caption) private var barHeight: CGFloat = 66
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var openId: String?
     @State private var editing: CoinRef?
@@ -348,7 +349,8 @@ struct PurseView: View {
             barButton("Pin", "mappin.and.ellipse", id: "addPin", hint: "Pin where you are") { addingPin = true }
         }
         .padding(.horizontal, 8)
-        .frame(height: barHeight)
+        // At the largest text sizes the bar shows symbols only, like a tab bar.
+        .frame(height: typeSize.isAccessibilitySize ? 76 : barHeight)
         .glassCapsule()
         .padding(.horizontal, 22)
         .padding(.top, 10)
@@ -364,15 +366,19 @@ struct PurseView: View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
-                Text(title)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: typeSize.isAccessibilitySize ? 28 : 20, weight: .semibold))
+                if !typeSize.isAccessibilitySize {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                }
             }
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
+        // Touch and hold shows the name big, as in Apple's tab bars.
+        .accessibilityShowsLargeContentViewer { Label(title, systemImage: icon) }
         .accessibilityLabel(hint)
         .accessibilityIdentifier(id)
     }
@@ -407,6 +413,17 @@ extension View {
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
+        }
+    }
+
+    /// A rounded glass panel, for full-width buttons.
+    @ViewBuilder func glassPanel(cornerRadius: CGFloat = 20) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self.background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(.primary.opacity(0.12)))
         }
     }
 

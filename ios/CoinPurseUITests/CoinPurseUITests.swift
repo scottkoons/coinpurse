@@ -924,6 +924,12 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     private func tapPaste() {
         let paste = app.buttons["Paste"].firstMatch
+        // On a small iPhone the keyboard pushes the picture row out of view: scroll back up.
+        for _ in 0..<3 where !paste.waitForExistence(timeout: 2) || !paste.isHittable {
+            app.navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
+                .withOffset(CGVector(dx: 0, dy: 60))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+        }
         XCTAssertTrue(paste.waitForExistence(timeout: 5))
         paste.tap()
         // The first paste in a fresh simulator can still ask; allow it.

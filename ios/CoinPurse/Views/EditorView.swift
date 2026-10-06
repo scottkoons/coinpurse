@@ -52,7 +52,16 @@ struct EditorView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { scroller in
             Form {
+                // At the top, where it is seen even on a small iPhone with a long form.
+                if let error {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .id("saveError")
+                }
                 if startsWithPin { pinSection }
                 Section {
                     mainPicture
@@ -84,9 +93,12 @@ struct EditorView: View {
                     }
                 }
                 if !startsWithPin { pinSection }
-                if let error {
-                    Section { Text(error).foregroundStyle(.red) }
-                }
+            }
+            .onChange(of: error) { _, message in
+                guard let message else { return }
+                withAnimation { scroller.scrollTo("saveError", anchor: .top) }
+                AccessibilityNotification.Announcement(message).post()
+            }
             }
             .disabled(saving)
             .scrollDismissesKeyboard(.interactively)
