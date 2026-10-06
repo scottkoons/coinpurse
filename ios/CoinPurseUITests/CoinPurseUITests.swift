@@ -37,9 +37,9 @@ final class CoinPurseUITests: XCTestCase {
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "QR 1")
         app.buttons["addPicture"].tap()
         let title = app.textFields["titleField"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(reveal(title))
         snap("2a-editor-empty")
-        title.tap()
+        reveal(title); title.tap()
         title.typeText("Conference badge")
         let notes = app.textFields["Notes"].exists ? app.textFields["Notes"] : app.textViews["Notes"]
         if notes.exists {
@@ -50,7 +50,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5), "pasted picture did not appear")
         UIPasteboard.general.image = Self.sample(color: .systemPink, label: "Back")
         let addPicture = app.buttons["Add picture"].firstMatch
-        if !addPicture.waitForExistence(timeout: 2) { app.swipeUp() }
+        reveal(addPicture)
         addPicture.tap()
         tapPaste()
         snap("2b-editor-extras")
@@ -61,8 +61,8 @@ final class CoinPurseUITests: XCTestCase {
         // A second coin.
         UIPasteboard.general.image = Self.sample(color: .systemOrange, label: "Gift")
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Gift card")
         tapPaste()
         XCTAssertTrue(app.buttons["Crop or rotate"].waitForExistence(timeout: 5))
@@ -72,7 +72,7 @@ final class CoinPurseUITests: XCTestCase {
         // A quick coin: picture only, so it is named Coin 1. Then toss it.
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "Note")
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(app.staticTexts["Leave the title blank and it is saved as Coin 1."].waitForExistence(timeout: 5))
+        XCTAssertTrue(reveal(app.staticTexts["Leave the title blank and it is saved as Coin 1."]))
         tapPaste()
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Coin 1").waitForExistence(timeout: 15))
@@ -150,7 +150,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["addPin"].tap()
         XCTAssertTrue(app.staticTexts["Within 26 ft"].waitForExistence(timeout: 10) || app.buttons["Move Pin Here"].waitForExistence(timeout: 5),
                       "Pin did not find a spot")
-        title.tap()
+        reveal(title); title.tap()
         title.typeText("Car")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Car").waitForExistence(timeout: 15))
@@ -162,7 +162,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // Delete the account.
         app.buttons["Account"].tap()
-        XCTAssertTrue(app.buttons["Delete Account"].waitForExistence(timeout: 5))
+        XCTAssertTrue(reveal(app.buttons["Delete Account"]))
         snap("10-account")
         app.buttons["Delete Account"].tap()
         app.alerts.buttons["Delete Account"].tap()
@@ -383,8 +383,8 @@ final class CoinPurseUITests: XCTestCase {
         // A title and nothing else: the card shows the title big, not a blank.
         app.buttons["addPicture"].tap()
         let title = app.textFields["titleField"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Locker 🔑 #17")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Locker 🔑 #17").waitForExistence(timeout: 15))
@@ -399,8 +399,8 @@ final class CoinPurseUITests: XCTestCase {
         let longTitle = String(repeating: "Very long title ", count: 8).trimmingCharacters(in: .whitespaces)
         UIPasteboard.general.image = Self.sample(color: .systemIndigo, label: "Long")
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText(longTitle)
         let notes = app.textFields["Notes"].exists ? app.textFields["Notes"] : app.textViews["Notes"]
         notes.tap()
@@ -418,8 +418,8 @@ final class CoinPurseUITests: XCTestCase {
 
         // A long note: dragging inside it scrolls; dragging the title bar closes the coin.
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Long note")
         notes.tap()
         notes.typeText(String(repeating: "Bring the blue cooler, two chairs and the tickets. ", count: 6))
@@ -438,14 +438,14 @@ final class CoinPurseUITests: XCTestCase {
         // Six pictures is the most a coin holds: the add button goes away.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "1")
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Six pictures")
         tapPaste()
         for n in 2...6 {
             UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "\(n)")
             let add = app.buttons["Add picture"].firstMatch
-            if !add.waitForExistence(timeout: 2) { app.swipeUp() }
+            reveal(add)
             add.tap()
             tapPaste()
         }
@@ -477,8 +477,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Search"].exists, "search should wait for a bigger purse")
         for n in 1...3 {
             app.buttons["addPicture"].tap()
-            XCTAssertTrue(title.waitForExistence(timeout: 5))
-            title.tap()
+            XCTAssertTrue(reveal(title))
+            reveal(title); title.tap()
             title.typeText("Quick \(n)")
             app.buttons["Save"].tap()
             XCTAssertTrue(card("Quick \(n)").waitForExistence(timeout: 15))
@@ -523,15 +523,15 @@ final class CoinPurseUITests: XCTestCase {
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "Ticket")
         app.buttons["addPicture"].tap()
         let title = app.textFields["titleField"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Ticket")
         tapPaste()
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Ticket").waitForExistence(timeout: 15))
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Gate code 2468")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Gate code 2468").waitForExistence(timeout: 15))
@@ -560,8 +560,8 @@ final class CoinPurseUITests: XCTestCase {
 
         // Saving fails with a clear message, and the editor keeps what was typed.
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Offline coin")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Could not reach Coin Purse'")).firstMatch
@@ -583,8 +583,8 @@ final class CoinPurseUITests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
         XCTAssertTrue(offlineNote.waitForNonExistence(timeout: 15), "offline note did not clear")
         app.buttons["addPicture"].tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Back online")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Back online").waitForExistence(timeout: 15))
@@ -645,8 +645,8 @@ final class CoinPurseUITests: XCTestCase {
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "T1")
         app.buttons["addPicture"].tap()
         let title = app.textFields["titleField"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
+        XCTAssertTrue(reveal(title))
+        reveal(title); title.tap()
         title.typeText("Tickets")
         tapPaste()
         app.buttons["Save"].tap()
@@ -920,6 +920,20 @@ final class CoinPurseUITests: XCTestCase {
     }
 
     // MARK: Helpers
+
+    /// Scrolls a form until the element is on screen. Forms build rows only as
+    /// they scroll in, so on a small iPhone or at the largest text sizes a field
+    /// further down does not exist until then.
+    @MainActor @discardableResult
+    private func reveal(_ element: XCUIElement) -> Bool {
+        if element.waitForExistence(timeout: 5) && element.isHittable { return true }
+        for _ in 0..<6 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+            if element.waitForExistence(timeout: 1) && element.isHittable { return true }
+        }
+        return element.exists
+    }
 
     @MainActor
     private func tapPaste() {

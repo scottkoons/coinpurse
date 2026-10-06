@@ -13,7 +13,12 @@ struct AccountView: View {
         NavigationStack {
             Form {
                 Section("Signed in as") {
-                    Text(model.email.isEmpty ? "Your account" : model.email)
+                    // An address must never be split with a hyphen that is not in it:
+                    // one line, shrinking to fit at the largest text sizes.
+                    Text(verbatim: model.email.isEmpty ? "Your account" : model.email)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                        .truncationMode(.middle)
                 }
                 if AppLock.canLock {
                     Section {

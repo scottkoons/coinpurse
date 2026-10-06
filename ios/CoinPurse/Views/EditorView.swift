@@ -62,25 +62,14 @@ struct EditorView: View {
                     }
                     .id("saveError")
                 }
-                if startsWithPin { pinSection }
-                Section {
-                    mainPicture
-                } header: {
-                    Text(startsWithPin ? "Photo of the spot (optional)" : "Picture")
-                } footer: {
-                    Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
-                }
-                Section {
-                    TextField("Title (optional)", text: $title)
-                        .accessibilityIdentifier("titleField")
-                        .focused($titleFocused)
-                        .submitLabel(.done)
-                    TextField("Notes", text: $notes, axis: .vertical)
-                        .lineLimit(2...6)
-                } footer: {
-                    if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
-                    }
+                // Pin your spot: the map, then its name, then an optional photo.
+                if startsWithPin {
+                    pinSection
+                    detailsSection
+                    pictureSection
+                } else {
+                    pictureSection
+                    detailsSection
                 }
                 Section("Color") {
                     AccentPicker(accent: $accent)
@@ -152,6 +141,31 @@ struct EditorView: View {
     // MARK: Sections
 
     /// Where you are now, saved on the coin. Tap it later for walking directions.
+    private var pictureSection: some View {
+        Section {
+            mainPicture
+        } header: {
+            Text(startsWithPin ? "Photo of the spot (optional)" : "Picture")
+        } footer: {
+            Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
+        }
+    }
+
+    private var detailsSection: some View {
+        Section {
+            TextField("Title (optional)", text: $title)
+                .accessibilityIdentifier("titleField")
+                .focused($titleFocused)
+                .submitLabel(.done)
+            TextField("Notes", text: $notes, axis: .vertical)
+                .lineLimit(2...6)
+        } footer: {
+            if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
+            }
+        }
+    }
+
     private var pinSection: some View {
         Section {
             if let pin {

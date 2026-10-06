@@ -364,8 +364,10 @@ struct CoinDetailView: View {
     private var pileView: some View {
         ZStack(alignment: .top) {
             ForEach(Array(pile.prefix(3).enumerated()).reversed(), id: \.element.id) { i, c in
-                CoinCardHeader(coin: c)
+                // Plain card edges, as Wallet shows the other passes.
+                Color.clear
                     .frame(maxWidth: .infinity)
+                    .frame(height: CardMetrics.header)
                     .cardSurface(c.accent)
                     .scaleEffect(1 - CGFloat(i) * 0.05, anchor: .top)
                     .offset(y: CGFloat(i) * 9)
