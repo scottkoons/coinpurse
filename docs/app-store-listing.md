@@ -26,10 +26,12 @@ Good for:
 • Someone's email address you need for a moment
 • Where you parked, or a sign you want to remember
 • A photo of a handwritten list or note
+• A quick grocery list or reminder, just by talking
 
 Made to be quick:
 • One-tap Paste, with no "Allow Paste" prompt
 • Take a photo, choose a photo, or paste a screenshot
+• Voice Note: say a list or a reminder and it becomes text, with a pause between items making a list
 • No typing needed: untitled coins are named Coin 1, Coin 2 and so on
 • Up to 6 pictures per coin; swipe between them
 • Tap web links, email addresses and phone numbers right in your pictures
@@ -57,9 +59,10 @@ qr code,pass,badge,conference,event,return label,screenshot,notes,list,loyalty,p
 
 ## App Review notes
 
-Sign in with the review account: enter the email in REVIEW_EMAIL, tap "Email me a code", then enter the 6-digit REVIEW_CODE (both set in Vercel; no email is sent to this address).  Delete Account is in Account (person icon, top right).
+Sign in with the review account: enter the email in REVIEW_EMAIL, tap "Email me a code", then enter the 6-digit REVIEW_CODE (both set in Vercel; no email is sent to this address).  Delete Account is in Account (person icon, top right).  Voice Note (bottom right) uses the microphone and Apple speech recognition only while recording, to create a text coin.
 
 ## App Privacy answers
 
-- Data collected: Email Address (linked to user, App Functionality), Photos (linked to user, App Functionality).
+- Data collected: Email Address (linked to user, App Functionality), Photos (linked to user, App Functionality), Other User Content: coin titles, notes and voice note text (linked to user, App Functionality).
+- Audio: not collected.  Voice notes are turned into text by Apple speech recognition (on the iPhone when it supports it); the recording is never saved or sent to our server, only the text the person saves.
 - Tracking: none.  No third-party analytics or ads.

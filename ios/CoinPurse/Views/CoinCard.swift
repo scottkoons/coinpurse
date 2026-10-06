@@ -15,7 +15,17 @@ struct CoinCardHeader: View {
                         .frame(width: 40, height: 40)
                         .offset(x: 4, y: -4)
                 }
-                CachedImage(picture: coin.pictures.first, contentMode: .fill)
+                Group {
+                    if coin.pictures.isEmpty {
+                        // A text coin: lines instead of a photo.
+                        Image(systemName: "text.alignleft")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(coin.accentColor)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        CachedImage(picture: coin.pictures.first, contentMode: .fill)
+                    }
+                }
                     .frame(width: 40, height: 40)
                     .background(Color.white.opacity(0.06))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -55,6 +65,11 @@ struct CoinCardHeader: View {
     }
 
     private var subtitle: String {
+        // A list coin says how many items instead of repeating the first one.
+        if coin.pictures.isEmpty, VoiceCapture.isList(coin.notes) {
+            let count = coin.notes.split(separator: "\n").count
+            return count == 1 ? "1 item" : "\(count) items"
+        }
         if let first = coin.notes.split(separator: "\n").first, !first.isEmpty { return String(first) }
         guard let ms = coin.updatedAt ?? coin.createdAt else { return "" }
         return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)

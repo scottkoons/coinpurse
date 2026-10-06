@@ -65,7 +65,7 @@ struct EditorView: View {
                     }
                 }
                 Section("Color") {
-                    accentPicker
+                    AccentPicker(accent: $accent)
                 }
                 if hasMain {
                     Section {
@@ -128,24 +128,6 @@ struct EditorView: View {
     }
 
     // MARK: Sections
-
-    private var accentPicker: some View {
-        HStack {
-            ForEach(AccentPalette.hex.indices, id: \.self) { i in
-                Button { accent = i } label: {
-                    Circle()
-                        .fill(AccentPalette.color(i))
-                        .frame(width: 34, height: 34)
-                        .overlay(Circle().strokeBorder(Color.white, lineWidth: accent == i ? 3 : 0))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Color \(i + 1)")
-                .accessibilityAddTraits(accent == i ? .isSelected : [])
-            }
-        }
-        .padding(.vertical, 4)
-    }
 
     private var mainPicture: some View {
         VStack(spacing: 12) {
