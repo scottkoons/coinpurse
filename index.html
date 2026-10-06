@@ -109,19 +109,72 @@
     .scroll-cue span::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 8px; margin-left: -2px; border-radius: 2px; background: var(--text); animation: cue 1.6s ease-in-out infinite; }
     @keyframes cue { 0% { opacity: 0; transform: translateY(0); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(12px); } }
 
-    /* ---------- Wallet vs purse ---------- */
-    .compare { padding: 24px 0 0; }
-    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
-    .compare-card { padding: 26px; border-radius: var(--radius); background: var(--bg-2); border: 1px solid var(--line); }
-    .compare-card h3 { font-size: 1.3rem; margin-bottom: 6px; }
-    .compare-card .big { font-size: 2.4rem; font-weight: 800; margin-bottom: 8px; }
-    .compare-card p { color: var(--muted); margin: 0; }
-    .compare .reveal .compare-card { transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s; }
-    .compare .reveal:not(.in) .compare-card:first-child { transform: translateX(-60px) rotate(-2deg); opacity: 0; }
-    .compare .reveal:not(.in) .compare-card.purse { transform: translateX(60px) rotate(2deg); opacity: 0; }
-    .compare-card.purse .big { display: inline-block; animation: wobble 3s ease-in-out infinite; }
-    @keyframes wobble { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-10deg) scale(1.15); } }
-    .compare-card.purse { background: linear-gradient(160deg, rgba(129, 140, 248, 0.16), rgba(34, 211, 238, 0.06)), var(--bg-2); border-color: rgba(129, 140, 248, 0.35); }
+    /* ---------- Wallet vs purse: two objects, drawn in SVG, with real items tucked inside ---------- */
+    .vs { padding: 10px 0 30px; text-align: center; }
+    .vs .lead { margin: 12px auto 0; }
+    .vs-grid { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 34px; }
+    .pocket { position: relative; border-radius: 30px; padding: 30px 26px 30px; background: var(--bg-2); border: 1px solid var(--line); overflow: hidden; }
+    .pocket.purse { background: radial-gradient(90% 70% at 50% 30%, rgba(129, 140, 248, 0.22), transparent 70%), var(--bg-2); border-color: rgba(129, 140, 248, 0.35); }
+    .pocket.wallet { background: radial-gradient(90% 70% at 50% 30%, rgba(180, 120, 70, 0.14), transparent 70%), var(--bg-2); }
+    .pocket h3 { font-size: 1.6rem; margin-top: 8px; }
+    .pocket .for { display: block; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+    .pocket.purse .for { color: var(--accent); }
+    .pocket p { color: var(--muted); max-width: 380px; margin: 12px auto 0; }
+    .obj { position: relative; width: 320px; height: 330px; margin: 0 auto; }
+    .obj > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .obj .back { z-index: 0; } .obj .front { z-index: 3; pointer-events: none; }
+    .obj .item { position: absolute; z-index: 1; transform-origin: 50% 100%; transform: translateY(var(--y, 0)) rotate(var(--r)); transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s; }
+    .pocket:not(.in) .item { --y: 120px; opacity: 0; }
+    .pocket:not(.in) .item.tuck { --y: 70px; opacity: 1; }
+    /* Wallet: tidy cards that slide up calmly. */
+    .card { width: 190px; height: 120px; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.45); text-align: left; overflow: hidden; }
+    .wallet .item:nth-of-type(1) { transition-delay: 0.15s; } .wallet .item:nth-of-type(2) { transition-delay: 0.3s; } .wallet .item:nth-of-type(3) { transition-delay: 0.45s; }
+    .card.credit { background: linear-gradient(135deg, #2b3245, #0c0f18 70%); color: #e5e7eb; padding: 14px 16px; }
+    .card.credit .chip-g { width: 30px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #f3d48a, #b8913f); margin: 10px 0 14px; }
+    .card.credit .num { font: 600 0.82rem/1 ui-monospace, Menlo, monospace; letter-spacing: 0.12em; }
+    .card.credit .bank { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.2em; opacity: 0.7; }
+    .card.board { background: #f8fafc; color: #0f172a; }
+    .card.board .band { background: linear-gradient(90deg, #1d4ed8, #3b82f6); color: #fff; font-size: 0.56rem; font-weight: 800; letter-spacing: 0.16em; padding: 7px 12px; }
+    .card.board .route { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px 0; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.02em; }
+    .card.board .route i { font-style: normal; font-size: 0.8rem; color: #64748b; }
+    .card.board .meta { display: flex; gap: 14px; padding: 6px 12px; font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; }
+    .card.board .meta b { display: block; color: #0f172a; font-size: 0.72rem; letter-spacing: 0; }
+    .card.idc { background: linear-gradient(160deg, #e8f1ec, #cfe3d8); color: #1f3b2d; padding: 10px 12px; display: grid; grid-template-columns: 46px 1fr; gap: 6px 10px; }
+    .card.idc .t { grid-column: 1 / -1; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.18em; color: #2f6b4f; }
+    .card.idc .face { width: 46px; height: 56px; border-radius: 6px; background: radial-gradient(circle at 50% 38%, #9fb5a8 0 13px, transparent 14px), radial-gradient(ellipse at 50% 100%, #9fb5a8 0 22px, transparent 23px), #e2ece6; }
+    .card.idc .lines i { display: block; height: 6px; border-radius: 3px; background: rgba(31, 59, 45, 0.22); margin: 5px 0 7px; }
+    .card.idc .lines i:nth-child(2) { width: 70%; } .card.idc .lines i:nth-child(3) { width: 85%; } .card.idc .lines i:nth-child(4) { width: 50%; }
+    /* Purse: snapshots that pop out and fan. */
+    .snap { background: #fff; padding: 5px 5px 14px; border-radius: 4px; box-shadow: 0 12px 26px rgba(0,0,0,0.5); transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .snap img { display: block; width: 86px; height: 112px; object-fit: cover; border-radius: 2px; }
+    .snap.wide img { width: 116px; height: 78px; }
+    .purse .item:nth-of-type(1) { transition-delay: 0.2s; } .purse .item:nth-of-type(2) { transition-delay: 0.32s; } .purse .item:nth-of-type(3) { transition-delay: 0.44s; } .purse .item:nth-of-type(4) { transition-delay: 0.56s; }
+    .purse .pop { position: absolute; z-index: 2; width: 34px; transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.75s, opacity 0.3s 0.75s; }
+    .pocket:not(.in) .pop { transform: translateY(110px) scale(0.4); opacity: 0; }
+    /* Hover (or tap) the purse and the snapshots fan out a little more. */
+    .pocket.purse:hover .snap { --y: -10px; }
+    .pocket.purse:hover .snap:nth-of-type(1) { --r: -24deg; } .pocket.purse:hover .snap:nth-of-type(4) { --r: 28deg; }
+    .vs-badge { position: absolute; left: 50%; top: 190px; z-index: 5; width: 54px; height: 54px; margin-left: -27px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--line); color: var(--muted); font-weight: 800; font-size: 0.9rem; letter-spacing: 0.04em; box-shadow: 0 0 0 8px var(--bg); }
+    /* The differences, side by side. */
+    .vs-table { margin: 22px auto 0; border-radius: 24px; border: 1px solid var(--line); background: var(--bg-2); overflow: hidden; text-align: left; }
+    .vs-row { display: grid; grid-template-columns: 1fr 200px 1fr; align-items: center; }
+    .vs-row + .vs-row { border-top: 1px solid var(--line); }
+    .vs-row > * { padding: 16px 22px; }
+    .vs-row .k { text-align: center; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    .vs-row .w { text-align: right; color: var(--muted); }
+    .vs-row .p { color: var(--text); font-weight: 600; background: linear-gradient(90deg, rgba(129, 140, 248, 0.12), transparent); }
+    .vs-row .p::before { content: "¢"; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 10px; border-radius: 50%; background: linear-gradient(145deg, #f1f5f9, #94a3b8); color: #334155; font-size: 0.72rem; font-weight: 800; vertical-align: 1px; }
+    @media (max-width: 860px) {
+      .vs-grid { grid-template-columns: 1fr; gap: 16px; }
+      .vs-badge { top: auto; bottom: auto; position: relative; left: auto; margin: -38px auto -38px; }
+      .vs-grid .vs-badge { order: 1; } .vs-grid .wallet { order: 0; } .vs-grid .purse { order: 2; }
+      .vs-row { grid-template-columns: 1fr 1fr; }
+      .vs-row .k { grid-column: 1 / -1; order: -1; padding-bottom: 0; }
+      .vs-row .w { text-align: left; }
+      .vs-row > * { padding: 12px 16px; font-size: 0.92rem; }
+      .pocket { padding: 22px 18px 24px; }
+    }
+    @media (max-width: 360px) { .obj { transform: scale(0.9); margin: -16px auto; } }
 
     /* ---------- Story: a pinned full-screen stage; scrolling plays the chapters in place ---------- */
     .story { position: relative; }
@@ -386,7 +439,7 @@
       .progress i { width: 22px; }
     }
     @media (max-width: 560px) {
-      .compare-grid, .uses-grid, .anatomy { grid-template-columns: 1fr; }
+      .uses-grid, .anatomy { grid-template-columns: 1fr; }
       .chip.b { right: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -394,6 +447,49 @@
       .reveal { opacity: 1; transform: none; }
       .word, .tagline { opacity: 1; transform: none; }
       .drift-coin, .shower-coin { display: none; }
+    }
+
+
+    .demo3 { padding: 30px 0 20px; }
+    .demo3-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 40px; align-items: center; margin-top: 10px; }
+    .demo3-phone { height: 720px; display: grid; place-items: center; position: relative; }
+    .step-cap { display: none; text-align: center; margin-top: 10px; font-weight: 700; }
+    .step-cap span { color: var(--muted); font-weight: 600; margin-right: 8px; }
+    .steps3 { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 6px; }
+    .steps3 li { position: relative; display: flex; gap: 14px; align-items: center; padding: 8px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); cursor: pointer; overflow: hidden; transition: border-color 0.3s, background 0.3s; }
+    .steps3 li b { display: block; color: var(--text); font-size: 1rem; }
+    .steps3 li small { font-size: 0.85rem; }
+    .steps3 .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.06); color: var(--text); }
+    .steps3 li.on { border-color: rgba(129,140,248,0.55); background: rgba(129,140,248,0.10); }
+    .steps3 li.on .n { background: var(--accent); color: #0b0a10; }
+    .steps3 .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+    .steps3 li.on .bar { animation: fillbar var(--dur, 7s) linear forwards; }
+    @keyframes fillbar { to { width: 100%; } }
+    @media (max-width: 860px) {
+      .demo3-grid { grid-template-columns: 1fr; }
+      .demo3-side { order: -1; }
+      .demo3-phone { height: 540px; }
+      .step-cap { display: block; }
+      .steps3 small { display: none; }
+    }
+
+    .bento-sec { padding: 30px 0 10px; }
+    .bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 210px; gap: 14px; margin-top: 26px; }
+    .tile { position: relative; border-radius: 22px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .tile.big { grid-column: span 2; grid-row: span 2; }
+    .tile.wide { grid-column: span 2; }
+    .tile.pic { background: var(--img) center / cover; }
+    .tile.pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(8, 8, 12, 0.88)); }
+    .tile .cap { position: relative; z-index: 1; }
+    .tile b { display: block; font-size: 1.1rem; }
+    .tile span { color: #c9c9d4; font-size: 0.92rem; }
+    .tile.text { justify-content: center; }
+    .tile.text .k { font-size: 2rem; margin-bottom: 10px; }
+    .tile.accent { background: linear-gradient(150deg, rgba(129,140,248,0.25), rgba(34,211,238,0.08)), var(--bg-2); border-color: rgba(129,140,248,0.35); }
+    .tile .hl { color: #0a84ff; text-decoration: underline; text-underline-offset: 2px; }
+    @media (max-width: 860px) {
+      .bento { grid-template-columns: 1fr 1fr; grid-auto-rows: 180px; }
+      .tile.big { grid-column: span 2; grid-row: span 2; }
     }
   </style>
 </head>
@@ -426,55 +522,138 @@
         </div>
       </div>
     </div>
-    <div class="scroll-cue">Scroll for the story<span></span></div>
+    <div class="scroll-cue">See it in action<span></span></div>
   </header>
+  <section class="vs">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Wallet vs. Coin Purse</p>
+        <h2>Not everything belongs in your wallet.</h2>
+        <p class="lead">Your wallet is for the important things you keep for years.  Coin Purse is for the little things you need for a day, a week, or one trip to the store.</p>
+      </div>
+      <div class="vs-grid">
+        <div class="pocket wallet reveal">
+          <div class="obj" aria-hidden="true">
+            <svg class="back" viewBox="0 0 320 330">
+              <defs>
+                <linearGradient id="lthr-d" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a2c1b"/><stop offset="1" stop-color="#2a170d"/></linearGradient>
+              </defs>
+              <ellipse cx="160" cy="316" rx="128" ry="10" fill="rgba(0,0,0,0.45)"/>
+              <rect x="24" y="112" width="272" height="196" rx="22" fill="url(#lthr-d)"/>
+              <rect x="24" y="112" width="272" height="196" rx="22" fill="none" stroke="rgba(255,255,255,0.06)"/>
+            </svg>
+            <div class="item card board" style="left:104px;top:42px;--r:7deg">
+              <div class="band">BOARDING PASS</div>
+              <div class="route">DEN <i>✈</i> SFO</div>
+              <div class="meta"><span>Gate<b>B32</b></span><span>Seat<b>14C</b></span><span>Board<b>7:40</b></span></div>
+            </div>
+            <div class="item card credit" style="left:30px;top:58px;--r:-8deg">
+              <div class="bank">MOUNTAIN BANK</div>
+              <div class="chip-g"></div>
+              <div class="num">•••• •••• •••• 4291</div>
+            </div>
+            <div class="item card idc tuck" style="left:70px;top:96px;--r:-1deg">
+              <span class="t">DRIVER LICENSE</span>
+              <span class="face"></span>
+              <span class="lines"><i></i><i></i><i></i><i></i></span>
+            </div>
+            <svg class="front" viewBox="0 0 320 330">
+              <defs>
+                <linearGradient id="lthr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5634"/><stop offset="0.55" stop-color="#6b3f24"/><stop offset="1" stop-color="#4a2a17"/></linearGradient>
+                <linearGradient id="lthr-lip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,220,180,0.35)"/><stop offset="1" stop-color="rgba(255,220,180,0)"/></linearGradient>
+                <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.22 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+              </defs>
+              <rect x="24" y="160" width="272" height="148" rx="22" fill="url(#lthr)"/>
+              <rect x="24" y="160" width="272" height="148" rx="22" fill="#000" filter="url(#grain)"/>
+              <rect x="24" y="160" width="272" height="22" rx="11" fill="url(#lthr-lip)"/>
+              <rect x="36" y="172" width="248" height="124" rx="14" fill="none" stroke="#d6a77a" stroke-opacity="0.55" stroke-width="1.6" stroke-dasharray="6 5"/>
+              <rect x="24.5" y="160.5" width="271" height="147" rx="21.5" fill="none" stroke="rgba(255,235,210,0.18)"/>
+            </svg>
+          </div>
+          <h3>Wallet</h3>
+          <span class="for">For the dollars</span>
+          <p>Credit cards, IDs and boarding passes.  Apple Wallet is built for official, secure things, and it is great at them.  But you cannot just drop a snapshot into it.</p>
+        </div>
 
-  <section class="compare">
-    <div class="wrap reveal">
-      <p class="eyebrow">Why it exists</p>
-      <h2>Not everything belongs in your wallet.</h2>
-      <div class="compare-grid">
-        <div class="compare-card">
-          <div class="big">$</div>
-          <h3>Apple Wallet</h3>
-          <p>Boarding passes, credit cards, IDs.  Apple Wallet is built for secure, official things, and it is great at them.  But you cannot just drop a snapshot into it, and it is not meant for that.</p>
-        </div>
-        <div class="compare-card purse">
-          <div class="big">¢</div>
+        <div class="vs-badge" aria-hidden="true">vs</div>
+
+        <div class="pocket purse reveal">
+          <div class="obj" aria-hidden="true">
+            <svg class="back" viewBox="0 0 320 330">
+              <defs>
+                <linearGradient id="rod-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5e7eb"/><stop offset="1" stop-color="#6b7280"/></linearGradient>
+                <radialGradient id="ball" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ffffff"/><stop offset="0.45" stop-color="#cbd5e1"/><stop offset="1" stop-color="#475569"/></radialGradient>
+              </defs>
+              <ellipse cx="160" cy="318" rx="118" ry="10" fill="rgba(0,0,0,0.45)"/>
+              <path d="M74 150 Q160 94 246 150 Q160 194 74 150 Z" fill="#100d22"/>
+              <path d="M74 150 Q160 94 246 150" fill="none" stroke="url(#rod-b)" stroke-width="7" stroke-linecap="round"/>
+              <circle cx="152" cy="114" r="9" fill="url(#ball)"/>
+            </svg>
+            <img class="pop" src="/img/coin.png?v=2" alt="" style="left:44px;top:14px;transform:rotate(-20deg)" />
+            <img class="pop" src="/img/coin.png?v=2" alt="" style="left:246px;top:38px;width:26px;transform:rotate(25deg)" />
+            <div class="item snap" style="left:52px;top:62px;--r:-18deg"><img src="/img/ticket-1.jpg" alt="" style="object-position:top" /></div>
+            <div class="item snap" style="left:106px;top:40px;--r:-5deg"><img src="/img/parking-b3.jpg" alt="" /></div>
+            <div class="item snap" style="left:160px;top:50px;--r:9deg"><img src="/img/grocery-note.jpg" alt="" /></div>
+            <div class="item snap wide" style="left:164px;top:98px;--r:20deg"><img src="/img/gift-card-coffee.jpg" alt="" /></div>
+            <svg class="front" viewBox="0 0 320 330">
+              <defs>
+                <radialGradient id="pouch" cx="0.4" cy="0.35" r="0.8"><stop offset="0" stop-color="#6366f1"/><stop offset="0.5" stop-color="#3f37b5"/><stop offset="1" stop-color="#1e1a5e"/></radialGradient>
+                <linearGradient id="rod-f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fafc"/><stop offset="0.5" stop-color="#cbd5e1"/><stop offset="1" stop-color="#64748b"/></linearGradient>
+                <radialGradient id="sheen" cx="0.3" cy="0.3" r="0.6"><stop offset="0" stop-color="rgba(255,255,255,0.28)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient>
+                <radialGradient id="ball-f" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ffffff"/><stop offset="0.45" stop-color="#cbd5e1"/><stop offset="1" stop-color="#475569"/></radialGradient>
+                <filter id="weave" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.9 0.25" numOctaves="2" seed="9"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.09 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+                <clipPath id="pouch-clip"><path d="M74 150 C14 182 14 312 160 322 C306 312 306 182 246 150 Q160 194 74 150 Z"/></clipPath>
+              </defs>
+              <path d="M74 150 C14 182 14 312 160 322 C306 312 306 182 246 150 Q160 194 74 150 Z" fill="url(#pouch)"/>
+              <g clip-path="url(#pouch-clip)">
+                <rect x="0" y="140" width="320" height="190" fill="#000" filter="url(#weave)"/>
+                <ellipse cx="110" cy="220" rx="80" ry="60" fill="url(#sheen)"/>
+                <path d="M40 180 Q160 230 280 180" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="12"/>
+              </g>
+              <path d="M62 186 C36 230 50 300 160 308 C270 300 284 230 258 186" fill="none" stroke="rgba(199,210,254,0.45)" stroke-width="1.6" stroke-dasharray="6 5"/>
+              <text x="160" y="276" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="58" font-weight="800" fill="rgba(0,0,0,0.25)">¢</text>
+              <text x="159" y="274" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="58" font-weight="800" fill="rgba(199,210,254,0.22)">¢</text>
+              <path d="M74 150 Q160 194 246 150" fill="none" stroke="url(#rod-f)" stroke-width="9" stroke-linecap="round"/>
+              <path d="M74 150 L66 176 M246 150 L254 176" stroke="url(#rod-f)" stroke-width="6" stroke-linecap="round"/>
+              <circle cx="74" cy="150" r="7" fill="url(#ball-f)"/>
+              <circle cx="246" cy="150" r="7" fill="url(#ball-f)"/>
+              <circle cx="168" cy="164" r="10" fill="url(#ball-f)"/>
+            </svg>
+          </div>
           <h3>Coin Purse</h3>
-          <p>Everything else.  Snap a photo or paste a screenshot of the little things you need to remember or show quickly, the ones that do not need a vault.  One tap to add, one tap to toss.</p>
+          <span class="for">For the small change</span>
+          <p>The parking level, the grocery list, the gift card barcode, the tickets a friend texted you.  Snap it or paste it in one tap, and toss it when you are done.</p>
         </div>
+      </div>
+
+      <div class="vs-table reveal">
+        <div class="vs-row"><span class="w">Cards and passes a company issues</span><span class="k">What goes in</span><span class="p">Anything you can snap or screenshot</span></div>
+        <div class="vs-row"><span class="w">An Add to Wallet button, if there is one</span><span class="k">How it gets there</span><span class="p">Paste, photo or camera, in one tap</span></div>
+        <div class="vs-row"><span class="w">Years</span><span class="k">How long it stays</span><span class="p">Until you toss it</span></div>
       </div>
     </div>
   </section>
 
-  <section class="story" data-act="1">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="photos">
-            <div class="count"><b>01</b> / 10</div>
-            <h2>Life hands you <em>small change</em>.</h2>
-            <p>The level you parked on.  The tailgate tickets.  The gift card in your drawer.  A link a friend texted you.  It all ends up buried in thousands of photos, or lost somewhere in your email.</p>
-          </div>
-          <div class="chapter" data-step="camera">
-            <div class="count"><b>02</b> / 10</div>
-            <h2><em>Snap</em> it.</h2>
-            <p>Take a photo right into Coin Purse: the garage sign, the back of a card, a note someone handed you.  It never clutters your photo library.</p>
-          </div>
-          <div class="chapter" data-step="paste">
-            <div class="count"><b>03</b> / 10</div>
-            <h2>Or <em>paste</em> it.</h2>
-            <p>Screenshot a ticket, an email or a web page, then tap Paste once.  No "Allow Paste" prompt and no typing.  Prefer an older photo?  Pick it from your library.</p>
-          </div>
-          <div class="chapter" data-step="arrive">
-            <div class="count"><b>04</b> / 10</div>
-            <h2>Now it is a <em>coin</em>.</h2>
-            <p>It lands at the front of your purse.  Skip the title and it is named Coin 5, Coin 6 and so on.  Add a name, a note or a color only when you want to.</p>
-          </div>
+  <section class="demo3" id="demo3">
+    <div class="wrap">
+      <div class="demo3-grid">
+        <div class="reveal">
+          <p class="eyebrow">See it in action</p>
+          <h2>Snap it.  Find it.  Toss it.</h2>
+          <p class="lead" style="margin-top:14px">Watch the whole thing in about a minute, or tap a step to jump to it.</p>
+          <ol class="steps3" id="steps3">
+          <li data-step="camera"><span class="n">1</span><span><b>Snap it</b><small>Take a photo right into Coin Purse.</small></span><i class="bar"></i></li>
+          <li data-step="paste"><span class="n">2</span><span><b>Or paste it</b><small>One tap on Paste, no prompt.</small></span><i class="bar"></i></li>
+          <li data-step="arrive"><span class="n">3</span><span><b>Now it is a coin</b><small>It lands at the front of your purse.</small></span><i class="bar"></i></li>
+          <li data-step="open"><span class="n">4</span><span><b>Both tickets, one coin</b><small>Up to six pictures per coin.</small></span><i class="bar"></i></li>
+          <li data-step="text"><span class="n">5</span><span><b>Tap what you see</b><small>Links, emails and numbers just work.</small></span><i class="bar"></i></li>
+          <li data-step="share"><span class="n">6</span><span><b>Share it</b><small>By text or email, one picture at a time.</small></span><i class="bar"></i></li>
+          <li data-step="toss"><span class="n">7</span><span><b>Toss it</b><small>The trash can is right on the card.</small></span><i class="bar"></i></li>
+          <li data-step="lock"><span class="n">8</span><span><b>Yours alone</b><small>Face ID and a private account.</small></span><i class="bar"></i></li>
+          </ol>
         </div>
-        <div class="story-phone">
-        <div class="phone-fit" id="phone-fit">
+        <div class="demo3-side">
+        <div class="demo3-phone"><div class="phone-fit" id="phone-fit">
           <div class="phone-glow" id="phone-glow"></div>
           <div class="tilt" id="tilt">
           <div class="phone" aria-label="Coin Purse on an iPhone">
@@ -608,101 +787,30 @@
             </div>
           </div>
           </div>
+        </div></div>
+        <p class="step-cap" id="step-cap" aria-live="polite"></p>
         </div>
       </div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
     </div>
   </section>
-
-  <section class="coin-parts">
-    <div class="wrap">
-      <div class="reveal" style="max-width:720px">
-        <p class="eyebrow">What is in a coin?</p>
-        <h2>One coin, everything that goes together.</h2>
-        <p class="lead" style="margin-top:16px">A coin is one thing you want handy.  It can hold up to six pictures, so two tailgate tickets are one coin, not two.  Same for the front and back of a card, or every page of a return.</p>
-      </div>
-      <div class="anatomy">
-        <div class="part reveal"><div class="k">🏷️</div><h3>A name, if you want one</h3><p>Type one, or skip it and the coin is named Coin 1, Coin 2 and so on.</p></div>
-        <div class="part reveal"><div class="k">🖼️</div><h3>Up to six pictures</h3><p>Photos, screenshots or both.  The first is the one you see on the card.</p></div>
-        <div class="part reveal"><div class="k">📝</div><h3>Notes</h3><p>A gift card code, a seat number, a link.  Links, emails and phone numbers are tappable.</p></div>
-        <div class="part reveal"><div class="k">🎨</div><h3>A color</h3><p>A stripe across the top so you can spot it in the stack.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="story flip" data-act="2">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="flip">
-            <div class="count"><b>05</b> / 10</div>
-            <h2><em>Flip</em> through your purse.</h2>
-            <p>Swipe the stack and the front coin goes to the back, like cards in a wallet.  Everything you saved is a flick away.</p>
-          </div>
-          <div class="chapter" data-step="open">
-            <div class="count"><b>06</b> / 10</div>
-            <h2>One coin, <em>both</em> tickets.</h2>
-            <p>A coin holds up to six pictures.  Tap to open it full screen, ready to scan, and swipe to the next one.  Two tailgate tickets, one coin.</p>
-          </div>
-          <div class="chapter" data-step="text">
-            <div class="count"><b>07</b> / 10</div>
-            <h2><em>Tap</em> what you see.</h2>
-            <p>Coin Purse reads the text in your pictures right on your iPhone.  Tap a link to open it, an email address to write to it, a phone number to call.  Press and hold to copy a gift card code.</p>
-          </div>
-        </div>
-        <div class="story-phone"></div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
-    </div>
-  </section>
-
-  <section class="uses">
+  <section class="bento-sec">
     <div class="wrap">
       <div class="reveal">
-        <p class="eyebrow">What people keep in it</p>
-        <h2>Small change, everywhere.</h2>
+        <p class="eyebrow">Small change, everywhere</p>
+        <h2>Everything simple has a place.</h2>
       </div>
-      <div class="uses-grid">
-        <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Conference badges</h3><p>Scan in at the door without digging through your email.</p></div>
-        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tailgate and event tickets</h3><p>Two QR codes, one coin.  Swipe between them at the gate.</p></div>
-        <div class="use reveal" style="--c:#f97316"><span class="dot"></span><h3>Gift cards</h3><p>Snap the back of the card.  At checkout they scan the barcode, or you copy the number.</p></div>
-        <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Return labels</h3><p>Keep the return QR code ready for the drop-off counter.</p></div>
-        <div class="use reveal" style="--c:#ec4899"><span class="dot"></span><h3>Where you parked</h3><p>Snap the level sign in the airport garage.  Delete it when you are home.</p></div>
-        <div class="use reveal" style="--c:#06b6d4"><span class="dot"></span><h3>Links people text you</h3><p>Screenshot it now, tap the link later.</p></div>
-        <div class="use reveal" style="--c:#22c55e"><span class="dot"></span><h3>Tickets for friends</h3><p>Share the picture by text or email, right from the coin.</p></div>
-        <div class="use reveal" style="--c:#6366f1"><span class="dot"></span><h3>Someone's email address</h3><p>Grab it, send your email with one tap, then toss the coin.</p></div>
-        <div class="use reveal" style="--c:#eab308"><span class="dot"></span><h3>Grocery lists</h3><p>The handwritten list on the counter.  Snap it and go shopping.</p></div>
+      <div class="bento">
+        <div class="tile big pic reveal" style="--img:url(/img/ticket-1.jpg);background-position:center 30%"><div class="cap"><b>Tailgate tickets</b><span>Two passes in one coin.  Swipe between them at the gate.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/parking-b3.jpg)"><div class="cap"><b>Where you parked</b><span>Toss it when you are home.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/gift-card-coffee.jpg)"><div class="cap"><b>Gift cards</b><span>Let them scan the barcode.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/grocery-note.jpg)"><div class="cap"><b>Grocery lists</b><span>Snap it and go shopping.</span></div></div>
+        <div class="tile pic reveal" style="--img:url(/img/conference-badge.jpg);background-position:top"><div class="cap"><b>Conference badges</b><span>No digging through email.</span></div></div>
+        <div class="tile wide text accent reveal"><div class="k">👆</div><b>Tap what you see</b><span>Links like <i class="hl">tailgate.example.com</i>, emails and phone numbers in your pictures are tappable.</span></div>
+        <div class="tile text reveal"><div class="k">🔒</div><b>Face ID</b><span>Private to your account.</span></div>
+        <div class="tile text reveal"><div class="k">¢</div><b>Free</b><span>No ads.  No tracking.</span></div>
       </div>
     </div>
   </section>
-
-  <section class="story" data-act="3">
-    <div class="stage">
-      <div class="wrap stage-grid">
-        <div class="stage-text">
-          <div class="chapter" data-step="share">
-            <div class="count"><b>08</b> / 10</div>
-            <h2><em>Share</em> it.</h2>
-            <p>Need to hand a friend their ticket?  Tap Share and send the picture by text or email, just like sharing a photo.  Only that one picture goes, nothing else.</p>
-          </div>
-          <div class="chapter" data-step="toss">
-            <div class="count"><b>09</b> / 10</div>
-            <h2><em>Toss</em> it when you are done.</h2>
-            <p>Every coin has a trash can right on the card.  Back from the trip?  One tap and the parking photo is gone, without ever touching your camera roll.  Or keep a coin as long as you like.</p>
-          </div>
-          <div class="chapter" data-step="lock">
-            <div class="count"><b>10</b> / 10</div>
-            <h2>Yours <em>alone</em>.</h2>
-            <p>Face ID unlocks the app.  Sign in once and stay signed in.  Your coins are private to your account, with no ads and no tracking.</p>
-          </div>
-        </div>
-        <div class="story-phone"></div>
-      </div>
-      <div class="progress" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
-    </div>
-  </section>
-
   <section class="cta" id="cta">
     <div class="wrap reveal">
       <img src="/img/coin.png?v=2" alt="" />
@@ -713,17 +821,12 @@
       <a href="#top" class="to-top" id="to-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Back to top</a>
     </div>
   </section>
-
-
-
-
   <footer>
     <div class="wrap">
       <span>© 2026 Yetignome</span>
       <span><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a> · <a href="#top" class="js-top">Back to top</a></span>
     </div>
   </footer>
-
   <script>
     (function () {
       const $ = (s) => document.querySelector(s);
@@ -1132,6 +1235,34 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
       }
+      window.__cp = { play, setOrder, show, STACK, glow, still, reduce };
+    })();
+  </script>
+  <script>
+    // Plays every step on its own, like a short video, while the demo is on screen.
+    (function () {
+      const items = [...document.querySelectorAll('#steps3 li')];
+      const DUR = 7000;
+      let i = 0, timer = null, visible = false;
+      function go(n) {
+        i = (n + items.length) % items.length;
+        items.forEach((li, k) => { li.classList.remove('on'); void li.offsetWidth; li.classList.toggle('on', k === i); li.style.setProperty('--dur', DUR + 'ms'); });
+        window.__cp.setOrder(window.__cp.STACK);
+        document.getElementById('step-cap').innerHTML = '<span>' + (i + 1) + ' of ' + items.length + '</span>' + items[i].querySelector('b').textContent;
+        document.getElementById('phone-glow').style.setProperty('--glow', window.__cp.glow[items[i].dataset.step]);
+        // With reduced motion, show each step as a still picture instead of an animation.
+        if (window.__cp.reduce) window.__cp.show(window.__cp.still[items[i].dataset.step]);
+        else window.__cp.play(items[i].dataset.step);
+        clearTimeout(timer);
+        timer = setTimeout(() => { if (visible) go(i + 1); }, DUR);
+      }
+      items.forEach((li, k) => li.addEventListener('click', () => go(k)));
+      new IntersectionObserver((entries) => {
+        const was = visible;
+        visible = entries[0].isIntersecting;
+        if (visible && !was) go(i);
+        if (!visible) clearTimeout(timer);
+      }, { threshold: 0.3 }).observe(document.getElementById('demo3'));
     })();
   </script>
 </body>
