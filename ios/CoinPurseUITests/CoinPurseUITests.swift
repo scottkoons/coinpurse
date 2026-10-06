@@ -190,9 +190,8 @@ final class CoinPurseUITests: XCTestCase {
         // Open and put back the first eight coins, one after another.
         let started = Date()
         for i in 0..<8 {
-            let c = cards.element(boundBy: i)
-            let name = c.label
-            c.tap()
+            let name = cards.element(boundBy: i).label
+            tapCard(name)
             XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(name) did not open")
             XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, name, "opened the wrong coin")
             app.buttons["Done"].tap()
@@ -275,7 +274,9 @@ final class CoinPurseUITests: XCTestCase {
 
         // 1. Open and Done with no pause, many times.
         for n in 0..<16 {
-            card(names[n % names.count]).tap()
+            // Tap where the card is, even while the last coin is still closing.
+            let f = card(names[n % names.count]).frame
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
             let done = app.buttons["Done"]
             if done.waitForExistence(timeout: 3) { done.tap() }
         }
@@ -432,6 +433,50 @@ final class CoinPurseUITests: XCTestCase {
         if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] {
             try? other.debugDescription.write(toFile: dir + "/\(name).txt", atomically: true, encoding: .utf8)
         }
+    }
+
+    /// Tapping the visible part of any card opens exactly that coin, at any
+    /// text size (TEST_RUNNER_TAP=1, 30-coin purse).
+    @MainActor
+    func testTapAccuracy() throws {
+        guard ProcessInfo.processInfo.environment["TAP"] == "1" else { throw XCTSkip("Set TAP=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
+        XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 15))
+        sleep(2)
+        let bar = app.buttons["addPicture"]
+        let account = app.buttons["Account"]
+        var checked = 0
+        var names: [String] = []
+        for _ in 0..<12 {
+            // The first card not yet checked that is fully clear of the title and the bar.
+            let all = (0..<cards.count).map { cards.element(boundBy: $0) }
+            guard let c = all.first(where: { !names.contains($0.label) && $0.frame.minY >= account.frame.maxY
+                                                && $0.frame.maxY <= bar.frame.minY }) else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                    .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)))
+                sleep(1)
+                continue
+            }
+            let name = c.label
+            names.append(name)
+            let f = c.frame
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(name) did not open")
+            let opened = openCoin.staticTexts["coinTitle"].label
+            XCTAssertEqual(opened, name, "tapped \(name) at y \(Int(f.midY)) but \(opened) opened")
+            if opened != name { snap("tap-wrong-\(checked)") }
+            app.buttons["Done"].tap()
+            XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+            sleep(1)
+            checked += 1
+        }
+        print("TAP checked \(checked) cards: \(names)")
+        XCTAssertGreaterThanOrEqual(checked, 8)
     }
 
     /// Screenshots of every screen in the design, against a sample purse
