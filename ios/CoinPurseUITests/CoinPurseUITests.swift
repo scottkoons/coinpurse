@@ -632,7 +632,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["2 pictures"].exists)
         snap("s01-share-new")
         app.buttons["Add to a Coin"].tap()
-        let tickets = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Tickets'")).firstMatch
+        let tickets = app.collectionViews.buttons.matching(NSPredicate(format: "label == 'Tickets'")).firstMatch
         XCTAssertTrue(tickets.waitForExistence(timeout: 5))
         XCTAssertFalse(save.isEnabled, "Save before choosing a coin")
         tickets.tap()
