@@ -69,11 +69,18 @@ final class VoiceCapture {
     }
 
     private static func permissionsGranted() async -> Bool {
-        let speech = await withCheckedContinuation { (done: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
-            SFSpeechRecognizer.requestAuthorization { done.resume(returning: $0) }
-        }
-        guard speech == .authorized else { return false }
+        guard await speechAuthorization() == .authorized else { return false }
         return await AVAudioApplication.requestRecordPermission()
+    }
+
+    /// iOS answers on a background thread, so this must not be tied to the
+    /// main thread (Swift stops the app if a main-thread closure runs elsewhere).
+    nonisolated private static func speechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { (done: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+            SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                done.resume(returning: status)
+            }
+        }
     }
 }
 
