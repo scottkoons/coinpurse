@@ -457,7 +457,7 @@ final class CoinPurseUITests: XCTestCase {
         sleep(1)
 
         // Open the parking coin: map first.
-        app.buttons["Parking spot"].tap()
+        tapCard("Parking spot")
         let open = app.otherElements["openCoin"]
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         sleep(3)
@@ -1115,6 +1115,12 @@ final class CoinPurseUITests: XCTestCase {
         for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 8 {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+        }
+        // Tucked under the title at the top: bring it down.
+        let account = app.buttons["Account"]
+        for _ in 0..<4 where account.exists && c.frame.midY < account.frame.maxY + 8 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)))
         }
         c.tap()
     }
