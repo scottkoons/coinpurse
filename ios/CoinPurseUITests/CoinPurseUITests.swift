@@ -394,6 +394,15 @@ final class CoinPurseUITests: XCTestCase {
         snap("p03-extension")
         title.tap()
         title.typeText("From Photos")
+        // Offline first: Save says so where it can be seen, and keeps everything.
+        setServerOffline(true)
+        photos.buttons["shareSave"].tap()
+        let problem = photos.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Could not reach Coin Purse'")).firstMatch
+        XCTAssertTrue(problem.waitForExistence(timeout: 70), "offline share shows no message")
+        XCTAssertTrue(problem.isHittable, "offline share message is out of sight")
+        snap("p03b-offline")
+        // Back online: Save again finishes, and makes one coin, not two.
+        setServerOffline(false)
         photos.buttons["shareSave"].tap()
         XCTAssertTrue(title.waitForNonExistence(timeout: 30), "share extension did not finish")
         photos.terminate()
@@ -402,6 +411,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("From Photos").waitForExistence(timeout: 15), "shared photo is not in the purse")
         tapCard("From Photos")
         XCTAssertTrue(openCoin.buttons["Picture 1"].waitForExistence(timeout: 10), "shared coin has no picture")
+        XCTAssertFalse(openCoin.buttons["Picture 2"].exists, "the retried share added the picture twice")
+        XCTAssertEqual(serverCoinCount(), 1, "the retried share made more than one coin")
         snap("p04-in-purse")
     }
 
