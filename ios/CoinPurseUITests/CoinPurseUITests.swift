@@ -918,6 +918,15 @@ final class CoinPurseUITests: XCTestCase {
             if card("Coin number 001").exists && card("Coin number 001").isHittable { reached = true; break }
         }
         print("BIG scrolled to the end in \(String(format: "%.1f", Date().timeIntervalSince(scrollStart))) s")
+        if !reached {
+            // Tell a real scrolling limit from flings that were too quick to settle.
+            snap("b02a-after-flings")
+            dump("b02a-tree")
+            for _ in 0..<4 { app.swipeUp(velocity: .slow); sleep(1) }
+            reached = card("Coin number 001").exists && card("Coin number 001").isHittable
+            snap("b02b-after-slow-swipes")
+            print("BIG reached after slow swipes: \(reached)")
+        }
         XCTAssertTrue(reached, "could not scroll to the last coin")
         snap("b02-bottom")
         tapCard("Coin number 001")
