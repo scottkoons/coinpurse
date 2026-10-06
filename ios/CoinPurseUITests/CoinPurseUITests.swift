@@ -1458,10 +1458,12 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor @discardableResult
     private func reveal(_ element: XCUIElement) -> Bool {
         if element.waitForExistence(timeout: 5) && element.isHittable { return true }
-        for _ in 0..<6 {
+        // Down the form first, then back up (the element may be above).
+        for step in 0..<12 {
+            let down = step < 5
             // High on the screen, clear of the keyboard.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.5 : 0.25))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.25 : 0.5)))
             if element.waitForExistence(timeout: 1) && element.isHittable { return true }
         }
         return element.exists

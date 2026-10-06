@@ -74,7 +74,7 @@ struct CoinDetailView: View {
         GeometryReader { geo in
             let reserved: CGFloat = 52 + 6 + 36 + min(actionSize, 80) + 44 + 76
                 + (notesBelow == nil ? 0 : 86) + (showsThumbnails ? 72 : 0)
-            let cardHeight = max(300, min(geo.size.height - reserved, 620))
+            let cardHeight = max(geo.size.height < 640 ? 230 : 300, min(geo.size.height - reserved, 620))
             VStack(spacing: 0) {
                 topBar
                     .opacity(appeared ? 1 : 0)
@@ -92,19 +92,17 @@ struct CoinDetailView: View {
                         actions
                     }
                     .padding(.top, 16)
-                    // Clear of the stack of coins at the bottom.
-                    .padding(.bottom, 92)
+                    .padding(.bottom, 16)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .opacity(appeared ? max(0, 1 - drag / 140) : 0)
                 .offset(y: appeared || reduceMotion ? 0 : 28)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .overlay(alignment: .bottom) {
+                // The rest of the purse, below everything else (never on top of a button).
                 pileView
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 80)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.9).delay(0.1)) { appeared = true }
@@ -365,8 +363,10 @@ struct CoinDetailView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 84, alignment: .top)
-            .offset(y: 24)
+            // Only the tops show; the cards run on past the bottom of the screen.
+            .frame(height: 58, alignment: .top)
+            .frame(maxWidth: .infinity)
+            .clipped()
             .contentShape(Rectangle())
             .onTapGesture(perform: onClose)
             .accessibilityElement()
