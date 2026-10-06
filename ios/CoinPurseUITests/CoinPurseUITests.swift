@@ -1050,8 +1050,9 @@ final class CoinPurseUITests: XCTestCase {
     private func reveal(_ element: XCUIElement) -> Bool {
         if element.waitForExistence(timeout: 5) && element.isHittable { return true }
         for _ in 0..<6 {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+            // High on the screen, clear of the keyboard.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
             if element.waitForExistence(timeout: 1) && element.isHittable { return true }
         }
         return element.exists
