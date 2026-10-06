@@ -21,7 +21,7 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     func testFullFlow() throws {
         app = XCUIApplication()
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestVoiceText", "Milk, eggs, avocados, coffee and bread"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = ProcessInfo.processInfo.environment["BASE_URL"] ?? "http://localhost:3000"
         app.launch()
 
@@ -40,7 +40,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // First coin: paste a picture with one tap.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "QR 1")
-        app.buttons["Add your first coin"].tap()
+        app.buttons["addCoin"].tap()
         let title = app.textFields["titleField"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         snap("2a-editor-empty")
@@ -69,7 +69,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // Second coin.
         UIPasteboard.general.image = Self.sample(color: .systemOrange, label: "Haircut")
-        app.buttons["Add coin"].tap()
+        app.buttons["addCoin"].tap()
         if !title.waitForExistence(timeout: 5) {
             dump("tree-add-coin")
             XCTFail("editor did not open")
@@ -84,7 +84,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // A quick coin: picture only, no title, is named Coin 1.
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "Note")
-        app.buttons["Add coin"].tap()
+        app.buttons["addCoin"].tap()
         XCTAssertTrue(app.staticTexts["Leave the title blank and it is saved as Coin 1."].waitForExistence(timeout: 5))
         tapPaste()
         app.buttons["Save"].tap()
@@ -153,6 +153,31 @@ final class CoinPurseUITests: XCTestCase {
         snap("9-delete-confirm")
         app.alerts.buttons["Delete"].tap()
         XCTAssertTrue(app.staticTexts["Haircut card"].waitForNonExistence(timeout: 10))
+
+        // Voice note: say a quick list, and it is saved as a text coin.
+        app.buttons["voiceNote"].tap()
+        XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
+        snap("12-voice-listening")
+        app.buttons["Done"].tap()
+        let voiceText = app.descendants(matching: .any)["voiceText"]
+        XCTAssertTrue(voiceText.waitForExistence(timeout: 5))
+        let said = voiceText.value as? String ?? ""
+        XCTAssertTrue(said.hasPrefix("• Milk\n• Eggs"), "voice note did not become a list: \(said)")
+        snap("13-voice-review")
+        app.buttons["Show as text"].tap()
+        XCTAssertTrue(app.buttons["Make it a list"].waitForExistence(timeout: 3))
+        app.buttons["Make it a list"].tap()
+        let voiceTitle = app.textFields["voiceTitle"]
+        voiceTitle.tap()
+        voiceTitle.typeText("Groceries")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Groceries"].waitForExistence(timeout: 15))
+        snap("14-voice-coin")
+        app.staticTexts["Tap to open"].tap()
+        let noteText = app.descendants(matching: .any)["noteText"]
+        XCTAssertTrue(noteText.waitForExistence(timeout: 5), "text coin did not open")
+        snap("15-voice-viewer")
+        app.buttons["Back"].tap()
 
         // Delete the account.
         app.buttons["Account"].tap()

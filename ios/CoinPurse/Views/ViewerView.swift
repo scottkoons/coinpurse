@@ -19,11 +19,25 @@ struct ViewerView: View {
     private var coin: Coin? { model.coin(coinId) }
     private var pictures: [Picture] { coin?.pictures ?? [] }
     private var current: Picture? { pictures.indices.contains(index) ? pictures[index] : nil }
+    private var notes: String { coin?.notes.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if pictures.isEmpty {
+            if pictures.isEmpty, !notes.isEmpty {
+                // A text coin (like a voice note): the words, big and easy to read.
+                ScrollView {
+                    Text(LinkedText.make(notes))
+                        .font(.title2.weight(.medium))
+                        .lineSpacing(6)
+                        .foregroundStyle(.white)
+                        .tint(Color.accentColor)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(24)
+                        .accessibilityIdentifier("noteText")
+                }
+            } else if pictures.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
                     Text("No picture yet").foregroundStyle(.secondary)
@@ -128,7 +142,8 @@ struct ViewerView: View {
 
     /// The coin's notes, with web links, email addresses and phone numbers tappable.
     @ViewBuilder private var notesView: some View {
-        if let notes = coin?.notes.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+        // A text coin shows its words full size instead.
+        if !notes.isEmpty, !pictures.isEmpty {
             ScrollView {
                 Text(LinkedText.make(notes))
                     .font(.subheadline)
@@ -148,6 +163,23 @@ struct ViewerView: View {
     private var bottomBar: some View {
         VStack(spacing: 10) {
             thumbnails
+            if pictures.isEmpty {
+                // No picture yet: share the words, or edit them.
+                HStack {
+                    ShareLink(item: notes) {
+                        VStack(spacing: 4) {
+                            Image(systemName: "square.and.arrow.up").font(.title3)
+                            Text("Share").font(.caption2)
+                        }
+                        .frame(minWidth: 60, minHeight: 44)
+                    }
+                    .foregroundStyle(.white)
+                    .disabled(notes.isEmpty)
+                    Spacer()
+                    barButton("Edit", "pencil") { editing = true }
+                }
+                .padding(.horizontal, 28)
+            } else {
             HStack {
                 barButton("Share", "square.and.arrow.up") { Task { await shareCurrent() } }
                     .disabled(current == nil)
@@ -160,6 +192,7 @@ struct ViewerView: View {
                     .opacity(current?.isPrimary ?? true ? 0.35 : 1)
             }
             .padding(.horizontal, 28)
+            }
         }
         .padding(.vertical, 10)
         .background(.black.opacity(0.35))

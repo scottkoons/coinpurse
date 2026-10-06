@@ -55,7 +55,8 @@ struct RootView: View {
                     .padding(.vertical, 10)
                     .background(.thinMaterial, in: Capsule())
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    // Clear of the Add Coin and Voice Note buttons.
+                    .padding(.bottom, model.phase == .signedIn ? 84 : 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(10)
             }

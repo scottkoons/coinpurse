@@ -14,6 +14,7 @@ struct PurseView: View {
     @State private var viewing: CoinRef?
     @State private var editing: CoinRef?
     @State private var addingNew = false
+    @State private var recordingVoice = false
     @State private var showAccount = false
     @State private var showReorder = false
     @State private var pendingDelete: Coin?
@@ -30,18 +31,13 @@ struct PurseView: View {
                 }
             }
             .navigationTitle("Coin Purse")
+            .safeAreaInset(edge: .bottom, spacing: 0) { addBar }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAccount = true } label: {
                         Image(systemName: "person.crop.circle")
                     }
                     .accessibilityLabel("Account")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { addingNew = true } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Add coin")
                 }
             }
         }
@@ -55,6 +51,9 @@ struct PurseView: View {
         }
         .sheet(isPresented: $addingNew) {
             EditorView(coinId: nil)
+        }
+        .sheet(isPresented: $recordingVoice) {
+            VoiceNoteView()
         }
         .sheet(isPresented: $showAccount) {
             AccountView()
@@ -116,12 +115,19 @@ struct PurseView: View {
     private func frontCard(_ coin: Coin, total: Int) -> some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin) { pendingDelete = coin }
-            CachedImage(picture: coin.pictures.first)
-                .frame(maxWidth: .infinity)
-                .frame(height: 380)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .padding(.horizontal, 14)
-            Text(coin.pictures.count > 1 ? "\(coin.pictures.count) pictures · Tap to open" : "Tap to open full screen")
+            Group {
+                if coin.pictures.isEmpty {
+                    NoteFace(notes: coin.notes)
+                } else {
+                    CachedImage(picture: coin.pictures.first)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 380)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 14)
+            Text(coin.pictures.count > 1 ? "\(coin.pictures.count) pictures · Tap to open"
+                 : coin.pictures.isEmpty ? "Tap to open" : "Tap to open full screen")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 12)
@@ -194,6 +200,39 @@ struct PurseView: View {
         showReorder = true
     }
 
+    // MARK: Add
+
+    /// Two big buttons where your thumb is: a picture coin or a voice note.
+    private var addBar: some View {
+        HStack(spacing: 12) {
+            Button { addingNew = true } label: {
+                Label("Add Coin", systemImage: "plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("addCoin")
+            Button { recordingVoice = true } label: {
+                Label("Voice Note", systemImage: "mic.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+            }
+            .buttonStyle(.bordered)
+            .tint(.white)
+            .accessibilityIdentifier("voiceNote")
+        }
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .background {
+            // Cards scroll under the bar and fade out instead of being cut off.
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.92), .black], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        }
+    }
+
     // MARK: Empty
 
     private var emptyState: some View {
@@ -206,15 +245,9 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Purse is empty")
                 .font(.title2.bold())
-            Text("Drop in conference QR codes, haircut cards and other passes. Paste a screenshot with one tap.")
+            Text("Snap or paste a QR code, a ticket or a gift card with Add Coin.  Or tap Voice Note and say a quick list or reminder.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            Button {
-                addingNew = true
-            } label: {
-                Text("Add your first coin").bold().frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.borderedProminent)
         }
         .padding(32)
         .frame(maxHeight: .infinity)
@@ -260,5 +293,23 @@ struct ReorderView: View {
             }
         }
         .onAppear { ids = model.coins.map(\.id) }
+    }
+}
+
+/// The front of a coin with no picture: its text, like a note card.
+struct NoteFace: View {
+    let notes: String
+
+    var body: some View {
+        Text(notes)
+            .font(.title3.weight(.medium))
+            .foregroundStyle(.white.opacity(0.92))
+            .lineSpacing(4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(18)
+            .background(Color.white.opacity(0.05))
+            // Long notes fade out at the bottom; tap to read them all.
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0.8), .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
     }
 }
