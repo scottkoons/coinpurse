@@ -951,7 +951,14 @@ final class CoinPurseUITests: XCTestCase {
             print("BIG reached after slow swipes: \(reached)")
         }
         XCTAssertTrue(reached, "could not scroll to the last coin")
+        // Let it come to rest, then the whole last card must sit above the add bar.
+        for _ in 0..<3 { app.swipeUp(velocity: .slow) }
+        sleep(2)
+        let lastFrame = card("Coin number 001").frame
+        let barTop = app.buttons["addPicture"].frame.minY
+        print("BIG last card bottom \(lastFrame.maxY), bar top \(barTop)")
         snap("b02-bottom")
+        XCTAssertLessThanOrEqual(lastFrame.maxY, barTop + 12, "at rest, the last coin is partly under the add bar")
         tapCard("Coin number 001")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coin number 001")
