@@ -77,14 +77,14 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Coin 1").waitForExistence(timeout: 15))
         snap("4-three-coins")
-        card("Coin 1").tap()
+        tapCard("Coin 1")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         app.buttons["Delete"].tap()
         app.alerts.buttons["Delete"].tap()
         XCTAssertTrue(card("Coin 1").waitForNonExistence(timeout: 10), "Coin 1 was not deleted")
 
         // Open the coin with two pictures: swipe between them, notes have links.
-        card("Conference badge").tap()
+        tapCard("Conference badge")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(1)
         snap("5-open")
@@ -140,7 +140,7 @@ final class CoinPurseUITests: XCTestCase {
         voiceTitle.typeText("Groceries")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Groceries").waitForExistence(timeout: 15))
-        card("Groceries").tap()
+        tapCard("Groceries")
         XCTAssertTrue(app.descendants(matching: .any)["noteText"].waitForExistence(timeout: 5), "text coin did not open")
         snap("15-voice-open")
         app.buttons["Done"].tap()
@@ -154,7 +154,7 @@ final class CoinPurseUITests: XCTestCase {
         title.typeText("Car")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Car").waitForExistence(timeout: 15))
-        card("Car").tap()
+        tapCard("Car")
         XCTAssertTrue(openCoin.descendants(matching: .any)["pinMap"].waitForExistence(timeout: 5), "pin coin shows no map")
         snap("16-pin-coin")
         app.buttons["Done"].tap()
@@ -226,7 +226,7 @@ final class CoinPurseUITests: XCTestCase {
         // Two notes mention slots: Parking B3 and the parking voice note.
         XCTAssertEqual(cards.count, 2)
         snap("tour-search")
-        card("Parking B3").tap()
+        tapCard("Parking B3")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
         app.buttons["Cancel"].tap()
@@ -293,7 +293,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // 3. Paging while it is still opening, then flicking back and forth.
-        card("Parking spot").tap()
+        tapCard("Parking spot")
         openCoin.swipeLeft()
         for _ in 0..<6 { openCoin.swipeRight(); openCoin.swipeLeft() }
         XCTAssertTrue(openCoin.exists)
@@ -304,7 +304,7 @@ final class CoinPurseUITests: XCTestCase {
         start.press(forDuration: 0.02, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)), withVelocity: .fast, thenHoldForDuration: 0)
         start.press(forDuration: 0.02, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)), withVelocity: .fast, thenHoldForDuration: 0)
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "swipe down did not put the coin back")
-        card("Email Jim back").tap()
+        tapCard("Email Jim back")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "stack ignored taps after swipe-down")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
@@ -481,7 +481,7 @@ final class CoinPurseUITests: XCTestCase {
         title.typeText("Locker 🔑 #17")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Locker 🔑 #17").waitForExistence(timeout: 15))
-        card("Locker 🔑 #17").tap()
+        tapCard("Locker 🔑 #17")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertEqual(app.descendants(matching: .any)["noteText"].label, "Locker 🔑 #17")
         snap("e02-title-only")
@@ -518,7 +518,7 @@ final class CoinPurseUITests: XCTestCase {
         notes.typeText(String(repeating: "Bring the blue cooler, two chairs and the tickets. ", count: 6))
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Long note").waitForExistence(timeout: 15))
-        card("Long note").tap()
+        tapCard("Long note")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(1)
         app.descendants(matching: .any)["noteText"].swipeDown()
@@ -546,7 +546,7 @@ final class CoinPurseUITests: XCTestCase {
         snap("e05-six-pictures")
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Six pictures").waitForExistence(timeout: 30))
-        card("Six pictures").tap()
+        tapCard("Six pictures")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         for _ in 1...5 { openCoin.swipeLeft() }
         XCTAssertTrue(app.descendants(matching: .any)["Page 6 of 6"].waitForExistence(timeout: 3))
@@ -558,7 +558,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Turn on Location for Coin Purse in Settings to drop a pin."].waitForExistence(timeout: 10))
         snap("e06-location-off")
         app.buttons["Cancel"].tap()
-        card("Locker 🔑 #17").tap()
+        tapCard("Locker 🔑 #17")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         app.buttons["Add Pin"].tap()
         XCTAssertTrue(app.staticTexts["Turn on Location for Coin Purse in Settings to drop a pin."].waitForExistence(timeout: 5),
@@ -669,7 +669,7 @@ final class CoinPurseUITests: XCTestCase {
         snap("o01-offline-purse")
 
         // The ticket picture opens from the phone.
-        card("Ticket").tap()
+        tapCard("Ticket")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertTrue(openCoin.buttons["Picture 1"].waitForExistence(timeout: 5))
         sleep(2)
@@ -691,7 +691,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Cancel"].tap()
 
         // Deleting fails and the coin comes back.
-        card("Gate code 2468").tap()
+        tapCard("Gate code 2468")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         app.buttons["Delete"].tap()
         app.alerts.buttons["Delete"].tap()
@@ -791,7 +791,7 @@ final class CoinPurseUITests: XCTestCase {
         snap("s02-share-existing")
         save.tap()
         XCTAssertTrue(save.waitForNonExistence(timeout: 20), "share did not finish")
-        card("Tickets").tap()
+        tapCard("Tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["Page 1 of 3"].waitForExistence(timeout: 10), "Tickets should hold 3 pictures")
         app.buttons["Done"].tap()
@@ -809,7 +809,7 @@ final class CoinPurseUITests: XCTestCase {
         save.tap()
         XCTAssertTrue(save.waitForNonExistence(timeout: 20))
         XCTAssertTrue(card("Shared tickets").waitForExistence(timeout: 15))
-        card("Shared tickets").tap()
+        tapCard("Shared tickets")
         XCTAssertTrue(app.descendants(matching: .any)["Page 1 of 2"].waitForExistence(timeout: 10))
         snap("s03-shared-coin")
     }
@@ -857,7 +857,7 @@ final class CoinPurseUITests: XCTestCase {
         print("BIG scrolled to the end in \(String(format: "%.1f", Date().timeIntervalSince(scrollStart))) s")
         XCTAssertTrue(reached, "could not scroll to the last coin")
         snap("b02-bottom")
-        card("Coin number 001").tap()
+        tapCard("Coin number 001")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coin number 001")
         app.buttons["Done"].tap()
@@ -904,7 +904,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
         sleep(2)
         audit("Purse")
-        card("Parking spot").tap()
+        tapCard("Parking spot")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(2)
         audit("Open coin (map)")
@@ -1000,7 +1000,7 @@ final class CoinPurseUITests: XCTestCase {
         app.launch()
         signIn()
         XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
-        card("Parking spot").tap()
+        tapCard("Parking spot")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(2)
         openCoin.descendants(matching: .any)["pinMap"].firstMatch.tap()
@@ -1022,6 +1022,19 @@ final class CoinPurseUITests: XCTestCase {
 
     @MainActor
     private var openCoin: XCUIElement { app.otherElements["openCoin"] }
+
+    /// Taps a card, first scrolling it clear of the bottom bar if it is under it.
+    @MainActor
+    private func tapCard(_ name: String) {
+        let c = card(name)
+        XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
+        let bar = app.buttons["addPicture"]
+        for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 8 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+        }
+        c.tap()
+    }
 
     @MainActor
     private func card(_ name: String) -> XCUIElement {
