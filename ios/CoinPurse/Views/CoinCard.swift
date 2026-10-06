@@ -65,11 +65,6 @@ struct CoinCardHeader: View {
     }
 
     private var subtitle: String {
-        // A list coin says how many items instead of repeating the first one.
-        if coin.pictures.isEmpty, VoiceCapture.isList(coin.notes) {
-            let count = coin.notes.split(separator: "\n").count
-            return count == 1 ? "1 item" : "\(count) items"
-        }
         if let first = coin.notes.split(separator: "\n").first, !first.isEmpty { return String(first) }
         guard let ms = coin.updatedAt ?? coin.createdAt else { return "" }
         return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)

@@ -11,9 +11,6 @@ final class VoiceCapture {
     var state: State = .idle
     /// Everything heard so far, punctuated.
     var transcript = ""
-    /// The same words with a line break wherever you paused, which is how
-    /// people say a list ("milk ... eggs ... bread") even without commas.
-    var pausedLines = ""
     /// Microphone loudness from 0 to 1, for the animation.
     var level: Float = 0
 
@@ -24,10 +21,7 @@ final class VoiceCapture {
         #if DEBUG
         // UI tests cannot speak: they pass the words in instead.
         if let fake = UserDefaults.standard.string(forKey: "uiTestVoiceText") {
-            if transcript.isEmpty {
-                transcript = fake
-                pausedLines = fake.replacingOccurrences(of: ", ", with: "\n")
-            }
+            if transcript.isEmpty { transcript = fake }
             state = .listening
             return
         }
@@ -41,11 +35,8 @@ final class VoiceCapture {
             state = .unavailable
             return
         }
-        let engine = SpeechEngine(recognizer: recognizer, prefix: transcript, linedPrefix: pausedLines) { [weak self] text, lined in
-            Task { @MainActor in
-                self?.transcript = text
-                self?.pausedLines = lined
-            }
+        let engine = SpeechEngine(recognizer: recognizer, prefix: transcript) { [weak self] text in
+            Task { @MainActor in self?.transcript = text }
         } onLevel: { [weak self] value in
             Task { @MainActor in self?.level = value }
         }
@@ -63,8 +54,7 @@ final class VoiceCapture {
         guard state == .listening else { return }
         if let engine {
             let final = await engine.stop()
-            transcript = final.text
-            pausedLines = final.lined
+            transcript = final
         }
         engine = nil
         level = 0
@@ -85,34 +75,6 @@ final class VoiceCapture {
         guard speech == .authorized else { return false }
         return await AVAudioApplication.requestRecordPermission()
     }
-
-    /// Turns "milk, eggs, avocados and coffee." into one item per line.
-    nonisolated static func asList(_ text: String) -> String {
-        let normalized = text
-            .replacingOccurrences(of: "\n", with: ",")
-            .replacingOccurrences(of: ";", with: ",")
-            .replacingOccurrences(of: ". ", with: ",")
-            .replacingOccurrences(of: " and ", with: ",", options: .caseInsensitive)
-            .replacingOccurrences(of: " then ", with: ",", options: .caseInsensitive)
-        let items = normalized
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " .•-").union(.whitespacesAndNewlines)) }
-            .filter { !$0.isEmpty }
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-        return items.map { "• " + $0 }.joined(separator: "\n")
-    }
-
-    /// Undoes asList: back to one line of text.
-    nonisolated static func asSentence(_ list: String) -> String {
-        list.split(separator: "\n")
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "• ").union(.whitespaces)) }
-            .filter { !$0.isEmpty }
-            .joined(separator: ", ")
-    }
-
-    nonisolated static func isList(_ text: String) -> Bool {
-        text.hasPrefix("• ")
-    }
 }
 
 /// The audio side, which runs off the main thread. Recognition can stop by
@@ -121,7 +83,7 @@ final class VoiceCapture {
 private nonisolated final class SpeechEngine: @unchecked Sendable {
     private let recognizer: SFSpeechRecognizer
     private let audio = AVAudioEngine()
-    private let onText: @Sendable (String, String) -> Void
+    private let onText: @Sendable (String) -> Void
     private let onLevel: @Sendable (Float) -> Void
 
     private let lock = NSLock()
@@ -129,20 +91,17 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
     private var task: SFSpeechRecognitionTask?
     private var committed: String
     private var partial = ""
-    private var committedLined: String
-    private var partialLined = ""
     private var running = false
     /// The last request has delivered its final words after stop().
     private var ended = false
     private var lastLevel = Date.distantPast
     private var finalWaiter: CheckedContinuation<Void, Never>?
 
-    init(recognizer: SFSpeechRecognizer, prefix: String, linedPrefix: String,
-         onText: @escaping @Sendable (String, String) -> Void,
+    init(recognizer: SFSpeechRecognizer, prefix: String,
+         onText: @escaping @Sendable (String) -> Void,
          onLevel: @escaping @Sendable (Float) -> Void) {
         self.recognizer = recognizer
         self.committed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.committedLined = linedPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
         self.onText = onText
         self.onLevel = onLevel
     }
@@ -164,7 +123,7 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
     }
 
     /// Stops the microphone and returns the full text once the last words land.
-    func stop() async -> (text: String, lined: String) {
+    func stop() async -> String {
         audio.stop()
         audio.inputNode.removeTap(onBus: 0)
         let req = lock.withLock { () -> SFSpeechAudioBufferRecognitionRequest? in
@@ -184,7 +143,7 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
         }
         lock.withLock { task?.cancel() }
         deactivate()
-        return lock.withLock { (Self.join(committed, partial), Self.join(committedLined, partialLined, with: "\n")) }
+        return lock.withLock { Self.join(committed, partial) }
     }
 
     func cancel() {
@@ -209,7 +168,6 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
         lock.withLock {
             request = req
             partial = ""
-            partialLined = ""
         }
         let newTask = recognizer.recognitionTask(with: req) { [weak self] result, error in
             self?.handle(result: result, error: error)
@@ -220,13 +178,11 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
     private func handle(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let text = result.bestTranscription.formattedString
-            let lined = Self.breakAtPauses(result.bestTranscription)
-            let both = lock.withLock { () -> (String, String) in
+            let full = lock.withLock { () -> String in
                 partial = text
-                partialLined = lined
-                return (Self.join(committed, partial), Self.join(committedLined, partialLined, with: "\n"))
+                return Self.join(committed, partial)
             }
-            onText(both.0, both.1)
+            onText(full)
             if result.isFinal { segmentEnded() }
         } else if error != nil {
             segmentEnded()
@@ -238,9 +194,7 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
     private func segmentEnded() {
         let keepGoing = lock.withLock { () -> Bool in
             committed = Self.join(committed, partial)
-            committedLined = Self.join(committedLined, partialLined, with: "\n")
             partial = ""
-            partialLined = ""
             if !running { ended = true }
             return running
         }
@@ -279,31 +233,12 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    private static func join(_ a: String, _ b: String, with separator: String = " ") -> String {
+    private static func join(_ a: String, _ b: String) -> String {
         let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
         let b = b.trimmingCharacters(in: .whitespacesAndNewlines)
         if a.isEmpty { return b }
         if b.isEmpty { return a }
-        return a + separator + b
+        return a + " " + b
     }
 
-    /// The punctuated text with a line break before any word that came
-    /// after a pause of more than about half a second.
-    private static func breakAtPauses(_ transcription: SFTranscription) -> String {
-        let text = transcription.formattedString as NSString
-        var out = ""
-        var start = 0
-        var previousEnd: TimeInterval?
-        for segment in transcription.segments {
-            let at = segment.substringRange.location
-            if let end = previousEnd, segment.timestamp - end > 0.55, at > start, at <= text.length {
-                out += text.substring(with: NSRange(location: start, length: at - start))
-                    .trimmingCharacters(in: .whitespaces) + "\n"
-                start = at
-            }
-            previousEnd = segment.timestamp + segment.duration
-        }
-        out += text.substring(from: min(start, text.length))
-        return out
-    }
 }
