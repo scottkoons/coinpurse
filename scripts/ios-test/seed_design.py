@@ -1,0 +1,30 @@
+"""A realistic purse for design screenshots (local test server only)."""
+import json, urllib.request, uuid, time
+import os
+B=os.environ.get('BASE','http://localhost:3000')
+tok=json.load(urllib.request.urlopen(urllib.request.Request(B+'/api/auth/verify-code',data=json.dumps({"email":"review@example.com","code":"123456"}).encode(),headers={'content-type':'application/json'})))['token']
+H={'authorization':'Bearer '+tok}
+def call(method,path,body=None,ctype='application/json'):
+    data=body if isinstance(body,bytes) else (json.dumps(body).encode() if body is not None else None)
+    r=urllib.request.Request(B+path,data=data,method=method,headers={**H,'content-type':ctype})
+    return json.load(urllib.request.urlopen(r))
+now=int(time.time()*1000)
+# Top of the purse first; created in reverse so the first one ends up on top.
+coins=[
+ ("Parking spot","Level 3, two slots down from the elevator",['parking-b3.jpg'],{"lat":38.83395,"lng":-104.82135,"acc":9,"at":now-25*60*1000},4),
+ ("Tailgate tickets","Lot opens 9 AM",['ticket-1.jpg','ticket-2.jpg'],None,2),
+ ("Coffee gift card","Good Day Coffee, $25",['gift-card-coffee.jpg'],None,5),
+ ("Email Jim back","Remind me to email Jim back about the patio quote.",[],None,0),
+ ("Grocery list","",['grocery-note.jpg'],None,3),
+ ("DevSummit badge","Hall C, booth 214",['conference-badge.jpg'],None,1),
+ ("Garage code","4471",[],None,0),
+ ("Return label","Drop off by Friday",['return-label.jpg'],None,5),
+]
+for t,n,ps,pin,acc in reversed(coins):
+    cid=str(uuid.uuid4())
+    body={"id":cid,"title":t,"notes":n,"accent":acc}
+    if pin: body["pin"]=pin
+    call('POST','/api/coins',body)
+    for j,p in enumerate(ps):
+        call('POST',f'/api/coins/{cid}/'+('image' if j==0 else 'attachments'),open('img/'+p,'rb').read(),'image/jpeg')
+print([c['title'] for c in call('GET','/api/coins')['coins']])
