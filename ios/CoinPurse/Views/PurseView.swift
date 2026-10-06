@@ -185,33 +185,20 @@ struct PurseView: View {
                         // Holds the card's place while it is out of the stack.
                         Color.clear
                     } else {
-                        CoinCardView(coin: coin, faceShowing: isLast || moving == coin.id) { pendingDelete = coin }
-                            .matchedCard(id: coin.id, in: cards, enabled: !reduceMotion)
+                        CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
+                            // While it is lifted, the lifted copy above the stack is the card.
+                            .matchedCard(id: moving == coin.id ? "held-" + coin.id : coin.id, in: cards, enabled: !reduceMotion)
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
                             .onTapGesture { openCoin(coin.id) }
                             // Touch and hold to lift it, then drag to move it, as in Wallet.
                             .gesture(searching ? nil : moveGesture(for: coin, at: i, count: coins.count))
-                            .overlay(alignment: .top) {
-                                if moving == coin.id && openReady {
-                                    Label("Release to open", systemImage: "arrow.up.left.and.arrow.down.right")
-                                        .font(.footnote.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 7)
-                                        .background(.black.opacity(0.6), in: Capsule())
-                                        .offset(y: -40)
-                                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                                }
-                            }
-                            .scaleEffect(moving == coin.id ? 1.04 : 1)
-                            .shadow(color: .black.opacity(moving == coin.id ? 0.3 : 0), radius: 18, y: 10)
+                            .opacity(moving == coin.id ? 0 : 1)
                     }
                 }
                 // A tucked-in card is drawn only as far as you can see it (its top,
                 // plus a little behind the next card's rounded corners), so it grows
-                // straight from that when it opens. A lifted card shows all of
-                // itself, so you can see what is on it.
-                .frame(height: isLast || moving == coin.id ? lastCardHeight : peek + 30)
+                // straight from that when it opens.
+                .frame(height: isLast ? lastCardHeight : peek + 30)
                 // Every row is exactly one card top tall, so the lazy stack always
                 // knows the full height (the last card hangs below its row, into
                 // the room left under the stack).
@@ -232,13 +219,20 @@ struct PurseView: View {
                         .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
                         .accessibilityAction(named: "Delete") { pendingDelete = coin }
                 }
-                .zIndex(moving == coin.id ? 1000 : Double(i))
-                // Moving a card: it follows the finger and the others make room.
-                .offset(y: moving == coin.id ? moveOffset : makeRoom(at: i, in: coins))
+                .zIndex(Double(i))
+                // Moving a card: the others make room for it.
+                .offset(y: moving == coin.id ? 0 : makeRoom(at: i, in: coins))
                 // Pulled down past the top, the cards fan apart, like a stretched stack.
                 .offset(y: pull * CGFloat(min(i, 12)) * 0.22)
                 // While a coin is out, the rest of the stack drops out of sight.
                 .offset(y: openId == nil || openId == coin.id || reduceMotion ? 0 : screenHeight + CGFloat(i) * 8)
+            }
+        }
+        // The lifted card, above every other card: all of it shows, so you can
+        // see what is on it, and it follows your finger.
+        .overlay(alignment: .top) {
+            if let id = moving, let i = coins.firstIndex(where: { $0.id == id }) {
+                liftedCard(coins[i], at: i)
             }
         }
         .id(stackVersion)
@@ -250,6 +244,29 @@ struct PurseView: View {
 
     /// The last card shows whole.
     private var lastCardHeight: CGFloat { CardMetrics.stackHeight + peek - CardMetrics.peek }
+
+    private func liftedCard(_ coin: Coin, at i: Int) -> some View {
+        CoinCardView(coin: coin, faceShowing: true)
+            .matchedCard(id: coin.id, in: cards, enabled: !reduceMotion)
+            .frame(height: lastCardHeight)
+            .overlay(alignment: .top) {
+                if openReady {
+                    Label("Release to open", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.6), in: Capsule())
+                        .offset(y: -40)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .scaleEffect(1.04)
+            .shadow(color: .black.opacity(0.3), radius: 18, y: 10)
+            .offset(y: CGFloat(i) * peek + moveOffset)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 
     /// How far a card shifts to make room for the one being moved.
     private func makeRoom(at i: Int, in coins: [Coin]) -> CGFloat {

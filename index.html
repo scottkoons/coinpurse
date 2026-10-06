@@ -176,257 +176,6 @@
     }
     @media (max-width: 360px) { .obj { transform: scale(0.9); margin: -16px auto; } }
 
-    /* ---------- Story: a pinned full-screen stage; scrolling plays the chapters in place ---------- */
-    .story { position: relative; }
-    .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; display: flex; align-items: center; }
-    .stage::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 72% 50%, rgba(129,140,248,0.10), transparent 70%); pointer-events: none; }
-    .stage-grid { position: relative; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 30px; align-items: center; width: 100%; }
-    .stage-text { position: relative; height: 62vh; }
-    .chapter { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; opacity: 0; transform: translateY(50px); transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1); pointer-events: none; }
-    .chapter.active { opacity: 1; transform: none; }
-    .chapter.past { transform: translateY(-50px); }
-    .chapter .count { color: var(--muted); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.14em; margin-bottom: 18px; }
-    .chapter .count b { color: var(--accent); }
-    .chapter h2 { font-size: clamp(2.6rem, 5.4vw, 4.6rem); font-weight: 800; letter-spacing: -0.035em; }
-    .chapter h2 em { font-style: normal; background: linear-gradient(90deg, #a5b4fc, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .chapter p { color: var(--muted); font-size: clamp(1.05rem, 1.4vw, 1.25rem); margin: 22px 0 0; max-width: 470px; }
-    .story-phone { height: 100vh; height: 100svh; display: grid; place-items: center; }
-    .story.flip .stage-grid { grid-template-columns: 0.95fr 1.05fr; }
-    .story.flip .story-phone { order: -1; }
-    .progress { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; gap: 6px; }
-    .progress i { width: 34px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.14); overflow: hidden; }
-    .progress i b { display: block; height: 100%; width: 0; background: var(--text); }
-
-    /* iPhone */
-    .phone {
-      position: relative; width: 330px; height: 716px;
-      border-radius: 56px; padding: 11px; background: #0a0a0c;
-      box-shadow: 0 0 0 3px #4a4a50, 0 0 0 4px #2b2b30, 0 40px 80px rgba(0, 0, 0, 0.65);
-    }
-    .phone::before { content: ""; position: absolute; left: -7px; top: 17%; width: 4px; height: 30px; border-radius: 3px 0 0 3px; background: #3c3c42; box-shadow: 0 58px 0 #3c3c42, 0 112px 0 #3c3c42; }
-    .phone::after { content: ""; position: absolute; right: -7px; top: 27%; width: 4px; height: 12%; border-radius: 0 3px 3px 0; background: #3c3c42; }
-    .screen { position: relative; height: 100%; border-radius: 46px; overflow: hidden; background: #000; }
-    .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 32%; height: 30px; border-radius: 20px; background: #000; z-index: 95; }
-    .island::after { content: ""; position: absolute; right: 14px; top: 10px; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #2b3a5c, #05060a 70%); }
-    .statusbar { position: absolute; top: 16px; left: 0; right: 0; padding: 0 28px; display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 0.82rem; font-weight: 700; z-index: 90; pointer-events: none; }
-    .statusbar .icons { display: flex; gap: 5px; align-items: center; }
-    .statusbar svg { height: 11px; width: auto; fill: currentColor; }
-    .home-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 36%; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.75); z-index: 95; }
-    .scene { position: absolute; inset: 0; opacity: 0; transition: opacity 0.6s ease; pointer-events: none; }
-    .scene.on { opacity: 1; }
-    .finger {
-      position: absolute; width: 46px; height: 46px; border-radius: 50%; margin: -23px 0 0 -23px;
-      background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.85);
-      opacity: 0; transform: scale(0.6); pointer-events: none; z-index: 85;
-      transition: opacity 0.3s ease, transform 0.2s ease, left 0.8s cubic-bezier(0.45, 0, 0.25, 1), top 0.8s cubic-bezier(0.45, 0, 0.25, 1);
-    }
-    .finger.show { opacity: 1; transform: scale(1); }
-    .finger.press { transform: scale(0.8); background: rgba(255,255,255,0.6); }
-
-    /* Scene: a messy pile of all the little things */
-    .s-pile { background: radial-gradient(70% 50% at 50% 40%, #1d1c28, #000); }
-    .pile-label { position: absolute; top: 62px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
-    .pile { position: absolute; inset: 86px 0 30px; }
-    .pile img {
-      position: absolute; width: 50%; border-radius: 12px; object-fit: cover; aspect-ratio: 4 / 5; object-position: top;
-      box-shadow: 0 14px 30px rgba(0,0,0,0.6); border: 3px solid #fff;
-      transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
-    }
-    /* Scene: camera */
-    .s-camera { background: #000; }
-    .viewfinder { position: absolute; top: 90px; left: 0; right: 0; height: 470px; background: url(/img/parking-b3.jpg) center / cover; transform: scale(1.12); transition: transform 2.5s ease; }
-    .s-camera.on .viewfinder { transform: scale(1); }
-    .cam-mode { position: absolute; top: 572px; left: 0; right: 0; text-align: center; color: #fcd34d; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; }
-    .shutter { position: absolute; left: 50%; bottom: 46px; width: 66px; height: 66px; margin-left: -33px; border-radius: 50%; border: 4px solid #fff; display: grid; place-items: center; }
-    .shutter::after { content: ""; width: 52px; height: 52px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
-    .shutter.press::after { transform: scale(0.85); }
-    .cam-thumb { position: absolute; left: 34px; bottom: 56px; width: 44px; height: 44px; border-radius: 8px; background: #222 center / cover; border: 2px solid #fff; }
-    .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
-    .flash.go { opacity: 0.9; transition: none; }
-    .toast { position: absolute; left: 50%; top: 104px; transform: translate(-50%, -20px); padding: 10px 16px; border-radius: 999px; background: rgba(30,30,36,0.92); color: #fff; font-size: 0.8rem; font-weight: 700; white-space: nowrap; opacity: 0; transition: opacity 0.4s, transform 0.4s; }
-    .toast.show { opacity: 1; transform: translate(-50%, 0); }
-
-    /* Scene: paste into a new coin */
-    .s-paste { background: #000; }
-    .sheet { position: absolute; left: 0; right: 0; top: 50px; bottom: 0; background: #1c1c1e; border-radius: 22px 22px 0 0; padding: 14px; }
-    .sheet-bar { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 12px; }
-    .sheet-bar .pill { padding: 6px 12px; border-radius: 999px; background: #2c2c2e; }
-    .sheet-bar b { font-size: 0.9rem; }
-    .sheet-bar .save { color: #8e8e93; transition: color 0.3s, background 0.3s; }
-    .sheet-bar .save.ready { color: #fff; background: #3a3a3c; }
-    .sec { color: #8e8e93; font-size: 0.72rem; margin: 4px 4px 6px; }
-    .pic-box { border-radius: 14px; background: #2c2c2e; padding: 12px; text-align: center; }
-    .pic-box .ph { height: 200px; display: grid; place-items: center; color: #636366; font-size: 0.8rem; border-radius: 10px; background: #232325 center top / cover no-repeat; }
-    .pic-box .ph.filled { color: transparent; background-image: url(/img/ticket-1.jpg); }
-    .pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
-    .pills span { padding: 6px 12px; border-radius: 999px; background: #3a3a3c; color: #a5b4fc; font-size: 0.76rem; font-weight: 600; }
-    .pills .paste { background: #6366f1; color: #fff; }
-    .field-group { margin-top: 12px; border-radius: 12px; background: #2c2c2e; overflow: hidden; }
-    .field { padding: 11px 12px; color: #636366; font-size: 0.82rem; }
-    .field + .field { border-top: 1px solid #3a3a3c; min-height: 52px; }
-    .field-note { color: #8e8e93; font-size: 0.68rem; margin: 6px 4px 0; }
-    .dots { display: flex; gap: 10px; margin-top: 2px; justify-content: center; padding: 10px; border-radius: 12px; background: #2c2c2e; }
-    .dots i { width: 22px; height: 22px; border-radius: 50%; }
-
-    /* Scene: purse stack */
-    .s-stack { padding: 52px 14px 0; }
-    .purse-head { display: flex; align-items: center; gap: 4px; margin: 0 2px 8px; }
-    .purse-head b { font-weight: 800; font-size: 1.35rem; margin-right: auto; }
-    .purse-head i { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; }
-    .purse-head svg { width: 19px; height: 19px; }
-    .screen-hint { position: absolute; left: 0; right: 0; top: 376px; color: var(--muted); font-size: 0.62rem; text-align: center; transition: opacity 0.35s; }
-    .deck { position: relative; height: 620px; transition: opacity 0.35s ease; }
-    .purse-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; gap: 8px; padding: 26px 14px 26px; background: linear-gradient(rgba(0,0,0,0), #000 40%); }
-    .purse-bar span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: #2c2c2e; color: #fff; transition: transform 0.15s; }
-    .purse-bar span:first-child { background: #818cf8; }
-    .purse-bar span.press { transform: scale(0.94); }
-    .purse-bar svg { width: 14px; height: 14px; }
-    .mini-thumb.lines { display: grid; place-items: center; color: var(--c); }
-    .mini-thumb.lines svg { width: 16px; height: 16px; }
-    .mini-body.note { background: rgba(255,255,255,0.05); color: #fff; padding: 14px; font-size: 1.12rem; font-weight: 600; line-height: 1.35; }
-    /* Voice Note */
-    .s-voice .sheet { padding-bottom: 0; }
-    .vn-live { padding: 8px 6px; font-size: 1.12rem; font-weight: 700; line-height: 1.35; min-height: 200px; }
-    .vn-live .hint { color: #8e8e93; font-weight: 600; font-size: 0.9rem; }
-    .vn-mic { position: absolute; left: 50%; bottom: 74px; width: 76px; height: 76px; margin-left: -38px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 26px rgba(6,182,212,0.6); display: grid; place-items: center; }
-    .vn-mic::after { content: ""; width: 22px; height: 22px; border-radius: 4px; background: #fff; }
-    .vn-mic i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(6,182,212,0.35); transform: scale(var(--lv, 1)); transition: transform 0.12s ease-out; }
-    .vn-mic i + i { border-color: rgba(6,182,212,0.22); transform: scale(calc(var(--lv, 1) * 1.25)); }
-    .vn-cap { position: absolute; left: 0; right: 0; bottom: 40px; text-align: center; color: #8e8e93; font-size: 0.72rem; }
-    .vn-review { display: none; }
-    .s-voice.review .vn-review { display: block; }
-    .s-voice.review .vn-listen { display: none; }
-    .vn-note { border-radius: 12px; background: #2c2c2e; padding: 12px; font-size: 0.95rem; line-height: 1.35; }
-    .vn-keep { margin: 10px auto 0; width: max-content; padding: 7px 16px; border-radius: 999px; background: #3a3a3c; color: #a5b4fc; font-size: 0.76rem; font-weight: 700; }
-    .deck.reset { opacity: 0; }
-    .mini {
-      position: absolute; left: 0; right: 0;
-      border-radius: 16px; background: #1a1a22; border: 1px solid var(--line);
-      border-top: 4px solid var(--c); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
-      transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), height 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s;
-      overflow: hidden;
-    }
-    .mini.gone { opacity: 0; transform: translateY(560px) scale(0.6) !important; }
-    .mini-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 8px 0 12px; }
-    .mini-thumb { width: 32px; height: 32px; border-radius: 7px; background: #2a2933 center / cover; position: relative; flex: 0 0 32px; }
-    .mini-count { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--c); color: #fff; font-size: 0.6rem; display: grid; place-items: center; border: 2px solid #1a1a22; }
-    .mini-count.pulse { animation: pulse 0.9s ease-in-out 2; }
-    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.7); box-shadow: 0 0 0 6px rgba(34,197,94,0.35); } }
-    .mini-title { font-weight: 700; font-size: 0.86rem; }
-    .mini-sub { color: var(--muted); font-size: 0.68rem; }
-    .mini-sub u { color: var(--accent); text-underline-offset: 2px; }
-    .mini-trash { margin-left: auto; width: 30px; height: 30px; display: grid; place-items: center; color: #8e8e93; flex: 0 0 30px; }
-    .mini-trash svg { width: 16px; height: 16px; }
-    .mini-body { margin: 2px 12px 12px; height: 300px; border-radius: 10px; overflow: hidden; background: #f2f2f7; }
-    .mini-body img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .alert { position: absolute; left: 50%; top: 46%; width: 230px; transform: translate(-50%, -50%) scale(1.1); background: rgba(44,44,46,0.97); border-radius: 16px; text-align: center; padding: 16px 14px 0; opacity: 0; transition: opacity 0.25s, transform 0.25s; z-index: 80; }
-    .alert.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    .alert b { display: block; font-size: 0.88rem; margin-bottom: 4px; }
-    .alert p { margin: 0 0 12px; font-size: 0.72rem; color: #c7c7cc; }
-    .alert div { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #48484a; }
-    .alert span { padding: 10px; font-size: 0.85rem; color: #0a84ff; }
-    .alert span + span { border-left: 1px solid #48484a; color: #ff453a; font-weight: 700; }
-    .dim { position: absolute; inset: 0; background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.25s; z-index: 79; }
-    .dim.show { opacity: 1; }
-
-    /* Scene: open coin */
-    .s-viewer, .s-text { display: flex; flex-direction: column; }
-    .dv-bar { padding: 54px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
-    .dv-bar .back { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.12); display: grid; place-items: center; font-size: 0.9rem; }
-    .dv-title { text-align: center; }
-    .dv-title b { display: block; font-size: 0.95rem; }
-    .dv-title span { color: var(--muted); font-size: 0.7rem; }
-    .dv-track { flex: 1; position: relative; overflow: hidden; min-height: 0; }
-    .dv-slides { position: absolute; inset: 0; display: flex; transition: transform 0.8s cubic-bezier(0.45, 0, 0.25, 1); }
-    .s-viewer.second .dv-slides { transform: translateX(-100%); }
-    .dv-slide { flex: 0 0 100%; display: grid; place-items: center; padding: 6px 16px; min-height: 0; }
-    .dv-slide img { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 16px 30px rgba(0,0,0,0.5); }
-    .dv-thumbs { display: flex; gap: 8px; justify-content: center; padding: 12px 0 28px; }
-    .dv-thumbs i { width: 34px; height: 34px; border-radius: 8px; background: #f2f2f7 center top / cover; border: 2px solid transparent; }
-    .s-viewer .dv-thumbs i:first-child { background-image: url(/img/ticket-1.jpg); border-color: #fff; }
-    .s-viewer .dv-thumbs i:nth-child(2) { background-image: url(/img/ticket-2.jpg); }
-    .s-viewer.second .dv-thumbs i:first-child { border-color: transparent; }
-    .s-viewer.second .dv-thumbs i:nth-child(2) { border-color: #fff; }
-
-    /* Scene: Live Text on a screenshot of a text thread */
-    .s-text { background: #000; }
-    .shot { margin: 8px 16px 0; flex: 1; border-radius: 14px; background: #fff; color: #111; padding: 14px 12px; position: relative; overflow: hidden; }
-    .shot .who { text-align: center; font-size: 0.7rem; color: #6b7280; margin-bottom: 10px; }
-    .shot .who b { display: block; font-size: 0.85rem; color: #111; }
-    .bubble { max-width: 86%; padding: 9px 12px; border-radius: 16px; background: #e9e9eb; font-size: 0.8rem; line-height: 1.45; margin-bottom: 8px; }
-    .bubble.me { margin-left: auto; background: #0a84ff; color: #fff; }
-    .lt { border-radius: 4px; transition: background 0.4s, color 0.4s; }
-    .s-text.live .lt { background: rgba(10, 132, 255, 0.16); color: #0a64d0; text-decoration: underline; text-underline-offset: 2px; }
-    .lt-btn { position: absolute; right: 10px; bottom: 10px; width: 34px; height: 34px; border-radius: 10px; background: rgba(0,0,0,0.06); display: grid; place-items: center; transition: background 0.4s; }
-    .s-text.live .lt-btn { background: #0a84ff; color: #fff; }
-    .lt-btn svg { width: 18px; height: 18px; }
-    .action { position: absolute; left: 12px; right: 12px; bottom: 54px; border-radius: 14px; background: rgba(44,44,46,0.96); padding: 4px 0; transform: translateY(160%); transition: transform 0.4s cubic-bezier(0.22,1,0.36,1); z-index: 80; }
-    .action.show { transform: none; }
-    .action div { padding: 10px 14px; font-size: 0.8rem; color: #fff; display: flex; justify-content: space-between; }
-    .action div + div { border-top: 1px solid #48484a; }
-    .action small { color: #8e8e93; }
-
-    /* Scene: share one picture */
-    .share-btn { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.12); display: grid; place-items: center; transition: background 0.2s; }
-    .share-btn svg { width: 15px; height: 15px; }
-    .share-btn.press { background: rgba(255,255,255,0.35); }
-    .share-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #1c1c1e; border-radius: 22px 22px 0 0; padding: 14px 14px 30px; transform: translateY(105%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); z-index: 70; }
-    .share-sheet.show { transform: none; }
-    .ss-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #2c2c2e; }
-    .ss-thumb { width: 40px; height: 40px; border-radius: 8px; background: url(/img/ticket-2.jpg) center top / cover; }
-    .ss-head b { display: block; font-size: 0.8rem; }
-    .ss-head small { color: #8e8e93; font-size: 0.68rem; }
-    .ss-x { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: #2c2c2e; display: grid; place-items: center; color: #8e8e93; }
-    .ss-people, .ss-apps { display: flex; justify-content: space-between; padding: 14px 4px 0; }
-    .ss-people span, .ss-apps span { display: grid; justify-items: center; gap: 5px; font-size: 0.62rem; color: #d1d1d6; width: 25%; }
-    .ss-people i { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 700; color: #fff; font-size: 1rem; }
-    .app { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; transition: transform 0.15s; }
-    .app svg { width: 24px; height: 24px; }
-    .app.msg { background: linear-gradient(#5df07a, #22c55e); }
-    .app.mail { background: linear-gradient(#5ab0ff, #0a84ff); }
-    .app.air { background: linear-gradient(#68d4ff, #0ea5e9); }
-    .app.save { background: #3a3a3c; }
-    .app.press { transform: scale(0.88); }
-    .compose { position: absolute; inset: 0; background: #000; padding: 58px 14px 14px; opacity: 0; transition: opacity 0.4s; z-index: 75; }
-    .compose.show { opacity: 1; }
-    .cp-to { padding: 8px 4px 10px; border-bottom: 1px solid #2c2c2e; color: #8e8e93; font-size: 0.8rem; }
-    .cp-to b { color: #0a84ff; font-weight: 600; }
-    .cp-thread { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 18px; }
-    .cp-photo { width: 62%; aspect-ratio: 640 / 1300; max-height: 330px; border-radius: 16px; background: center top / cover; transform: translateY(30px) scale(0.9); opacity: 0; transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.4s; }
-    .compose.show .cp-photo { transform: none; opacity: 1; }
-    .cp-thread .bubble { margin: 0; }
-    .cp-meta { color: #8e8e93; font-size: 0.62rem; }
-
-    /* Scene: Face ID lock */
-    .s-lock { background: radial-gradient(60% 40% at 50% 35%, #1c1b2a, #000); display: grid; place-items: center; text-align: center; }
-    .s-lock img { width: 74px; margin-bottom: 14px; }
-    .s-lock b { display: block; font-size: 1rem; }
-    .faceid { width: 70px; height: 70px; margin: 26px auto 10px; color: #fff; transition: color 0.3s; }
-    .faceid svg { width: 100%; height: 100%; }
-    .faceid .scan { animation: scan 1.4s ease-in-out infinite; }
-    @keyframes scan { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
-    .s-lock.ok .faceid { color: #34c759; }
-    .s-lock.ok .faceid .scan { animation: none; opacity: 1; }
-    .s-lock small { color: var(--muted); font-size: 0.75rem; }
-
-    /* ---------- What is in a coin ---------- */
-    .coin-parts { padding: 8px 0 0; }
-    .anatomy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 32px; }
-    .part { padding: 20px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); }
-    .part .k { font-size: 1.6rem; margin-bottom: 8px; }
-    .part h3 { font-size: 1.05rem; margin-bottom: 6px; }
-    .part p { color: var(--muted); font-size: 0.93rem; margin: 0; }
-
-    /* ---------- Uses ---------- */
-    .uses { padding: 8px 0 0; }
-    .uses-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
-    .use { padding: 20px 22px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); transition: transform 0.25s, border-color 0.25s; }
-    .use:hover { transform: translateY(-3px); border-color: rgba(129, 140, 248, 0.4); }
-    .uses-grid .use.reveal:not(.in) { transform: translateY(30px) scale(0.96); }
-    .use .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); margin-right: 10px; }
-    .use h3 { font-size: 1.05rem; display: inline; }
-    .use p { color: var(--muted); margin: 8px 0 0; font-size: 0.95rem; }
-
     /* ---------- CTA + footer ---------- */
     .cta { padding: 20px 0 50px; text-align: center; position: relative; overflow: hidden; }
     .shower-coin { position: absolute; top: -60px; pointer-events: none; animation: fall linear forwards; }
@@ -449,22 +198,9 @@
       .hero-grid { grid-template-columns: 1fr; }
       .coin-stage { min-height: 340px; order: -1; }
       .brand { margin-bottom: 28px; }
-      .uses-grid, .anatomy { grid-template-columns: 1fr 1fr; }
-      /* Story on phones: the iPhone fills the top, the chapter text sits right under it. */
-      .stage { align-items: flex-start; }
-      .stage-grid, .story.flip .stage-grid { grid-template-columns: 1fr; gap: 0; }
-      .story-phone { height: 58svh; order: -1; padding-top: 10px; }
-      .stage-text { height: 36svh; margin-top: 10px; }
-      .chapter { justify-content: flex-start; padding-top: 4px; transform: translateY(24px); }
-      .chapter.past { transform: translateY(-24px); }
-      .chapter .count { margin-bottom: 8px; font-size: 0.75rem; }
-      .chapter h2 { font-size: 1.85rem; }
-      .chapter p { font-size: 0.98rem; margin-top: 10px; }
-      .progress { bottom: 14px; }
-      .progress i { width: 22px; }
     }
     @media (max-width: 560px) {
-      .uses-grid, .anatomy { grid-template-columns: 1fr; }
+      .wrap { padding: 0 16px; }
       .chip.b { right: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -474,47 +210,173 @@
       .drift-coin, .shower-coin { display: none; }
     }
 
+    /* ---------- iPhone frame (the film and the clips in the pop up share it) ---------- */
+    /* Everything is sized from --w, the phone's width, so one frame works at any size. */
+    .iphone {
+      --w: 330px;
+      position: relative; width: var(--w); height: calc(var(--w) * 716 / 330);
+      padding: calc(var(--w) * 0.033); border-radius: calc(var(--w) * 0.17);
+      background: #0a0a0c;
+      box-shadow: 0 0 0 3px #4a4a50, 0 0 0 4px #2b2b30, 0 40px 80px rgba(0, 0, 0, 0.65);
+    }
+    .iphone::before { content: ""; position: absolute; left: -7px; top: 17%; width: 4px; height: 4.2%; border-radius: 3px 0 0 3px; background: #3c3c42; box-shadow: 0 calc(var(--w) * 0.176) 0 #3c3c42, 0 calc(var(--w) * 0.34) 0 #3c3c42; }
+    .iphone::after { content: ""; position: absolute; right: -7px; top: 27%; width: 4px; height: 12%; border-radius: 0 3px 3px 0; background: #3c3c42; }
+    .iphone-screen {
+      position: relative; height: 100%; overflow: hidden; border-radius: calc(var(--w) * 0.14);
+      /* Shows until the poster loads, so the phone never looks empty. */
+      background: url(/img/coin.png?v=2) center / 34% no-repeat, radial-gradient(70% 50% at 50% 45%, #1d1c28, #000);
+    }
+    .iphone-screen video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+    .iphone-island { position: absolute; z-index: 2; top: calc(var(--w) * 0.033); left: 50%; transform: translateX(-50%); width: 32%; height: calc(var(--w) * 0.09); border-radius: 999px; background: #000; pointer-events: none; }
+    .iphone-island::after { content: ""; position: absolute; right: 14%; top: 50%; width: calc(var(--w) * 0.03); height: calc(var(--w) * 0.03); margin-top: calc(var(--w) * -0.015); border-radius: 50%; background: radial-gradient(circle at 35% 35%, #2b3a5c, #05060a 70%); }
+    /* A big round play button over the picture (reduced motion, or when autoplay is not allowed). */
+    .play-big {
+      position: absolute; z-index: 3; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px;
+      border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.28); cursor: pointer;
+      background: rgba(11, 10, 16, 0.55); color: #fff; display: grid; place-items: center;
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); transition: transform 0.2s, background 0.2s;
+    }
+    .play-big[hidden] { display: none; }
+    .play-big:hover { transform: scale(1.06); background: rgba(129, 140, 248, 0.85); }
+    .play-big svg { width: 30px; height: 30px; margin-left: 4px; }
+    .play-big:focus-visible, .film-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-    .demo3 { padding: 30px 0 20px; }
-    .demo3-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 40px; align-items: center; margin-top: 10px; }
-    .demo3-phone { height: 720px; display: grid; place-items: center; position: relative; }
-    .step-cap { display: none; text-align: center; margin-top: 10px; font-weight: 700; }
-    .step-cap span { color: var(--muted); font-weight: 600; margin-right: 8px; }
-    .steps3 { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 6px; }
-    .steps3 li { position: relative; display: flex; gap: 14px; align-items: center; padding: 8px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); cursor: pointer; overflow: hidden; transition: border-color 0.3s, background 0.3s; }
-    .steps3 li b { display: block; color: var(--text); font-size: 1rem; }
-    .steps3 li small { font-size: 0.85rem; }
-    .steps3 .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.06); color: var(--text); }
-    .steps3 li.on { border-color: rgba(129,140,248,0.55); background: rgba(129,140,248,0.10); }
-    .steps3 li.on .n { background: var(--accent); color: #0b0a10; }
-    .steps3 .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
-    .steps3 li.on .bar { animation: fillbar var(--dur, 7s) linear forwards; }
-    @keyframes fillbar { to { width: 100%; } }
-    @media (max-width: 860px) {
-      .demo3-grid { grid-template-columns: 1fr; }
-      .demo3-side { order: -1; }
-      .demo3-phone { height: 540px; }
-      .step-cap { display: block; }
-      .steps3 small { display: none; }
+    /* ---------- Film: one iPhone playing a short film of the app, with chapters ---------- */
+    .film { padding: 40px 0 30px; text-align: center; overflow: hidden; }
+    .film .lead { margin: 14px auto 0; }
+    .film-stage { position: relative; display: grid; place-items: center; margin-top: 40px; }
+    .film-glow { position: absolute; left: 50%; top: 50%; width: min(680px, 130vw); height: min(680px, 130vw); transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(129, 140, 248, 0.26), rgba(34, 211, 238, 0.07) 60%, transparent); pointer-events: none; }
+    /* At most 340px wide, never wider than the page, and short enough to fit a laptop screen with its chapters. */
+    .film-phone.iphone { --w: max(220px, min(340px, calc(100vw - 88px), calc((100vh - 230px) * 0.461))); }
+    .film-toggle {
+      position: absolute; z-index: 4; right: -20px; bottom: 54px; width: 44px; height: 44px;
+      border-radius: 50%; border: 1px solid var(--line); cursor: pointer;
+      background: rgba(27, 26, 36, 0.92); color: var(--text); display: grid; place-items: center;
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5); transition: border-color 0.2s, transform 0.2s;
+    }
+    .film-toggle:hover { border-color: rgba(129, 140, 248, 0.6); transform: scale(1.06); }
+    .film-toggle svg { width: 18px; height: 18px; }
+    .film-caption { min-height: 3.2em; max-width: 560px; margin: 34px auto 0; font-size: 1.12rem; font-weight: 600; line-height: 1.45; }
+    .film-caption small { display: block; margin-bottom: 4px; color: var(--accent); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    .film-chapters { display: grid; grid-template-columns: repeat(var(--n, 10), minmax(0, 1fr)); gap: 6px; max-width: 940px; margin: 14px auto 0; }
+    .seg { appearance: none; background: none; border: 0; border-radius: 10px; padding: 12px 2px 6px; margin: 0; color: var(--muted); font: inherit; cursor: pointer; text-align: center; }
+    .seg .track { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); overflow: hidden; transition: background 0.2s; }
+    .seg .fill { display: block; height: 100%; width: 100%; background: var(--text); transform: scaleX(0); transform-origin: left center; }
+    .seg .lbl { display: block; margin-top: 9px; font-size: 0.74rem; font-weight: 600; line-height: 1.25; transition: color 0.2s; }
+    .seg:hover .track { background: rgba(255, 255, 255, 0.26); }
+    .seg:hover .lbl, .seg.on .lbl { color: var(--text); }
+    .seg.on .fill { background: linear-gradient(90deg, #a5b4fc, #67e8f9); }
+    .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (max-width: 700px) {
+      .film-chapters { gap: 4px; }
+      .seg { padding: 14px 0; }
+      .seg .lbl { display: none; }
+      .film-caption { font-size: 1.02rem; margin-top: 28px; }
     }
 
+    /* ---------- Bento: each tile opens a short how-to with a clip ---------- */
     .bento-sec { padding: 30px 0 10px; }
+    .bento-sec .lead { margin-top: 14px; }
     .bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 210px; gap: 14px; margin-top: 26px; }
-    .tile { position: relative; border-radius: 22px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .tile {
+      position: relative; border-radius: 22px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--line);
+      padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start;
+      width: 100%; margin: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+    }
+    .tile.reveal.in { transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.7s ease; }
+    .tile:hover, .tile:focus-visible {
+      transform: translateY(-4px); border-color: rgba(129, 140, 248, 0.5);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 36px rgba(129, 140, 248, 0.22);
+    }
+    .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .tile.big { grid-column: span 2; grid-row: span 2; }
     .tile.wide { grid-column: span 2; }
     .tile.pic { background: var(--img) center / cover; }
     .tile.pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(8, 8, 12, 0.88)); }
-    .tile .cap { position: relative; z-index: 1; }
+    .tile .cap { position: relative; z-index: 1; display: block; }
     .tile b { display: block; font-size: 1.1rem; }
-    .tile span { color: #c9c9d4; font-size: 0.92rem; }
+    .tile .d { display: block; color: #c9c9d4; font-size: 0.92rem; }
     .tile.text { justify-content: center; }
-    .tile.text .k { font-size: 2rem; margin-bottom: 10px; }
+    .tile.text .k { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 12px; border-radius: 14px; background: rgba(129, 140, 248, 0.16); color: #a5b4fc; }
+    .tile.text .k svg { width: 26px; height: 26px; }
     .tile.accent { background: linear-gradient(150deg, rgba(129,140,248,0.25), rgba(34,211,238,0.08)), var(--bg-2); border-color: rgba(129,140,248,0.35); }
-    .tile .hl { color: #0a84ff; text-decoration: underline; text-underline-offset: 2px; }
+    .tile .hl { color: #0a84ff; font-style: normal; text-decoration: underline; text-underline-offset: 2px; }
+    /* A small "watch" button in the corner says the tile opens something. */
+    .tile .watch { position: absolute; z-index: 1; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(11, 10, 16, 0.55); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); transition: background 0.25s, color 0.25s, transform 0.25s; }
+    .tile .watch svg { width: 14px; height: 14px; margin-left: 2px; }
+    .tile:hover .watch, .tile:focus-visible .watch { background: var(--accent); color: #0b0a10; transform: scale(1.08); }
     @media (max-width: 860px) {
       .bento { grid-template-columns: 1fr 1fr; grid-auto-rows: 180px; }
       .tile.big { grid-column: span 2; grid-row: span 2; }
+    }
+    @media (max-width: 400px) {
+      .tile { padding: 16px; }
+      .tile .d { font-size: 0.86rem; }
+    }
+
+    /* ---------- Everything it does ---------- */
+    .features { padding: 50px 0 30px; }
+    .features .lead { margin-top: 14px; }
+    .feat-grid { list-style: none; padding: 0; margin: 30px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; }
+    .feat { padding: 20px 20px 22px; border-radius: 18px; background: var(--bg-2); border: 1px solid var(--line); }
+    .feat .ic { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 14px; border-radius: 12px; color: var(--c, #a5b4fc); background: rgba(165, 180, 252, 0.14); background: color-mix(in srgb, var(--c, #a5b4fc) 16%, transparent); }
+    .feat .ic svg { width: 22px; height: 22px; }
+    .feat h3 { font-size: 1.02rem; margin-bottom: 6px; }
+    .feat p { color: var(--muted); font-size: 0.93rem; margin: 0; }
+    .feat:nth-child(5n+1) { --c: #a5b4fc; }
+    .feat:nth-child(5n+2) { --c: #67e8f9; }
+    .feat:nth-child(5n+3) { --c: #86efac; }
+    .feat:nth-child(5n+4) { --c: #fcd34d; }
+    .feat:nth-child(5n+5) { --c: #f9a8d4; }
+    /* The last card spans the row, so the grid ends evenly. */
+    .feat.wide { grid-column: 1 / -1; background: linear-gradient(150deg, rgba(129,140,248,0.2), rgba(34,211,238,0.06)), var(--bg-2); border-color: rgba(129,140,248,0.35); }
+    @media (max-width: 560px) {
+      .feat-grid { grid-template-columns: 1fr; gap: 10px; }
+      .feat { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px; }
+      .feat .ic { margin: 0; }
+    }
+
+    /* ---------- Pop up for a bento tile ---------- */
+    .lb { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; }
+    .lb[hidden] { display: none; }
+    .lb-backdrop { position: absolute; inset: 0; background: rgba(5, 5, 9, 0.74); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: lbfade 0.25s ease; }
+    .lb-dialog {
+      position: relative; width: min(860px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+      overflow: auto; overscroll-behavior: contain; padding: 36px;
+      border-radius: 28px; background: var(--bg-2); border: 1px solid rgba(129, 140, 248, 0.3);
+      box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6), 0 0 70px rgba(129, 140, 248, 0.16);
+      animation: lbpop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .lb-dialog:focus { outline: none; }
+    @keyframes lbfade { from { opacity: 0; } }
+    @keyframes lbpop { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+    .lb-x { position: absolute; z-index: 5; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); display: grid; place-items: center; cursor: pointer; transition: background 0.2s; }
+    .lb-x:hover { background: rgba(255, 255, 255, 0.14); }
+    .lb-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .lb-x svg { width: 18px; height: 18px; }
+    .lb-grid { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "clip head" "clip steps"; column-gap: 40px; row-gap: 22px; align-items: center; }
+    .lb-head { grid-area: head; align-self: end; padding-right: 30px; }
+    .lb-head h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); }
+    .lb-head p { color: var(--muted); margin: 12px 0 0; }
+    .lb-clip { grid-area: clip; position: relative; display: grid; place-items: center; padding: 6px; }
+    .lb-clip .iphone { --w: min(230px, calc((100vh - 120px) * 0.461)); box-shadow: 0 0 0 3px #4a4a50, 0 0 0 4px #2b2b30, 0 26px 50px rgba(0, 0, 0, 0.6); }
+    .lb-clip .play-big { width: 60px; height: 60px; margin: -30px 0 0 -30px; }
+    .lb-clip .play-big svg { width: 24px; height: 24px; }
+    .lb-steps { grid-area: steps; align-self: start; list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .lb-steps li { counter-increment: step; display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); font-size: 0.95rem; }
+    .lb-steps li::before { content: counter(step); flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #0b0a10; font-weight: 800; font-size: 0.82rem; }
+    @media (max-width: 700px) {
+      .lb { padding: 10px; }
+      .lb-dialog { padding: 26px 18px 20px; border-radius: 24px; max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); }
+      .lb-grid { grid-template-columns: 1fr; grid-template-areas: "head" "clip" "steps"; row-gap: 20px; }
+      .lb-head { padding-right: 36px; }
+      .lb-clip .iphone { --w: min(200px, 56vw); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tile:hover, .tile:focus-visible, .film-toggle:hover, .play-big:hover { transform: none; }
     }
   </style>
 </head>
@@ -659,203 +521,73 @@
     </div>
   </section>
 
-  <section class="demo3" id="demo3">
+  <section class="film" id="film">
     <div class="wrap">
-      <div class="demo3-grid">
-        <div class="reveal">
-          <p class="eyebrow">See it in action</p>
-          <h2>Snap it.  Find it.  Toss it.</h2>
-          <p class="lead" style="margin-top:14px">Watch the whole thing in about a minute and a half, or tap a step to jump to it.</p>
-          <ol class="steps3" id="steps3">
-          <li data-step="camera"><span class="n">1</span><span><b>Snap it</b><small>Take a photo right into Coin Purse.</small></span><i class="bar"></i></li>
-          <li data-step="paste"><span class="n">2</span><span><b>Or paste it</b><small>One tap on Paste, no prompt.</small></span><i class="bar"></i></li>
-          <li data-step="voice" data-dur="13000"><span class="n">3</span><span><b>Or just say it</b><small>Voice Note turns your words into text.</small></span><i class="bar"></i></li>
-          <li data-step="arrive"><span class="n">4</span><span><b>Now it is a coin</b><small>It opens at the top of your purse.</small></span><i class="bar"></i></li>
-          <li data-step="flip" data-dur="10000"><span class="n">5</span><span><b>Flip through</b><small>Swipe sideways, or search a big purse.</small></span><i class="bar"></i></li>
-          <li data-step="open"><span class="n">6</span><span><b>Both tickets, one coin</b><small>Up to six pictures per coin.</small></span><i class="bar"></i></li>
-          <li data-step="text"><span class="n">7</span><span><b>Tap what you see</b><small>Links, emails and numbers just work.</small></span><i class="bar"></i></li>
-          <li data-step="share"><span class="n">8</span><span><b>Share it</b><small>By text or email, one picture at a time.</small></span><i class="bar"></i></li>
-          <li data-step="toss"><span class="n">9</span><span><b>Toss it</b><small>The trash can is right on the card.</small></span><i class="bar"></i></li>
-          <li data-step="lock"><span class="n">10</span><span><b>Yours alone</b><small>Face ID and a private account.</small></span><i class="bar"></i></li>
-          </ol>
-        </div>
-        <div class="demo3-side">
-        <div class="demo3-phone"><div class="phone-fit" id="phone-fit">
-          <div class="phone-glow" id="phone-glow"></div>
-          <div class="tilt" id="tilt">
-          <div class="phone" aria-label="Coin Purse on an iPhone">
-            <div class="screen">
-              <div class="island"></div>
-              <div class="statusbar"><span>9:41</span><span class="icons">
-                <svg viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="6" rx="1"/><rect x="10" y="2.5" width="3" height="8.5" rx="1"/><rect x="15" y="0" width="3" height="11" rx="1"/></svg>
-                <svg viewBox="0 0 16 11"><path d="M8 2.2c2.3 0 4.4.9 6 2.4l1.2-1.3A10.4 10.4 0 0 0 8 .4 10.4 10.4 0 0 0 .8 3.3L2 4.6a8.6 8.6 0 0 1 6-2.4zm0 3.5c1.4 0 2.6.5 3.6 1.4l1.2-1.3A7 7 0 0 0 8 3.9a7 7 0 0 0-4.8 1.9l1.2 1.3c1-.9 2.2-1.4 3.6-1.4zm0 3.4c.5 0 1 .2 1.3.5L8 11 6.7 9.6c.3-.3.8-.5 1.3-.5z"/></svg>
-                <svg viewBox="0 0 26 12"><rect x="0.5" y="0.5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" stroke-opacity=".5"/><rect x="2" y="2" width="17" height="8" rx="2"/><rect x="23.5" y="4" width="2" height="4" rx="1" fill-opacity=".5"/></svg>
-              </span></div>
-
-              <!-- 1. Photo library clutter -->
-              <div class="scene s-pile" data-scene="photos">
-                <div class="pile-label">Screenshots · Photos · Emails · Texts</div>
-                <div class="pile" id="pile"></div>
-              </div>
-
-              <!-- 2. Camera -->
-              <div class="scene s-camera" data-scene="camera">
-                <div class="viewfinder"></div>
-                <div class="cam-mode">PHOTO</div>
-                <div class="cam-thumb" id="cam-thumb"></div>
-                <div class="shutter" id="shutter"></div>
-                <div class="toast" id="cam-toast">Added to Coin Purse ✓</div>
-                <div class="flash" id="flash"></div>
-              </div>
-
-              <!-- 3. Paste -->
-              <div class="scene s-paste" data-scene="paste">
-                <div class="sheet">
-                  <div class="sheet-bar"><span class="pill">Cancel</span><b>New coin</b><span class="pill save" id="paste-save">Save</span></div>
-                  <div class="sec">Picture</div>
-                  <div class="pic-box">
-                    <div class="ph" id="paste-ph">No picture yet</div>
-                    <div class="pills"><span class="paste">Paste</span><span>Photos</span><span>Camera</span></div>
-                  </div>
-                  <div class="field-group"><div class="field">Title (optional)</div><div class="field">Notes</div></div>
-                  <div class="field-note">Leave the title blank and it is saved as Coin 5.</div>
-                  <div class="sec" style="margin-top:12px">Color</div>
-                  <div class="dots"><i style="background:#6366f1;box-shadow:0 0 0 2px #fff"></i><i style="background:#06b6d4"></i><i style="background:#22c55e"></i><i style="background:#eab308"></i><i style="background:#f97316"></i><i style="background:#ec4899"></i></div>
-                </div>
-              </div>
-
-              <!-- The purse: open coin at the top, the rest listed below -->
-              <div class="scene s-stack" data-scene="stack">
-                <div class="purse-head"><b>Coin Purse</b><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></i><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3.2"/><path d="M6.2 18.6c1.4-2.2 3.4-3.2 5.8-3.2s4.4 1 5.8 3.2"/></svg></i></div>
-                <div class="deck" id="deck"><div class="screen-hint" id="purse-hint"></div></div>
-                <div class="purse-bar"><span id="add-coin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add Coin</span><span id="voice-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Voice Note</span></div>
-              </div>
-
-              <!-- Voice Note: say it, and it becomes a text coin -->
-              <div class="scene s-voice" data-scene="voice" id="voice-scene">
-                <div class="sheet">
-                  <div class="sheet-bar"><span class="pill">Cancel</span><b>Voice note</b><span class="pill save vn-review" id="voice-save" style="display:none">Save</span></div>
-                  <div class="vn-listen">
-                    <div class="vn-live" id="vn-live"></div>
-                    <div class="vn-mic" id="vn-mic"><i></i><i></i></div>
-                    <div class="vn-cap">Listening.  Tap when you are done.</div>
-                  </div>
-                  <div class="vn-review">
-                    <div class="vn-note" id="vn-note"></div>
-                    <div class="vn-keep">Keep talking</div>
-                    <div class="field-group"><div class="field">Title (optional)</div></div>
-                    <div class="field-note">Leave the title blank and it is saved as Coin 5.  You can add a picture later with Edit.</div>
-                    <div class="sec" style="margin-top:12px">Color</div>
-                    <div class="dots"><i style="background:#6366f1"></i><i style="background:#06b6d4;box-shadow:0 0 0 2px #fff"></i><i style="background:#22c55e"></i><i style="background:#eab308"></i><i style="background:#f97316"></i><i style="background:#ec4899"></i></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 6. Open coin -->
-              <div class="scene s-viewer" data-scene="viewer" id="viewer">
-                <div class="dv-bar">
-                  <span class="back">‹</span>
-                  <div class="dv-title"><b>Tailgate tickets</b><span id="dv-count">1 of 2</span></div>
-                  <span style="width:28px"></span>
-                </div>
-                <div class="dv-track">
-                  <div class="dv-slides">
-                    <div class="dv-slide"><img src="/img/ticket-1.jpg" alt="Tailgate pass, ticket 1 of 2" /></div>
-                    <div class="dv-slide"><img src="/img/ticket-2.jpg" alt="Tailgate pass, ticket 2 of 2" /></div>
-                  </div>
-                </div>
-                <div class="dv-thumbs"><i></i><i></i></div>
-              </div>
-
-              <!-- 7. Live Text on a screenshot of a text thread -->
-              <div class="scene s-text" data-scene="text" id="text-scene">
-                <div class="dv-bar">
-                  <span class="back">‹</span>
-                  <div class="dv-title"><b>Coin 6</b><span>Screenshot</span></div>
-                  <span style="width:28px"></span>
-                </div>
-                <div class="shot">
-                  <div class="who"><b>Jordan</b>Today 8:12 AM</div>
-                  <div class="bubble">Here are the details for Saturday!  Tickets: <span class="lt">tailgate.example.com/t/48213</span></div>
-                  <div class="bubble">Questions?  Email <span class="lt">jordan@example.com</span></div>
-                  <div class="bubble">Gate opens at 9.  Call me if you get lost <span class="lt">(719) 555-0142</span></div>
-                  <div class="bubble me">See you there!</div>
-                  <div class="lt-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8M8 12h8M8 15h5"/></svg></div>
-                </div>
-                <div class="dv-thumbs"><i style="background:#fff;border-color:#fff"></i></div>
-                <div class="action" id="action"><div>Open Link <small>Safari</small></div><div>Copy Link <small>⌘</small></div><div>Share… <small>↑</small></div></div>
-              </div>
-
-              <!-- Share one picture -->
-              <div class="scene s-viewer s-share" data-scene="share" id="share-scene">
-                <div class="dv-bar">
-                  <span class="back">‹</span>
-                  <div class="dv-title"><b>Tailgate tickets</b><span>2 of 2</span></div>
-                  <span class="share-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>
-                </div>
-                <div class="dv-track"><div class="dv-slides"><div class="dv-slide"><img src="/img/ticket-2.jpg" alt="Tailgate pass, ticket 2" /></div></div></div>
-                <div class="dv-thumbs"><i style="background-image:url(/img/ticket-1.jpg)"></i><i style="background-image:url(/img/ticket-2.jpg);border-color:#fff"></i></div>
-                <div class="share-sheet" id="share-sheet">
-                  <div class="ss-head"><span class="ss-thumb"></span><span><b>Photo</b><small>JPEG Image</small></span><span class="ss-x">×</span></div>
-                  <div class="ss-people">
-                    <span><i style="background:#f59e0b">S</i>Sam</span><span><i style="background:#10b981">M</i>Mom</span><span><i style="background:#6366f1">A</i>Alex</span><span><i style="background:#ec4899">J</i>Jordan</span>
-                  </div>
-                  <div class="ss-apps">
-                    <span><i class="app msg" id="ss-msg"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.6 3.4 6.1L4.6 21l4.2-2.2c1 .3 2.1.4 3.2.4 5.5 0 10-3.6 10-8S17.5 3 12 3z"/></svg></i>Messages</span>
-                    <span><i class="app mail"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></i>Mail</span>
-                    <span><i class="app air"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M8 16a5.6 5.6 0 1 1 8 0M5 19a9.9 9.9 0 1 1 14 0"/></svg></i>AirDrop</span>
-                    <span><i class="app save"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg></i>Save Image</span>
-                  </div>
-                </div>
-                <div class="compose" id="compose">
-                  <div class="cp-to">To: <b>Sam</b></div>
-                  <div class="cp-thread">
-                    <div class="cp-photo" style="background-image:url(/img/ticket-2.jpg)"></div>
-                    <div class="bubble me">Here is your ticket for Saturday!</div>
-                    <small class="cp-meta">Delivered</small>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 9. Face ID -->
-              <div class="scene s-lock" data-scene="lock" id="lock">
-                <div>
-                  <img src="/img/coin.png?v=2" alt="" />
-                  <b>Coin Purse is locked</b>
-                  <div class="faceid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2"/><g class="scan"><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16c1.5 1 3.5 1 5 0"/></g></svg></div>
-                  <small id="lock-text">Face ID</small>
-                </div>
-              </div>
-
-              <div class="dim" id="dim"></div>
-              <div class="alert" id="alert"><b>Are you sure you want to delete?</b><p>“Parking B3” and all of its pictures will be deleted.</p><div><span>Cancel</span><span>Delete</span></div></div>
-              <div class="finger" id="finger"></div>
-              <div class="home-bar"></div>
-            </div>
+      <div class="reveal">
+        <p class="eyebrow">See it in action</p>
+        <h2>Snap it.  Find it.  Toss it.</h2>
+        <p class="lead">The whole app in one short film.  Tap a chapter to jump to it.</p>
+      </div>
+      <div class="film-stage reveal" id="film-stage">
+        <div class="film-glow" aria-hidden="true"></div>
+        <div class="iphone film-phone">
+          <div class="iphone-screen">
+            <video id="film-video" src="/img/film.mp4" poster="/img/film-poster.jpg" muted playsinline loop preload="metadata" aria-label="A short film of Coin Purse on an iPhone"></video>
+            <div class="iphone-island" aria-hidden="true"></div>
+            <button type="button" class="play-big" id="film-play" aria-label="Play the film" hidden><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></button>
           </div>
-          </div>
-        </div></div>
-        <p class="step-cap" id="step-cap" aria-live="polite"></p>
+          <button type="button" class="film-toggle" id="film-toggle" aria-label="Play the film"></button>
         </div>
       </div>
+      <p class="film-caption" id="film-caption" aria-live="polite"></p>
+      <div class="film-chapters" id="film-chapters" role="group" aria-label="Film chapters"></div>
     </div>
   </section>
-  <section class="bento-sec">
+  <section class="bento-sec" id="uses">
     <div class="wrap">
       <div class="reveal">
         <p class="eyebrow">Small change, everywhere</p>
         <h2>Everything simple has a place.</h2>
+        <p class="lead">Tap any of these to see how it works.</p>
       </div>
       <div class="bento">
-        <div class="tile big pic reveal" style="--img:url(/img/ticket-1.jpg);background-position:center 30%"><div class="cap"><b>Tailgate tickets</b><span>Two passes in one coin.  Swipe between them at the gate.</span></div></div>
-        <div class="tile pic reveal" style="--img:url(/img/parking-b3.jpg)"><div class="cap"><b>Where you parked</b><span>Toss it when you are home.</span></div></div>
-        <div class="tile pic reveal" style="--img:url(/img/gift-card-coffee.jpg)"><div class="cap"><b>Gift cards</b><span>Let them scan the barcode.</span></div></div>
-        <div class="tile pic reveal" style="--img:url(/img/grocery-note.jpg)"><div class="cap"><b>Grocery lists</b><span>Snap it and go shopping.</span></div></div>
-        <div class="tile pic reveal" style="--img:url(/img/conference-badge.jpg);background-position:top"><div class="cap"><b>Conference badges</b><span>No digging through email.</span></div></div>
-        <div class="tile wide text accent reveal"><div class="k">👆</div><b>Tap what you see</b><span>Links like <i class="hl">tailgate.example.com</i>, emails and phone numbers in your pictures are tappable.</span></div>
-        <div class="tile text reveal"><div class="k">🔒</div><b>Face ID</b><span>Private to your account.</span></div>
-        <div class="tile text reveal"><div class="k">🎙️</div><b>Voice notes</b><span>Say it, and it is saved as text.</span></div>
+        <button type="button" class="tile big pic reveal" data-use="tickets" aria-haspopup="dialog" style="--img:url(/img/ticket-1.jpg);background-position:center 30%"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="cap"><b>Tailgate tickets</b><span class="d">Two passes in one coin.  Swipe between them at the gate.</span></span></button>
+        <button type="button" class="tile pic reveal" data-use="parking" aria-haspopup="dialog" style="--img:url(/img/parking-b3.jpg)"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="cap"><b>Where you parked</b><span class="d">Pin it, then walk right back.</span></span></button>
+        <button type="button" class="tile pic reveal" data-use="giftcard" aria-haspopup="dialog" style="--img:url(/img/gift-card-coffee.jpg)"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="cap"><b>Gift cards</b><span class="d">Let them scan the barcode.</span></span></button>
+        <button type="button" class="tile pic reveal" data-use="grocery" aria-haspopup="dialog" style="--img:url(/img/grocery-note.jpg)"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="cap"><b>Grocery lists</b><span class="d">Snap it or just say it.</span></span></button>
+        <button type="button" class="tile pic reveal" data-use="badge" aria-haspopup="dialog" style="--img:url(/img/conference-badge.jpg);background-position:top"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="cap"><b>Conference badges</b><span class="d">No digging through email.</span></span></button>
+        <button type="button" class="tile wide text accent reveal" data-use="taptext" aria-haspopup="dialog"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="k" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 13.5V4.6a1.6 1.6 0 0 1 3.2 0V11"/><path d="M12.2 10.6a1.6 1.6 0 0 1 3.2 0V12"/><path d="M15.4 11.2a1.6 1.6 0 0 1 3.2 0v3.4A6.4 6.4 0 0 1 12.2 21h-.7a6 6 0 0 1-4.7-2.3l-2.9-3.6a1.6 1.6 0 0 1 2.4-2.1L9 15.5"/><path d="M5.6 6.8a4.6 4.6 0 0 1 2-3.4M15.6 6.8a4.6 4.6 0 0 0-2-3.4"/></svg></span><b>Tap what you see</b><span class="d">Links like <i class="hl">tailgate.example.com</i>, emails and phone numbers in your pictures are tappable.</span></button>
+        <button type="button" class="tile text reveal" data-use="faceid" aria-haspopup="dialog"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="k" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg></span><b>Face ID</b><span class="d">Private to your account.</span></button>
+        <button type="button" class="tile text reveal" data-use="voice" aria-haspopup="dialog"><i class="watch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></i><span class="k" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></svg></span><b>Voice notes</b><span class="d">Say it, and it is saved as text.</span></button>
       </div>
+    </div>
+  </section>
+  <section class="features" id="features">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Every option</p>
+        <h2>Everything it does.</h2>
+        <p class="lead">A small app with a lot of handy shortcuts.  Here is all of it.</p>
+      </div>
+      <ul class="feat-grid">
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="2.5"/><path d="M5.5 5.5h13M8 2.5h8"/></svg></span><div><h3>A purse like Wallet</h3><p>Your coins sit in a stack of colored cards.  Tap one to open it, then swipe sideways to flip through the rest.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M21 15.5l-5-5-8.5 8.5"/></svg></span><div><h3>Picture</h3><p>Paste in one tap with no prompt, pick from Photos, or use the Camera.  A coin holds up to six pictures.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg></span><div><h3>Voice notes</h3><p>Say a quick note and it is saved as text.  It is free, and the audio is never saved.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span><div><h3>Pin your spot</h3><p>Save where you are on a live map with an accuracy ring.  Tap the map for walking directions in Apple Maps.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span><div><h3>Bright for scanners</h3><p>Open a picture full size, and if it has a QR code or barcode the screen turns all the way up.  It goes back when you leave.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg></span><div><h3>Tappable links</h3><p>Links, emails and phone numbers in your pictures and notes open with a tap.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span><div><h3>Share from any app</h3><p>Share from Photos, Messages, Safari or Mail.  Make a new coin, or add to a coin you already have.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="9" height="9" rx="2.5"/><path d="M15.5 7.5H21M3 16h18M3 20h12"/></svg></span><div><h3>Quick actions</h3><p>Touch and hold the app icon for Pin My Spot, Voice Note or Add Picture.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h1.5M7 8v8M11 4.5v15M15 8.5v7M19 10.5v3"/></svg></span><div><h3>Siri, Shortcuts and the Action Button</h3><p>Ask Siri to pin your spot, start a voice note, add a picture or show a coin, like “Pin my spot in Coin Purse.”  The same actions work in Shortcuts and on the Action Button.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><circle cx="11.5" cy="11" r="2.8"/><path d="M13.6 13.1l2 2"/></svg></span><div><h3>iPhone Search</h3><p>Type a coin’s title in iPhone Search to open it.  Only titles show up there, never your notes.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><div><h3>Search and Rearrange</h3><p>Search a big purse by title or note.  Use Rearrange to put your coins in any order.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></span><div><h3>Trash on the card</h3><p>Every card has its own trash can.  Coin Purse asks before anything is tossed.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg></span><div><h3>Face ID lock</h3><p>Turn on Lock with Face ID, and it asks again after a minute away.  You sign in with a code sent to your email.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M8.5 16.3a5 5 0 0 1 7 0M5 12.8a10 10 0 0 1 4.2-2.4M19 12.8a10 10 0 0 0-2.4-1.6M2 9.2a15 15 0 0 1 3.4-2.3M22 9.2A15 15 0 0 0 10.6 5.1"/><circle cx="12" cy="19.6" r="0.9" fill="currentColor" stroke="none"/></svg></span><div><h3>Works offline</h3><p>Your saved purse and pictures open with no signal, deep in a parking garage or a packed stadium.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></span><div><h3>Light and dark</h3><p>Coin Purse follows your iPhone, in light mode or dark mode.</p></div></li>
+        <li class="feat reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v4.5M12 14.5l-3 6.5M12 14.5l3 6.5"/></svg></span><div><h3>Larger text and VoiceOver</h3><p>Supports larger text sizes and VoiceOver, so everyone can find their things.</p></div></li>
+        <li class="feat wide reveal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span><div><h3>Free and private</h3><p>Free, with no ads, in your own private account.  Please do not store credit cards, IDs or passwords in it.</p></div></li>
+      </ul>
     </div>
   </section>
   <section class="cta" id="cta">
@@ -874,381 +606,50 @@
       <span><a href="/privacy">Privacy Policy</a> · <a href="/support">Support</a> · <a href="#top" class="js-top">Back to top</a></span>
     </div>
   </footer>
+  <!-- Pop up for a bento tile.  The script fills in the title, blurb, clip and steps. -->
+  <div class="lb" id="lb" hidden>
+    <div class="lb-backdrop" data-close></div>
+    <div class="lb-dialog" id="lb-dialog" role="dialog" aria-modal="true" aria-labelledby="lb-title" aria-describedby="lb-blurb" tabindex="-1">
+      <button type="button" class="lb-x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="lb-grid">
+        <div class="lb-head">
+          <p class="eyebrow">How it works</p>
+          <h2 id="lb-title"></h2>
+          <p id="lb-blurb"></p>
+        </div>
+        <div class="lb-clip">
+          <div class="iphone">
+            <div class="iphone-screen">
+              <video id="lb-video" muted loop playsinline autoplay preload="none"></video>
+              <div class="iphone-island" aria-hidden="true"></div>
+              <button type="button" class="play-big" id="lb-play" aria-label="Play the clip" hidden><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <ol class="lb-steps" id="lb-steps" aria-label="How to do it"></ol>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Film chapters: start is in seconds from the beginning of /img/film.mp4.
+    // Each chapter runs until the next one starts; the last runs to the end.
+    const FILM_CHAPTERS = [
+      { id: 'purse',   label: 'Your purse',         start: 0,  caption: 'Your coins sit in a stack of colored cards, just like Apple Wallet.' },
+      { id: 'snap',    label: 'Snap or paste',      start: 3,  caption: 'Tap Picture to paste a screenshot in one tap, pick from Photos, or snap one with the camera.' },
+      { id: 'say',     label: 'Say it',             start: 12, caption: 'Tap Voice, say a quick note, and your words are saved as text.' },
+      { id: 'pin',     label: 'Pin your spot',      start: 20, caption: 'Tap Pin to save exactly where you are on a live map.' },
+      { id: 'open',    label: 'Open it',            start: 28, caption: 'Tap a card and it slides out of the stack, ready to show.' },
+      { id: 'flip',    label: 'Flip through',       start: 34, caption: 'Swipe sideways to flip to the next coin, like passes in Wallet.' },
+      { id: 'tickets', label: 'Both tickets',       start: 40, caption: 'One coin holds both tickets, and the screen brightens so the gate can scan the QR code.' },
+      { id: 'find',    label: 'Find it',            start: 48, caption: 'Search a big purse by title or note and jump right to the coin you need.' },
+      { id: 'share',   label: 'Share from any app', start: 54, caption: 'Share from Photos, Messages, Safari or Mail into a new coin or one you already have.' },
+      { id: 'toss',    label: 'Toss it',            start: 64, caption: 'When you are done, tap the trash can on the card to toss it.' },
+    ];
+  </script>
   <script>
     (function () {
       const $ = (s) => document.querySelector(s);
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      // ---------- Fit the 330 x 716 iPhone into the sticky area ----------
-      // The box takes the scaled size, so the layout matches what you see.
-      const fit = $('#phone-fit');
-      const phone = fit.querySelector('.phone');
-      function sizePhone() {
-        const box = fit.parentElement.getBoundingClientRect();
-        const pad = innerWidth <= 860 ? 16 : 24;
-        const s = Math.min(1.15, (box.height - pad) / 716, (box.width - 20) / 330);
-        fit.style.width = 330 * s + 'px';
-        fit.style.height = 716 * s + 'px';
-        phone.style.transformOrigin = '0 0';
-        phone.style.transform = 'scale(' + s + ')';
-      }
-      sizePhone();
-      addEventListener('resize', sizePhone);
-
-      // ---------- The pile: every little thing, dropped in a heap ----------
-      const pile = $('#pile');
-      const heap = [
-        ['/img/ticket-1.jpg', 6, 4, -9], ['/img/parking-b3.jpg', 44, 0, 8], ['/img/gift-card-coffee.jpg', 2, 36, 6],
-        ['/img/conference-badge.jpg', 46, 30, -7], ['/img/grocery-note.jpg', 10, 62, 10], ['/img/return-label.jpg', 44, 60, -5],
-        ['/img/ticket-2.jpg', 26, 22, 3],
-      ].map(([src, x, y, r]) => {
-        const img = document.createElement('img');
-        img.src = src; img.alt = '';
-        img.style.left = x + '%'; img.style.top = y + '%';
-        img.dataset.rest = 'rotate(' + r + 'deg)';
-        img.style.transform = 'translateY(-140%) rotate(' + (r * 3) + 'deg)';
-        img.style.opacity = '0';
-        pile.appendChild(img);
-        return img;
-      });
-
-      // ---------- Purse stack (each card has its trash can, like the app) ----------
-      const TRASH = '<span class="mini-trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></span>';
-      const VOICE_TEXT = 'Remind me to email Jim back about the patio quote.';
-      const LINES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 11h16M4 16h10"/></svg>';
-      const ring = [
-        { t: 'Return label', s: 'Return by Oct 24', c: '#6366f1', photo: '/img/return-label.jpg', pos: 'top' },
-        { t: 'Coffee gift card', s: 'Good Day Coffee · $25', c: '#f97316', photo: '/img/gift-card-coffee.jpg' },
-        { t: 'Parking B3', s: 'Shuttle <u>(719) 555-0142</u>', c: '#ec4899', photo: '/img/parking-b3.jpg' },
-        { t: 'Coin 4', s: 'Groceries', c: '#eab308', photo: '/img/grocery-note.jpg' },
-        { t: 'Tailgate tickets', s: 'Saturday · 2 passes', c: '#22c55e', n: 2, photo: '/img/ticket-1.jpg', pos: 'top' },
-        { t: 'Coin 5', s: VOICE_TEXT, c: '#06b6d4', note: VOICE_TEXT },
-      ];
-      const RETURN = 0, GIFT = 1, PARKING = 2, GROCERY = 3, TAILGATE = 4, VOICE = 5;
-      const deck = $('#deck');
-      const cards = ring.map((c) => {
-        const el = document.createElement('div');
-        el.className = 'mini';
-        el.style.setProperty('--c', c.c);
-        // Fixed example content written in this file (no user input).
-        const thumb = c.note
-          ? '<div class="mini-thumb lines">' + LINES + '</div>'
-          : '<div class="mini-thumb" style="background-image:url(' + c.photo + ')">' + (c.n ? '<span class="mini-count">' + c.n + '</span>' : '') + '</div>';
-        const body = c.note
-          ? '<div class="mini-body note">' + c.note + '</div>'
-          : '<div class="mini-body"><img src="' + c.photo + '" alt="" style="object-position:' + (c.pos || 'center') + '" /></div>';
-        el.innerHTML = '<div class="mini-head">' + thumb + '<div style="min-width:0"><div class="mini-title">' + c.t +
-          '</div><div class="mini-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + c.s + '</div></div>' + TRASH + '</div>' + body;
-        deck.appendChild(el);
-        return el;
-      });
-      // Like the app: the open coin at the top, every other coin listed below
-      // it in saved order, and "2 of 5" under the open coin.
-      const FRONT_H = 370, STRIP = 62, LIST_TOP = 396;
-      const hint = $('#purse-hint');
-      let order = [], front = 0;
-      function layout() {
-        cards.forEach((el, i) => { el.style.display = order.includes(i) ? '' : 'none'; });
-        const f = cards[front];
-        f.style.transform = 'translate(0, 0)';
-        f.style.zIndex = '50';
-        f.style.height = FRONT_H + 'px';
-        order.filter((i) => i !== front).forEach((idx, slot) => {
-          const el = cards[idx];
-          el.style.transform = 'translate(0, ' + (LIST_TOP + slot * STRIP) + 'px)';
-          el.style.zIndex = String(slot + 1);
-          el.style.height = '56px';
-        });
-        hint.textContent = (order.indexOf(front) + 1) + ' of ' + order.length + ' · Swipe sideways to flip';
-      }
-      function setOrder(list, open) { order = list.slice(); front = open === undefined ? list[0] : open; layout(); }
-      function bringForward(id) { front = id; layout(); }
-
-      // ---------- Scene runner ----------
-      const finger = $('#finger');
-      const put = (x, y) => { finger.style.left = x + '%'; finger.style.top = y + '%'; };
-      let run = 0;
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      async function wait(ms, my) { await sleep(ms); if (my !== run) throw 'stop'; }
-      async function tap(my) { finger.classList.add('press'); await wait(200, my); finger.classList.remove('press'); }
-      function show(scene) {
-        document.querySelectorAll('.scene').forEach((el) => el.classList.toggle('on', el.dataset.scene === scene));
-      }
-      function clearOverlays() {
-        finger.classList.remove('show', 'press');
-        $('#alert').classList.remove('show'); $('#dim').classList.remove('show');
-        $('#action').classList.remove('show');
-        $('#share-sheet').classList.remove('show'); $('#compose').classList.remove('show');
-        // A step can be cut short mid-swipe; undo anything it left half done.
-        cards.forEach((el) => { el.classList.remove('gone'); el.style.transition = ''; el.style.opacity = ''; });
-        deck.classList.remove('reset');
-      }
-      // Swipe sideways on the open coin: it slides off and the next slides in.
-      async function swipeSide(to, my) {
-        const old = cards[front], next = cards[to];
-        put(80, 34); finger.classList.add('show'); await wait(500, my);
-        finger.classList.add('press'); await wait(200, my);
-        old.style.transition = 'transform 0.5s cubic-bezier(0.45, 0, 0.25, 1)';
-        old.style.transform = 'translate(-118%, 0)';
-        put(20, 34);
-        next.style.transition = 'none'; next.style.transform = 'translate(118%, 0)';
-        next.style.height = FRONT_H + 'px'; next.style.zIndex = '55';
-        void next.offsetWidth;
-        next.style.transition = 'transform 0.5s cubic-bezier(0.45, 0, 0.25, 1)';
-        next.style.transform = 'translate(0, 0)';
-        await wait(520, my);
-        finger.classList.remove('press', 'show');
-        // The old coin drops into the list in its place.
-        old.style.transition = 'none'; old.style.opacity = '0';
-        next.style.transition = '';
-        bringForward(to);
-        void old.offsetWidth;
-        old.style.transition = ''; old.style.opacity = '';
-        await wait(1700, my);
-      }
-      const STACK = [TAILGATE, GIFT, RETURN, PARKING, GROCERY];
-
-      const scenes = {
-        async photos(my) {
-          show('photos');
-          for (;;) {
-            heap.forEach((img) => { img.style.transition = 'none'; img.style.opacity = '0'; img.style.transform = 'translateY(-140%) rotate(20deg)'; });
-            void pile.offsetWidth;
-            heap.forEach((img) => { img.style.transition = ''; });
-            for (const img of heap) {
-              await wait(320, my);
-              img.style.opacity = '1'; img.style.transform = img.dataset.rest;
-            }
-            await wait(4200, my);
-          }
-        },
-        async camera(my) {
-          show('camera');
-          const shutter = $('#shutter'), flash = $('#flash'), toast = $('#cam-toast'), thumb = $('#cam-thumb');
-          for (;;) {
-            toast.classList.remove('show'); thumb.style.backgroundImage = '';
-            await wait(1600, my);
-            put(50, 88); finger.classList.add('show'); await wait(700, my);
-            finger.classList.add('press'); shutter.classList.add('press');
-            flash.classList.add('go'); await wait(80, my); flash.classList.remove('go');
-            await wait(150, my);
-            finger.classList.remove('press', 'show'); shutter.classList.remove('press');
-            thumb.style.backgroundImage = 'url(/img/parking-b3.jpg)';
-            toast.classList.add('show'); await wait(2800, my);
-          }
-        },
-        async paste(my) {
-          show('paste');
-          const ph = $('#paste-ph'), save = $('#paste-save');
-          for (;;) {
-            ph.classList.remove('filled'); ph.textContent = 'No picture yet'; save.classList.remove('ready');
-            await wait(1200, my);
-            put(32, 64); finger.classList.add('show'); await wait(800, my); await tap(my);
-            ph.classList.add('filled'); ph.textContent = ''; await wait(1000, my);
-            put(85, 11); await wait(900, my); save.classList.add('ready'); await tap(my);
-            finger.classList.remove('show'); await wait(2400, my);
-          }
-        },
-        async arrive(my) {
-          show('stack');
-          for (;;) {
-            // Quietly reset (faded out), then the new tailgate coin drops in at the front.
-            deck.classList.add('reset'); await wait(350, my);
-            cards.forEach((el) => { el.style.transition = 'none'; });
-            setOrder([GIFT, RETURN, PARKING, GROCERY]);
-            void deck.offsetWidth;
-            cards.forEach((el) => { el.style.transition = ''; });
-            deck.classList.remove('reset');
-            await wait(900, my);
-            const el = cards[TAILGATE];
-            el.style.display = ''; el.style.transition = 'none';
-            el.style.transform = 'translate(0, -480px)'; el.style.height = FRONT_H + 'px'; el.style.zIndex = '60';
-            await wait(60, my); el.style.transition = '';
-            setOrder(STACK);
-            await wait(3600, my);
-          }
-        },
-        async flip(my) {
-          show('stack');
-          setOrder(STACK);
-          await wait(1000, my);
-          for (;;) {
-            for (const id of [GIFT, RETURN, PARKING, GROCERY]) await swipeSide(id, my);
-            // Back to the first coin, quietly.
-            deck.classList.add('reset'); await wait(350, my);
-            setOrder(STACK); deck.classList.remove('reset'); await wait(1000, my);
-          }
-        },
-        async open(my) {
-          const viewer = $('#viewer'), count = $('#dv-count');
-          setOrder(STACK);
-          const badge = cards[TAILGATE].querySelector('.mini-count');
-          for (;;) {
-            show('stack'); viewer.classList.remove('second'); count.textContent = '1 of 2';
-            badge.classList.remove('pulse'); void badge.offsetWidth; badge.classList.add('pulse');
-            await wait(1600, my);
-            put(46, 40); finger.classList.add('show'); await wait(800, my); await tap(my);
-            show('viewer'); finger.classList.remove('show'); await wait(2200, my);
-            put(80, 50); finger.classList.add('show'); await wait(700, my);
-            finger.classList.add('press'); put(16, 50); viewer.classList.add('second'); count.textContent = '2 of 2';
-            await wait(800, my); finger.classList.remove('press', 'show'); await wait(2600, my);
-          }
-        },
-        async text(my) {
-          const scene = $('#text-scene'), action = $('#action');
-          show('text');
-          for (;;) {
-            scene.classList.remove('live'); action.classList.remove('show');
-            await wait(1300, my);
-            scene.classList.add('live'); await wait(1600, my);
-            put(52, 30); finger.classList.add('show'); await wait(800, my); await tap(my);
-            action.classList.add('show'); await wait(2600, my);
-            action.classList.remove('show'); finger.classList.remove('show'); await wait(1200, my);
-          }
-        },
-        async share(my) {
-          show('share');
-          const btn = document.querySelector('#share-scene .share-btn'), sheet = $('#share-sheet'), compose = $('#compose'), msg = $('#ss-msg');
-          for (;;) {
-            sheet.classList.remove('show'); compose.classList.remove('show');
-            await wait(1400, my);
-            put(88, 9); finger.classList.add('show'); await wait(800, my);
-            finger.classList.add('press'); btn.classList.add('press'); await wait(200, my);
-            finger.classList.remove('press'); btn.classList.remove('press');
-            sheet.classList.add('show'); await wait(1500, my);
-            put(16, 84); await wait(900, my);
-            finger.classList.add('press'); msg.classList.add('press'); await wait(200, my);
-            finger.classList.remove('press', 'show'); msg.classList.remove('press');
-            sheet.classList.remove('show'); compose.classList.add('show');
-            await wait(3400, my);
-          }
-        },
-        async toss(my) {
-          show('stack');
-          const alert = $('#alert'), dim = $('#dim');
-          for (;;) {
-            cards[PARKING].classList.remove('gone');
-            setOrder([PARKING, TAILGATE, GIFT, RETURN, GROCERY]);
-            await wait(1600, my);
-            // The trash can on the open coin.
-            put(88, 16); finger.classList.add('show'); await wait(800, my); await tap(my);
-            dim.classList.add('show'); alert.classList.add('show'); await wait(1400, my);
-            put(73, 52); await wait(800, my); await tap(my);
-            alert.classList.remove('show'); dim.classList.remove('show'); finger.classList.remove('show');
-            cards[PARKING].classList.add('gone'); await wait(600, my);
-            setOrder([TAILGATE, GIFT, RETURN, GROCERY]);
-            await wait(2800, my);
-          }
-        },
-        async voice(my) {
-          const scene = $('#voice-scene'), live = $('#vn-live'), note = $('#vn-note'), mic = $('#vn-mic'), save = $('#voice-save'), btn = $('#voice-btn');
-          for (;;) {
-            // Tap Voice Note on the purse.
-            show('stack'); setOrder(STACK);
-            await wait(900, my);
-            put(73, 94); finger.classList.add('show'); await wait(700, my);
-            finger.classList.add('press'); btn.classList.add('press'); await wait(200, my);
-            finger.classList.remove('press', 'show'); btn.classList.remove('press');
-            scene.classList.remove('review'); save.style.display = 'none';
-            live.innerHTML = '<span class="hint">Start talking…</span>';
-            show('voice'); await wait(900, my);
-            // The words appear as you say them; the rings move with your voice.
-            const words = VOICE_TEXT.split(' ');
-            live.textContent = '';
-            for (const w of words) {
-              live.textContent += (live.textContent ? ' ' : '') + w;
-              mic.style.setProperty('--lv', (1.1 + Math.random() * 0.35).toFixed(2));
-              await wait(240 + Math.random() * 120, my);
-            }
-            mic.style.setProperty('--lv', '1');
-            await wait(700, my);
-            put(50, 82); finger.classList.add('show'); await wait(700, my); await tap(my);
-            note.textContent = VOICE_TEXT; scene.classList.add('review'); save.style.display = ''; save.classList.add('ready');
-            await wait(1600, my);
-            put(85, 11); await wait(700, my); await tap(my);
-            finger.classList.remove('show');
-            // Saved: a text coin opens at the top of the purse.
-            show('stack');
-            const el = cards[VOICE];
-            el.style.display = ''; el.style.transition = 'none';
-            el.style.transform = 'translate(0, -480px)'; el.style.height = FRONT_H + 'px'; el.style.zIndex = '60';
-            await wait(60, my); el.style.transition = '';
-            setOrder([VOICE, ...STACK]);
-            await wait(3400, my);
-          }
-        },
-        async lock(my) {
-          const lock = $('#lock'), label = $('#lock-text');
-          for (;;) {
-            show('lock'); lock.classList.remove('ok'); label.textContent = 'Face ID';
-            await wait(1800, my);
-            lock.classList.add('ok'); label.textContent = 'Unlocked'; await wait(900, my);
-            show('stack'); setOrder(STACK); await wait(2800, my);
-          }
-        },
-      };
-
-      async function play(step) {
-        const my = ++run;
-        clearOverlays();
-        try { await scenes[step](my); } catch (e) { if (e !== 'stop') throw e; }
-      }
-
-      // ---------- Three story acts share one iPhone; scrolling inside an act plays its chapters ----------
-      const acts = [...document.querySelectorAll('.story')].map((el) => ({
-        el,
-        holder: el.querySelector('.story-phone'),
-        chapters: [...el.querySelectorAll('.chapter')],
-        bars: [...el.querySelectorAll('.progress b')],
-      }));
-      const PER = 0.4;    // viewport heights of scrolling per chapter (short: a flick moves on)
-      acts.forEach((a) => { a.el.style.height = 'calc(' + (a.chapters.length * PER * 100) + 'vh + 100vh)'; });
-      const still = { photos: 'photos', camera: 'camera', paste: 'paste', voice: 'voice', arrive: 'stack', flip: 'stack', open: 'viewer', text: 'text', share: 'share', toss: 'stack', lock: 'lock' };
-      const glow = { photos: '#64748b', camera: '#facc15', paste: '#818cf8', voice: '#06b6d4', arrive: '#22c55e', flip: '#06b6d4', open: '#22c55e', text: '#0a84ff', share: '#22c55e', toss: '#ef4444', lock: '#a78bfa' };
-      let currentAct = null, current = -1;
-      function activate(act, i) {
-        current = i;
-        const ch = act.chapters[i];
-        act.chapters.forEach((c, n) => { c.classList.toggle('active', n === i); c.classList.toggle('past', n < i); });
-        $('#phone-glow').style.setProperty('--glow', glow[ch.dataset.step]);
-        if (reduce) {
-          setOrder(STACK); show(still[ch.dataset.step]);
-          $('#text-scene').classList.add('live'); $('#paste-ph').classList.add('filled');
-          heap.forEach((img) => { img.style.opacity = '1'; img.style.transform = img.dataset.rest; });
-          return;
-        }
-        play(ch.dataset.step);
-      }
-      function onScroll() {
-        // The act that fills the most of the screen owns the phone, so an act
-        // scrolls in already showing its phone and first headline.
-        let act = null, best = 0;
-        acts.forEach((a) => {
-          const r = a.el.getBoundingClientRect();
-          const seen = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
-          if (seen > best) { best = seen; act = a; }
-        });
-        if (act !== currentAct) {
-          currentAct = act; current = -1;
-          if (!act) { run++; return; }
-          if (fit.parentElement !== act.holder) { act.holder.appendChild(fit); sizePhone(); }
-        }
-        if (!act) return;
-        const r = act.el.getBoundingClientRect();
-        const span = act.el.offsetHeight - innerHeight;
-        const p = Math.min(0.9999, Math.max(0, -r.top / span));
-        const pos = p * act.chapters.length;
-        act.bars.forEach((b, i) => { b.style.width = Math.min(1, Math.max(0, pos - i)) * 100 + '%'; });
-        const i = Math.floor(pos);
-        if (i !== current) activate(act, i);
-      }
-      // Every act starts with its first headline showing.
-      acts.forEach((a) => a.chapters[0].classList.add('active'));
-      addEventListener('scroll', onScroll, { passive: true });
-      addEventListener('resize', onScroll);
-      setOrder(STACK);
-      show('photos');
-      onScroll();
 
       // ---------- Hero: words, drifting coins, 3D coin that flips as you scroll ----------
       document.querySelectorAll('#headline .split').forEach((el, line) => {
@@ -1293,11 +694,6 @@
           $('#coin-shadow').style.opacity = String(1 - p);
           requestAnimationFrame(frame);
         })();
-        // The pinned iPhone leans gently toward the mouse.
-        const tilt = $('#tilt');
-        addEventListener('pointermove', () => {
-          if (innerWidth > 860) tilt.style.transform = 'rotateY(' + (mx * 6) + 'deg) rotateX(' + (-my * 4) + 'deg)';
-        });
       }
 
       // ---------- Coin shower when the last section arrives ----------
@@ -1327,9 +723,6 @@
         scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
       }));
 
-      // Stagger the tiles in the uses grid.
-      document.querySelectorAll('.uses-grid .use').forEach((el, i) => { el.style.transitionDelay = (i % 3) * 0.08 + Math.floor(i / 3) * 0.06 + 's'; });
-
       // ---------- Fade the static sections in ----------
       const fade = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); fade.unobserve(e.target); } });
@@ -1340,35 +733,198 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
       }
-      window.__cp = { play, setOrder, show, STACK, glow, still, reduce };
-    })();
-  </script>
-  <script>
-    // Plays every step on its own, like a short video, while the demo is on screen.
-    (function () {
-      const items = [...document.querySelectorAll('#steps3 li')];
-      // Most steps get 7 seconds; a step can ask for more with data-dur.
-      const durOf = (li) => Number(li.dataset.dur) || 7000;
-      let i = 0, timer = null, visible = false;
-      function go(n) {
-        i = (n + items.length) % items.length;
-        items.forEach((li, k) => { li.classList.remove('on'); void li.offsetWidth; li.classList.toggle('on', k === i); li.style.setProperty('--dur', durOf(li) + 'ms'); });
-        window.__cp.setOrder(window.__cp.STACK);
-        document.getElementById('step-cap').innerHTML = '<span>' + (i + 1) + ' of ' + items.length + '</span>' + items[i].querySelector('b').textContent;
-        document.getElementById('phone-glow').style.setProperty('--glow', window.__cp.glow[items[i].dataset.step]);
-        // With reduced motion, show each step as a still picture instead of an animation.
-        if (window.__cp.reduce) window.__cp.show(window.__cp.still[items[i].dataset.step]);
-        else window.__cp.play(items[i].dataset.step);
-        clearTimeout(timer);
-        timer = setTimeout(() => { if (visible) go(i + 1); }, durOf(items[i]));
+
+      // ---------- Film: plays while on screen, with a chapter bar that fills as it plays ----------
+      const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.4-7.2a.8.8 0 0 0 0-1.4L8.2 4.1A.8.8 0 0 0 7 4.8z"/></svg>';
+      const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2"/></svg>';
+      const film = $('#film-video'), filmPlay = $('#film-play'), filmToggle = $('#film-toggle');
+      const caption = $('#film-caption'), chapterBar = $('#film-chapters');
+      const chapters = (typeof FILM_CHAPTERS !== 'undefined' ? FILM_CHAPTERS : []).slice().sort((a, b) => a.start - b.start);
+      chapterBar.style.setProperty('--n', Math.max(1, chapters.length));
+      const segs = chapters.map((c, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'seg';
+        b.setAttribute('aria-label', 'Chapter ' + (i + 1) + ' of ' + chapters.length + ': ' + c.label);
+        b.innerHTML = '<span class="track"><i class="fill"></i></span><span class="lbl" aria-hidden="true"></span>';
+        b.querySelector('.lbl').textContent = c.label;
+        b.addEventListener('click', () => seekTo(i));
+        chapterBar.appendChild(b);
+        return b;
+      });
+      const fills = segs.map((b) => b.querySelector('.fill'));
+      let chapterNow = -1, filmInView = false, userPaused = false, autoplayRefused = false, pendingSeek = null, raf = 0;
+
+      // The last chapter runs to the end of the film (or a guess until the length is known).
+      const endOf = (i) => i < chapters.length - 1 ? chapters[i + 1].start
+        : (isFinite(film.duration) && film.duration > chapters[i].start ? film.duration : chapters[i].start + 8);
+      function chapterAt(t) {
+        let n = 0;
+        chapters.forEach((c, k) => { if (t >= c.start - 0.05) n = k; });
+        return n;
       }
-      items.forEach((li, k) => li.addEventListener('click', () => go(k)));
+      function paint() {
+        if (!chapters.length) return;
+        const t = film.currentTime || 0, now = chapterAt(t);
+        fills.forEach((f, k) => {
+          const done = k < now ? 1 : k > now ? 0 : (t - chapters[k].start) / Math.max(0.1, endOf(k) - chapters[k].start);
+          f.style.transform = 'scaleX(' + Math.min(1, Math.max(0, done)) + ')';
+        });
+        if (now !== chapterNow) {
+          chapterNow = now;
+          segs.forEach((b, k) => {
+            b.classList.toggle('on', k === now);
+            if (k === now) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+          });
+          caption.innerHTML = '<small></small>';
+          caption.firstChild.textContent = (now + 1) + ' of ' + chapters.length + ' · ' + chapters[now].label;
+          caption.appendChild(document.createTextNode(chapters[now].caption));
+        }
+      }
+      // Smooth fills while playing; timeupdate covers seeking while paused.
+      function tick() { paint(); if (!film.paused) raf = requestAnimationFrame(tick); }
+      function showFilmState() {
+        const playing = !film.paused;
+        filmToggle.innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
+        filmToggle.setAttribute('aria-label', playing ? 'Pause the film' : 'Play the film');
+        // The big button shows when the film waits for a tap: reduced motion, a refused autoplay, or a pause you chose.
+        filmPlay.hidden = playing || !(reduce || autoplayRefused || userPaused);
+      }
+      function playFilm() {
+        const p = film.play();
+        if (p && p.catch) p.catch(() => { autoplayRefused = true; showFilmState(); });
+      }
+      function seekTo(i) {
+        const t = chapters[i].start;
+        if (film.readyState >= 1) film.currentTime = t; else pendingSeek = t;
+        paint();
+        userPaused = false;
+        playFilm();
+      }
+      film.addEventListener('loadedmetadata', () => {
+        if (pendingSeek !== null) { film.currentTime = pendingSeek; pendingSeek = null; }
+        paint();
+      });
+      film.addEventListener('play', () => { autoplayRefused = false; showFilmState(); cancelAnimationFrame(raf); tick(); });
+      film.addEventListener('pause', showFilmState);
+      film.addEventListener('timeupdate', paint);
+      film.addEventListener('seeked', paint);
+      filmToggle.addEventListener('click', () => {
+        if (film.paused) { userPaused = false; playFilm(); } else { userPaused = true; film.pause(); }
+      });
+      filmPlay.addEventListener('click', () => { userPaused = false; playFilm(); });
+      film.addEventListener('click', () => filmToggle.click());
+      // Autoplay only while the phone is on screen, and never with reduced motion.
       new IntersectionObserver((entries) => {
-        const was = visible;
-        visible = entries[0].isIntersecting;
-        if (visible && !was) go(i);
-        if (!visible) clearTimeout(timer);
-      }, { threshold: 0.3 }).observe(document.getElementById('demo3'));
+        filmInView = entries[0].isIntersecting;
+        if (filmInView) { if (!reduce && !userPaused && $('#lb').hidden) playFilm(); }
+        else if (!film.paused) film.pause();
+      }, { threshold: 0.35 }).observe($('#film-stage'));
+      paint();
+      showFilmState();
+
+      // ---------- Bento pop up: a short how-to with a looping clip ----------
+      const USES = {
+        tickets: {
+          title: 'Tailgate tickets',
+          blurb: 'A friend texted you two tickets for Saturday.  Save both in one coin, then open them full size at the gate and swipe between them.  When a picture has a QR code, the screen turns all the way up so the scanner reads it the first time.',
+          steps: ['Share both tickets from Messages or Photos into one new coin.', 'At the gate, tap the coin, then tap a ticket to open it full size.', 'Let them scan it, then swipe to the second ticket.'],
+        },
+        parking: {
+          title: 'Where you parked',
+          blurb: 'Have you ever parked in a garage or at the airport and wanted to remember where your car is?  Take a photo, pin it on your map, and it is ready for you when you come back.',
+          steps: ['Tap Pin and give it a name, like Airport Level 3.', 'When you come back, tap the card and your spot shows on the map.', 'Tap the map for walking directions back to your car.'],
+        },
+        giftcard: {
+          title: 'Gift cards',
+          blurb: 'Snap the back of a gift card, or paste the one someone emailed you.  At the counter, open it full size and the screen brightens so the barcode scans easily.  Toss it when the balance is gone.',
+          steps: ['Tap Picture and snap the barcode, or paste it in one tap.', 'At the register, tap the card, then tap the picture.', 'Hold up your iPhone and let them scan it.'],
+        },
+        grocery: {
+          title: 'Grocery lists',
+          blurb: 'Snap the list on the fridge, or just say what you need while your hands are full.  Your words become text right on your iPhone, and the audio is never saved.  Toss the coin when the cart is full.',
+          steps: ['Tap Picture and snap the handwritten list.', 'Or tap Voice and say it: milk, eggs, coffee.', 'Toss the coin when you get home.'],
+        },
+        badge: {
+          title: 'Conference badges',
+          blurb: 'Your badge QR code is buried in an email from weeks ago.  Share it straight from Mail or Photos into Coin Purse, and it is one tap away at the door.  The screen brightens so the check-in scanner reads it fast.',
+          steps: ['Open the badge email, or a screenshot of it in Photos.', 'Tap Share, choose Coin Purse, and save it as a new coin.', 'At the door, open it full size and let them scan.'],
+        },
+        taptext: {
+          title: 'Tap what you see',
+          blurb: 'Links, email addresses and phone numbers in your pictures and notes are tappable.  Save a screenshot of a text with a link or an address, and tap it later to open it.  Press and hold any text, like a gift card code, to copy it.',
+          steps: ['Save a screenshot that has a link, email or phone number.', 'Open the picture full size.', 'Tap the link to open it, or press and hold to copy.'],
+        },
+        faceid: {
+          title: 'Face ID',
+          blurb: 'Turn on Lock with Face ID, and Coin Purse asks for your face when you come back after a minute away.  Your coins live in your own private account, and you sign in with a code sent to your email, so there is no password to remember.',
+          steps: ['Tap the account button at the top of your purse.', 'Turn on Lock with Face ID.', 'Come back after a minute away, and a glance opens it.'],
+        },
+        voice: {
+          title: 'Voice notes',
+          blurb: 'Hands full?  Tap Voice and say a quick note, like where you left the car or who to call back.  Apple speech recognition on your iPhone turns it into text for free, and the audio is never saved.',
+          steps: ['Tap Voice at the bottom of your purse.', 'Say your note and watch the words appear.', 'Tap stop, check the text, and tap Save.'],
+        },
+      };
+      const lb = $('#lb'), lbDialog = $('#lb-dialog'), clip = $('#lb-video'), clipPlay = $('#lb-play');
+      clip.autoplay = !reduce;
+      let opener = null, savedY = 0, filmWasPlaying = false;
+      function openUse(id, from) {
+        const u = USES[id];
+        if (!u) return;
+        opener = from;
+        $('#lb-title').textContent = u.title;
+        $('#lb-blurb').textContent = u.blurb;
+        const ol = $('#lb-steps');
+        ol.textContent = '';
+        u.steps.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ol.appendChild(li); });
+        clip.poster = '/img/clips/' + id + '.jpg';
+        clip.src = '/img/clips/' + id + '.mp4';
+        clip.setAttribute('aria-label', 'A short clip of Coin Purse: ' + u.title);
+        clipPlay.hidden = !reduce;
+        // Hold the page still behind the pop up (position fixed also works in iOS Safari).
+        savedY = scrollY;
+        Object.assign(document.body.style, { position: 'fixed', top: -savedY + 'px', left: '0', right: '0' });
+        [...document.body.children].forEach((el) => { if (el !== lb && el.tagName !== 'SCRIPT') el.inert = true; });
+        filmWasPlaying = !film.paused;
+        if (filmWasPlaying) film.pause();
+        lb.hidden = false;
+        lbDialog.scrollTop = 0;
+        lb.querySelector('.lb-x').focus();
+        if (!reduce) { const p = clip.play(); if (p && p.catch) p.catch(() => { clipPlay.hidden = false; }); }
+      }
+      function closeUse() {
+        if (lb.hidden) return;
+        clip.pause();
+        clip.removeAttribute('src');
+        clip.load();
+        lb.hidden = true;
+        [...document.body.children].forEach((el) => { el.inert = false; });
+        Object.assign(document.body.style, { position: '', top: '', left: '', right: '' });
+        scrollTo(0, savedY);
+        if (filmWasPlaying && filmInView) playFilm();
+        if (opener) opener.focus({ preventScroll: true });
+      }
+      document.querySelectorAll('.tile[data-use]').forEach((t) => t.addEventListener('click', () => openUse(t.dataset.use, t)));
+      lb.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeUse));
+      clipPlay.addEventListener('click', () => { clipPlay.hidden = true; clip.play().catch(() => { clipPlay.hidden = false; }); });
+      clip.addEventListener('click', () => { if (clip.paused) clip.play().catch(() => {}); else clip.pause(); });
+      clip.addEventListener('pause', () => { if (!lb.hidden && clip.getAttribute('src')) clipPlay.hidden = false; });
+      clip.addEventListener('play', () => { clipPlay.hidden = true; });
+      // Escape closes; Tab stays inside the pop up.
+      document.addEventListener('keydown', (e) => {
+        if (lb.hidden) return;
+        if (e.key === 'Escape') { e.preventDefault(); closeUse(); return; }
+        if (e.key !== 'Tab') return;
+        const items = [...lbDialog.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')].filter((el) => !el.hidden && el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0], last = items[items.length - 1], at = document.activeElement;
+        if (e.shiftKey && (at === first || !lbDialog.contains(at))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (at === last || !lbDialog.contains(at))) { e.preventDefault(); first.focus(); }
+      });
+
+      // Stagger the feature cards as they fade in.
+      document.querySelectorAll('.feat-grid .feat').forEach((el, i) => { el.style.transitionDelay = (i % 4) * 0.06 + 's'; });
     })();
   </script>
 </body>
