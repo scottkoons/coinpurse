@@ -57,10 +57,16 @@ final class VoiceCapture {
             // Turning the microphone on talks to iOS's audio service and can be
             // slow; do it off the main thread so the screen never freezes.
             try await Task.detached(priority: .userInitiated) { try engine.start() }.value
-            guard mine == generation else { engine.cancel(); return }
+            // Cancelled while starting; a newer note may already own the audio
+            // session, so leave the session alone.
+            guard mine == generation else { engine.cancel(deactivatingSession: false); return }
             self.engine = engine
             state = .listening
+            // A call or Siri that arrived while it was starting was not heard
+            // as "listening" yet: handle it now.
+            if !engine.isRunning { await engineStopped() }
         } catch {
+            guard mine == generation else { return }
             state = .unavailable
         }
     }
@@ -206,7 +212,9 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
         return lock.withLock { Self.join(committed, partial) }
     }
 
-    func cancel() {
+    var isRunning: Bool { lock.withLock { running } }
+
+    func cancel(deactivatingSession: Bool = true) {
         lock.withLock {
             running = false
             task?.cancel()
@@ -214,7 +222,7 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
         audio.stop()
         audio.inputNode.removeTap(onBus: 0)
         stopWatching()
-        deactivate()
+        if deactivatingSession { deactivate() }
         releaseWaiter()
     }
 

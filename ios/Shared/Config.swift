@@ -14,9 +14,14 @@ nonisolated enum Config {
             Keychain.saveDebugServer(override)
             return url
         }
-        if Bundle.main.bundleURL.pathExtension == "appex",
-           let shared = Keychain.loadDebugServer(), let url = URL(string: shared) {
-            return url
+        if Bundle.main.bundleURL.pathExtension == "appex" {
+            if let shared = Keychain.loadDebugServer(), let url = URL(string: shared) {
+                return url
+            }
+        } else {
+            // The app is on the live server: so is the extension, never a
+            // test server left over from an earlier run.
+            Keychain.clearDebugServer()
         }
         #endif
         // The live server (also serves the privacy and support pages).
