@@ -365,10 +365,13 @@ final class CoinPurseUITests: XCTestCase {
 
         let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
         photos.launch()
-        // First run of Photos shows a welcome; get past it.
-        for name in ["Continue", "Not Now", "Don’t Allow"] where photos.buttons[name].waitForExistence(timeout: 2) {
-            photos.buttons[name].tap()
+        // First run of Photos shows "What's New" (sometimes a few seconds late); get past it.
+        func dismissWelcome() {
+            for name in ["Continue", "Not Now", "Don’t Allow"] where photos.buttons[name].waitForExistence(timeout: 3) {
+                photos.buttons[name].tap()
+            }
         }
+        dismissWelcome()
         // Photos may reopen on the last photo it showed, or on the grid.
         let share = photos.buttons["Share"].firstMatch
         if !share.waitForExistence(timeout: 3) {
@@ -376,6 +379,13 @@ final class CoinPurseUITests: XCTestCase {
             if !photo.waitForExistence(timeout: 10) { dumpOf(photos, "p00-grid"); XCTFail("no photo in Photos"); return }
             // Photos marks its grid images as not hittable; tap where it is.
             photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        if !share.waitForExistence(timeout: 5) {
+            dismissWelcome()
+            if !share.exists {
+                photos.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
+                    .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
         }
         if !share.waitForExistence(timeout: 5) { dumpOf(photos, "p01-photo"); XCTFail("no Share button"); return }
         share.tap()
