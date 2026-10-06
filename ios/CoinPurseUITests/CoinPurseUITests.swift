@@ -348,6 +348,36 @@ final class CoinPurseUITests: XCTestCase {
         snap("d12-menu")
     }
 
+    /// What Apple Maps shows after tapping a pin (TEST_RUNNER_MAPS=1, design purse).
+    @MainActor
+    func testMapsDirections() throws {
+        guard ProcessInfo.processInfo.environment["MAPS"] == "1" else { throw XCTSkip("Set MAPS=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        card("Parking spot").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(2)
+        openCoin.descendants(matching: .any)["pinMap"].firstMatch.tap()
+        let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
+        XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 15), "Maps did not open")
+        // Get past Maps' own first-launch questions.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for _ in 0..<4 {
+            if springboard.buttons["Allow While Using App"].waitForExistence(timeout: 3) { springboard.buttons["Allow While Using App"].tap() }
+            for name in ["Not Now", "Continue", "Allow While Using App"] where maps.buttons[name].exists { maps.buttons[name].tap() }
+            sleep(2)
+        }
+        sleep(6)
+        snap("maps-1")
+        sleep(5)
+        snap("maps-2")
+        try? maps.debugDescription.write(toFile: (ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] ?? "/tmp") + "/maps-tree.txt", atomically: true, encoding: .utf8)
+    }
+
     @MainActor
     private var openCoin: XCUIElement { app.otherElements["openCoin"] }
 

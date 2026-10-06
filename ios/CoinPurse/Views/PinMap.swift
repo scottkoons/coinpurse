@@ -122,7 +122,12 @@ enum MapsLink {
             item = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)))
         }
         item.name = name
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+        // From where you are to the pin: Maps shows the route choices and
+        // waits for you to tap Go, rather than starting navigation by itself.
+        MKMapItem.openMaps(
+            with: [MKMapItem.forCurrentLocation(), item],
+            launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking]
+        )
     }
 
     /// A link anyone can open, for sharing a pin by text or email.
