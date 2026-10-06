@@ -37,9 +37,13 @@ struct CoinCardView: View {
 struct CoinCardHeader: View {
     let coin: Coin
     var onDelete: (() -> Void)?
+    @ScaledMetric(relativeTo: .headline) private var height: CGFloat = CardMetrics.header
+    @ScaledMetric(relativeTo: .headline) private var emblem: CGFloat = 26
 
     var body: some View {
         HStack(spacing: 10) {
+            // Every card carries a silver coin, like a pass carries its logo.
+            CoinEmblem(size: emblem)
             VStack(alignment: .leading, spacing: 2) {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
@@ -67,9 +71,9 @@ struct CoinCardHeader: View {
             }
         }
         .foregroundStyle(.white)
-        .padding(.leading, 16)
+        .padding(.leading, 14)
         .padding(.trailing, onDelete == nil ? 16 : 6)
-        .frame(height: CardMetrics.header)
+        .frame(height: height)
     }
 
     /// Small symbols: more than one picture, a map pin, a note.
@@ -97,6 +101,32 @@ struct CoinCardHeader: View {
         if let pin = coin.pin { return pin.pinnedLabel }
         guard let ms = coin.updatedAt ?? coin.createdAt else { return "" }
         return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
+/// A small silver ¢ coin, drawn crisply at any size.
+struct CoinEmblem: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(colors: [Color(white: 0.97), Color(white: 0.72), Color(white: 0.88)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            Circle()
+                .strokeBorder(LinearGradient(colors: [.white, Color(white: 0.55)], startPoint: .top, endPoint: .bottom),
+                              lineWidth: max(1, size * 0.07))
+            Circle()
+                .strokeBorder(Color(white: 0.6).opacity(0.6), lineWidth: 0.6)
+                .padding(size * 0.14)
+            Text("¢")
+                .font(.system(size: size * 0.56, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color(white: 0.3))
+                .offset(y: -size * 0.02)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
+        .accessibilityHidden(true)
     }
 }
 
@@ -137,7 +167,7 @@ struct NoteFace: View {
     /// A code or a few words shows big; longer notes get smaller type.
     private var font: Font {
         switch notes.count {
-        case ..<25: return .system(size: 40, weight: .bold, design: .rounded)
+        case ..<25: return .system(.largeTitle, design: .rounded).weight(.bold)
         case ..<90: return .system(.title, design: .rounded).weight(.semibold)
         default: return .system(.title3, design: .rounded).weight(.medium)
         }
@@ -161,6 +191,7 @@ struct NoteFace: View {
 /// a hairline edge and a shadow, like a pass in Wallet.
 struct CardSurface: ViewModifier {
     let accent: Int
+    @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
         content
@@ -177,7 +208,7 @@ struct CardSurface: ViewModifier {
                 RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous)
                     .strokeBorder(.white.opacity(0.16), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.18), radius: 14, y: 8)
     }
 }
 

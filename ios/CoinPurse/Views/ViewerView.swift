@@ -4,6 +4,7 @@ import SwiftUI
 struct ViewerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     let coinId: String
 
     @State private var index: Int
@@ -20,6 +21,9 @@ struct ViewerView: View {
     @State private var confirmDeleteCoin = false
     @State private var confirmRemovePicture = false
     @State private var busy = false
+    @State private var brightness = ScanBrightness()
+    /// Which pictures hold a code, so each is only checked once.
+    @State private var hasCode: [String: Bool] = [:]
 
     private var coin: Coin? { model.coin(coinId) }
     private var pictures: [Picture] { coin?.pictures ?? [] }
@@ -63,7 +67,6 @@ struct ViewerView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .ignoresSafeArea()
             }
             if busy {
                 ProgressView().tint(.white).scaleEffect(1.4)
@@ -75,6 +78,13 @@ struct ViewerView: View {
             if index >= count { index = max(0, count - 1) }
         }
         .onChange(of: coin == nil) { _, gone in if gone { dismiss() } }
+        // Bright for codes, back to normal for anything else or when leaving.
+        .onChange(of: index) { _, _ in Task { await updateBrightness() } }
+        .onChange(of: images.count) { _, _ in Task { await updateBrightness() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await updateBrightness() } } else { brightness.restore() }
+        }
+        .onDisappear { brightness.restore() }
         .sheet(item: $share) { item in
             ShareSheet(image: item.image).presentationDetents([.medium, .large])
         }
@@ -117,90 +127,63 @@ struct ViewerView: View {
         .preferredColorScheme(.dark)
     }
 
+    /// Glass controls floating over the picture, like Photos.
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button { dismiss() } label: {
-                Image(systemName: "chevron.left").font(.title3.weight(.semibold)).frame(width: 44, height: 44)
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .glassCircle()
             }
             .accessibilityLabel("Back")
-            Spacer()
-            VStack(spacing: 2) {
-                Text(coin?.title ?? "").font(.headline).lineLimit(1)
+            Spacer(minLength: 0)
+            VStack(spacing: 1) {
+                Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(1)
                 if pictures.count > 1 {
-                    Text("\(index + 1) of \(pictures.count)").font(.caption).foregroundStyle(.secondary)
+                    Text("\(index + 1) of \(pictures.count)").font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            Spacer()
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .glassCapsule()
+            Spacer(minLength: 0)
             Menu {
                 Button { editing = true } label: { Label("Edit", systemImage: "pencil") }
-                Button(role: .destructive) { confirmDeleteCoin = true } label: { Label("Delete coin", systemImage: "trash") }
+                Button(role: .destructive) { confirmDeleteCoin = true } label: { Label("Delete Coin", systemImage: "trash") }
             } label: {
-                Image(systemName: "ellipsis.circle").font(.title3).frame(width: 44, height: 44)
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .glassCircle()
             }
             .accessibilityLabel("More")
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .background(.black.opacity(0.35))
-        .safeAreaInset(edge: .bottom, spacing: 0) { notesView }
-    }
-
-    /// The coin's notes, with web links, email addresses and phone numbers tappable.
-    @ViewBuilder private var notesView: some View {
-        // A text coin shows its words full size instead.
-        if !notes.isEmpty, !pictures.isEmpty {
-            ScrollView {
-                Text(LinkedText.make(notes))
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.9))
-                    .tint(Color.accentColor)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-            }
-            .frame(maxHeight: 96)
-            .fixedSize(horizontal: false, vertical: true)
-            .background(.black.opacity(0.35))
-        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 10) {
-            thumbnails
-            if pictures.isEmpty {
-                // No picture yet: share the words, or edit them.
-                HStack {
-                    ShareLink(item: notes) {
-                        VStack(spacing: 4) {
-                            Image(systemName: "square.and.arrow.up").font(.title3)
-                            Text("Share").font(.caption2)
-                        }
-                        .frame(minWidth: 60, minHeight: 44)
-                    }
-                    .foregroundStyle(.white)
-                    .disabled(notes.isEmpty)
-                    Spacer()
-                    barButton("Edit", "pencil") { editing = true }
-                }
-                .padding(.horizontal, 28)
-            } else {
-            HStack {
+        VStack(spacing: 12) {
+            if pictures.count > 1 || pictures.count < Config.maxExtraPictures + 1 {
+                thumbnails
+            }
+            HStack(spacing: 0) {
                 barButton("Share", "square.and.arrow.up") { Task { await shareCurrent() } }
                     .disabled(current == nil)
-                Spacer()
                 barButton("Crop", "crop.rotate") { Task { await cropCurrent() } }
                     .disabled(current == nil)
-                Spacer()
                 barButton("Remove", "minus.circle") { confirmRemovePicture = true }
                     .disabled(current?.isPrimary ?? true)
                     .opacity(current?.isPrimary ?? true ? 0.35 : 1)
             }
-            .padding(.horizontal, 28)
-            }
+            .padding(.horizontal, 8)
+            .frame(height: 54)
+            .glassCapsule()
+            .padding(.horizontal, 60)
         }
-        .padding(.vertical, 10)
-        .background(.black.opacity(0.35))
+        .padding(.bottom, 6)
     }
 
     private var thumbnails: some View {
@@ -208,10 +191,10 @@ struct ViewerView: View {
             HStack(spacing: 8) {
                 ForEach(Array(pictures.enumerated()), id: \.element.key) { i, picture in
                     CachedImage(picture: picture, contentMode: .fill)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .strokeBorder(i == index ? Color.white : Color.clear, lineWidth: 2)
                         )
                         .onTapGesture { withAnimation { index = i } }
@@ -219,31 +202,46 @@ struct ViewerView: View {
                 if pictures.count < Config.maxExtraPictures + 1 {
                     Button { adding = true } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
-                            .frame(width: 48, height: 48)
-                            .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                            .glassCircle()
                     }
                     .accessibilityLabel("Add picture")
                 }
             }
             .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
         }
         .foregroundStyle(.white)
     }
 
     private func barButton(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.title3)
-                Text(title).font(.caption2)
-            }
-            .frame(minWidth: 60, minHeight: 44)
+            Image(systemName: icon)
+                .font(.title3.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .foregroundStyle(.white)
+        .accessibilityLabel(title)
         .accessibilityIdentifier("viewer" + title)
     }
 
     // MARK: Actions
+
+    private func updateBrightness() async {
+        guard let current, let image = images[current.key] else { brightness.restore(); return }
+        let found: Bool
+        if let known = hasCode[current.key] {
+            found = known
+        } else {
+            found = await CodeFinder.hasCode(image)
+            hasCode[current.key] = found
+        }
+        // Still on the same picture?
+        guard self.current?.key == current.key, scenePhase == .active else { return }
+        if found { brightness.raise() } else { brightness.restore() }
+    }
 
     private func load(_ picture: Picture) async {
         if images[picture.key] != nil { return }

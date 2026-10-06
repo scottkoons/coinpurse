@@ -11,7 +11,6 @@ struct CoinPurseApp: App {
             RootView()
                 .environment(model)
                 .environment(lock)
-                .preferredColorScheme(.dark)
                 .task {
                     await model.start()
                     // Launching into a signed-in purse: ask to unlock now.

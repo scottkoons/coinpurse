@@ -23,6 +23,8 @@ extension Coin {
 /// goes back with Done, a swipe down, or a tap on the coins at the bottom.
 struct CoinDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .caption) private var actionSize: CGFloat = 56
     let coin: Coin
     let namespace: Namespace.ID
     /// The next few coins, peeking up from the bottom like the rest of a stack.
@@ -57,7 +59,7 @@ struct CoinDetailView: View {
                 topBar
                     .opacity(appeared ? 1 : 0)
                 card
-                    .matchedGeometryEffect(id: coin.id, in: namespace)
+                    .matchedCard(id: coin.id, in: namespace, enabled: !reduceMotion)
                     .frame(height: cardHeight)
                     .padding(.horizontal, 16)
                     .padding(.top, 6 + drag)
@@ -69,7 +71,7 @@ struct CoinDetailView: View {
                 }
                 .padding(.top, 12)
                 .opacity(appeared ? max(0, 1 - drag / 140) : 0)
-                .offset(y: appeared ? 0 : 28)
+                .offset(y: appeared || reduceMotion ? 0 : 28)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -113,12 +115,12 @@ struct CoinDetailView: View {
             Button(action: onClose) {
                 Text("Done")
                     .font(.headline)
-                    .padding(.horizontal, 18)
-                    .frame(height: 36)
-                    .background(.white.opacity(0.14), in: Capsule())
+                    .padding(.horizontal, 20)
+                    .frame(height: 40)
+                    .glassCapsule()
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .accessibilityIdentifier("Done")
         }
         .padding(.horizontal, 16)
@@ -157,7 +159,7 @@ struct CoinDetailView: View {
                 .accessibilityLabel("Picture \(index + 1)")
                 .accessibilityHint("Shows it full screen")
         case .map(let pin):
-            PinMapView(pin: pin, tint: coin.accentColor)
+            LivePinMap(pin: pin, name: coin.title, tint: coin.accentColor)
                 .contentShape(Rectangle())
                 .onTapGesture { MapsLink.openDirections(to: pin, name: coin.title) }
                 .accessibilityAddTraits(.isButton)
@@ -214,7 +216,7 @@ struct CoinDetailView: View {
                                 Circle().frame(width: 7, height: 7)
                             }
                         }
-                        .foregroundStyle(.white.opacity(i == page ? 1 : 0.35))
+                        .foregroundStyle(.primary.opacity(i == page ? 1 : 0.3))
                         .frame(width: 12, height: 12)
                         .onTapGesture { withAnimation { page = i } }
                     }
@@ -230,7 +232,7 @@ struct CoinDetailView: View {
         ScrollView {
             Text(LinkedText.make(text))
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(.primary)
                 .tint(AccentPalette.color(coin.accent))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -239,7 +241,7 @@ struct CoinDetailView: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 16)
     }
 
@@ -250,29 +252,29 @@ struct CoinDetailView: View {
                 if coin.pin == nil { Task { await dropPin() } } else { confirmMovePin = true }
             }
             actionButton("Edit", "pencil") { editing = true }
-            actionButton("Delete", "trash", tint: Color(red: 1, green: 0.42, blue: 0.4)) { confirmDelete = true }
+            actionButton("Delete", "trash", tint: .red) { confirmDelete = true }
         }
         .padding(.horizontal, 20)
     }
 
-    private func actionButton(_ title: String, _ icon: String, tint: Color = .white, busy: Bool = false,
+    private func actionButton(_ title: String, _ icon: String, tint: Color = .primary, busy: Bool = false,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 7) {
                 ZStack {
-                    Circle().fill(.white.opacity(0.12))
                     if busy {
-                        ProgressView().tint(.white)
+                        ProgressView()
                     } else {
                         Image(systemName: icon)
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.title3.weight(.semibold))
                             .foregroundStyle(tint)
                     }
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: actionSize, height: actionSize)
+                .glassCircle()
                 Text(title)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
         }

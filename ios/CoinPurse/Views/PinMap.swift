@@ -6,6 +6,7 @@ import SwiftUI
 struct PinMapView: View {
     let pin: Pin
     var tint: Color = .red
+    @Environment(\.colorScheme) private var scheme
 
     @State private var image: UIImage?
 
@@ -24,7 +25,7 @@ struct PinMapView: View {
                         .scaledToFill()
                         .transition(.opacity)
                 } else {
-                    Color(white: 0.16)
+                    Color(.secondarySystemBackground)
                 }
                 // How sure the iPhone was, to scale.
                 if let acc = pin.acc, acc > 5, size.height > 0 {
@@ -39,18 +40,18 @@ struct PinMapView: View {
             }
             .frame(width: size.width, height: size.height)
             .clipped()
-            .task(id: "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height))") {
+            .task(id: "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height)),\(scheme)") {
                 // A card tucked into the stack has no room to show a map.
                 guard size.width > 40, size.height > 40 else { return }
                 // While a card is opening its size changes every frame: wait for
                 // it to settle, and never show a map made for an old size.
-                if let hit = MapSnapshots.shared.cached(for: pin, size: size) {
+                if let hit = MapSnapshots.shared.cached(for: pin, size: size, dark: scheme == .dark) {
                     image = hit
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(180))
                 guard !Task.isCancelled else { return }
-                let snap = await MapSnapshots.shared.image(for: pin, size: size)
+                let snap = await MapSnapshots.shared.image(for: pin, size: size, dark: scheme == .dark)
                 guard !Task.isCancelled, let snap else { return }
                 withAnimation(.easeOut(duration: 0.25)) { image = snap }
             }
@@ -91,24 +92,54 @@ final class MapSnapshots {
     static let shared = MapSnapshots()
     private var cache: [String: UIImage] = [:]
 
-    private func key(_ pin: Pin, _ size: CGSize) -> String {
-        "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height))"
+    private func key(_ pin: Pin, _ size: CGSize, _ dark: Bool) -> String {
+        "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height)),\(dark)"
     }
 
-    func cached(for pin: Pin, size: CGSize) -> UIImage? { cache[key(pin, size)] }
+    func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? { cache[key(pin, size, dark)] }
 
-    func image(for pin: Pin, size: CGSize) async -> UIImage? {
-        let key = key(pin, size)
+    func image(for pin: Pin, size: CGSize, dark: Bool) async -> UIImage? {
+        let key = key(pin, size, dark)
         if let hit = cache[key] { return hit }
         let options = MKMapSnapshotter.Options()
         let center = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
         let wide = PinMapView.spanMeters * Double(size.width / max(size.height, 1))
         options.region = MKCoordinateRegion(center: center, latitudinalMeters: PinMapView.spanMeters, longitudinalMeters: wide)
         options.size = size
-        options.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
+        options.traitCollection = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
         guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
         cache[key] = snapshot.image
         return snapshot.image
+    }
+}
+
+/// The pin on a real Apple map, in an open coin: sharp at any size, with
+/// Apple's own marker. It does not pan, so swiping still turns the page;
+/// a tap opens directions.
+struct LivePinMap: View {
+    let pin: Pin
+    let name: String
+    var tint: Color
+
+    var body: some View {
+        let center = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
+        // Held at street level (not just started there): while the card is
+        // opening the map is tiny, and a starting spot gets fitted to that.
+        Map(position: .constant(.camera(MapCamera(centerCoordinate: center, distance: 650))),
+            bounds: MapCameraBounds(minimumDistance: 300, maximumDistance: 900),
+            interactionModes: []) {
+            if let acc = pin.acc, acc > 5 {
+                MapCircle(center: center, radius: acc)
+                    .foregroundStyle(tint.opacity(0.16))
+                    .stroke(tint.opacity(0.5), lineWidth: 1)
+            }
+            Marker(name, systemImage: "mappin", coordinate: center)
+                .tint(tint)
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Map pin")
+        .accessibilityHint("Opens Apple Maps with directions")
+        .accessibilityIdentifier("pinMap")
     }
 }
 

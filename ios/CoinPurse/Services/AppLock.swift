@@ -95,6 +95,6 @@ struct LockView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
     }
 }

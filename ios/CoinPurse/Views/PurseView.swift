@@ -8,7 +8,11 @@ struct CoinRef: Identifiable, Hashable { let id: String }
 /// only ever scrolls; sideways only happens inside an open coin.
 struct PurseView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cards
+    /// How much of each tucked-in card shows; grows with larger text.
+    @ScaledMetric(relativeTo: .headline) private var peek: CGFloat = CardMetrics.peek
+    @ScaledMetric(relativeTo: .caption) private var barHeight: CGFloat = 66
 
     @State private var openId: String?
     @State private var editing: CoinRef?
@@ -37,8 +41,10 @@ struct PurseView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color(.systemBackground).ignoresSafeArea()
                 stackLayer(screenHeight: geo.size.height)
+                    // With Reduce Motion, the purse fades instead of sliding away.
+                    .opacity(reduceMotion && openId != nil ? 0 : 1)
                 if let id = openId, let coin = model.coin(id) {
                     CoinDetailView(
                         coin: coin,
@@ -47,7 +53,7 @@ struct PurseView: View {
                         onClose: closeCoin,
                         onDelete: { deleteOpenCoin(id) }
                     )
-                    .transition(.identity)
+                    .transition(reduceMotion ? .opacity : .identity)
                     .zIndex(10)
                 }
             }
@@ -119,7 +125,7 @@ struct PurseView: View {
                         Color.clear
                     } else {
                         CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
-                            .matchedGeometryEffect(id: coin.id, in: cards)
+                            .matchedCard(id: coin.id, in: cards, enabled: !reduceMotion)
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
                             .onTapGesture { openCoin(coin.id) }
                             .contextMenu { menu(for: coin) }
@@ -128,9 +134,9 @@ struct PurseView: View {
                 // A tucked-in card is drawn only as far as you can see it (its top,
                 // plus a little behind the next card's rounded corners), so it grows
                 // straight from that when it opens.
-                .frame(height: isLast ? CardMetrics.stackHeight : CardMetrics.peek + 30)
+                .frame(height: isLast ? CardMetrics.stackHeight + peek - CardMetrics.peek : peek + 30)
                 // Each card shows only its top; the one after it covers the rest.
-                .frame(height: isLast ? CardMetrics.stackHeight : CardMetrics.peek, alignment: .top)
+                .frame(height: isLast ? CardMetrics.stackHeight + peek - CardMetrics.peek : peek, alignment: .top)
                 // To VoiceOver, each card is one button exactly the size of what
                 // you can see (the card itself reaches down behind the next one).
                 .accessibilityHidden(true)
@@ -145,12 +151,14 @@ struct PurseView: View {
                 }
                 .zIndex(Double(i))
                 // While a coin is out, the rest of the stack drops out of sight.
-                .offset(y: openId == nil || openId == coin.id ? 0 : screenHeight + CGFloat(i) * 8)
+                .offset(y: openId == nil || openId == coin.id || reduceMotion ? 0 : screenHeight + CGFloat(i) * 8)
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 20)
+        // Very large text sizes would no longer fit a card's top.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 
     @ViewBuilder private func menu(for coin: Coin) -> some View {
@@ -171,12 +179,14 @@ struct PurseView: View {
     private func openCoin(_ id: String) {
         searchFocused = false
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        withAnimation(Self.cardSpring) { openId = id }
+        withAnimation(cardAnimation) { openId = id }
     }
 
     private func closeCoin() {
-        withAnimation(Self.cardSpring) { openId = nil }
+        withAnimation(cardAnimation) { openId = nil }
     }
+
+    private var cardAnimation: Animation { reduceMotion ? .easeInOut(duration: 0.25) : Self.cardSpring }
 
     /// The card goes back into the stack first, then leaves it.
     private func deleteOpenCoin(_ id: String) {
@@ -211,7 +221,7 @@ struct PurseView: View {
                 .frame(height: 42)
                 .glassCapsule()
                 Button("Cancel") { endSearch() }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
             } else {
                 Text("Coin Purse")
                     .font(.system(.title, design: .rounded).weight(.bold))
@@ -226,13 +236,13 @@ struct PurseView: View {
                 circleButton("person.fill", label: "Account") { showAccount = true }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .background(alignment: .top) {
             VStack(spacing: 0) {
-                Color.black
-                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                Color(.systemBackground)
+                LinearGradient(colors: [Color(.systemBackground), Color(.systemBackground).opacity(0)], startPoint: .top, endPoint: .bottom)
                     .frame(height: 18)
                     .padding(.bottom, -18)
             }
@@ -263,19 +273,19 @@ struct PurseView: View {
     private var addBar: some View {
         HStack(spacing: 0) {
             barButton("Picture", "camera.fill", id: "addPicture", hint: "Add a picture coin") { addingPicture = true }
-            Divider().frame(height: 30).overlay(.white.opacity(0.15))
+            Divider().frame(height: 30)
             barButton("Voice", "mic.fill", id: "voiceNote", hint: "Add a voice note") { recordingVoice = true }
-            Divider().frame(height: 30).overlay(.white.opacity(0.15))
+            Divider().frame(height: 30)
             barButton("Pin", "mappin.and.ellipse", id: "addPin", hint: "Pin where you are") { addingPin = true }
         }
         .padding(.horizontal, 8)
-        .frame(height: 66)
+        .frame(height: barHeight)
         .glassCapsule()
         .padding(.horizontal, 22)
         .padding(.top, 10)
         .padding(.bottom, 4)
         .background {
-            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground).opacity(0.85)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
     }
@@ -289,7 +299,7 @@ struct PurseView: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
@@ -306,7 +316,7 @@ struct PurseView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 96, height: 96)
-                .shadow(color: .white.opacity(0.15), radius: 20)
+                .shadow(color: .primary.opacity(0.15), radius: 20)
                 .accessibilityHidden(true)
             Text("Your purse is empty")
                 .font(.system(.title2, design: .rounded).weight(.bold))
@@ -326,7 +336,16 @@ extension View {
             self.glassEffect(.regular.interactive(), in: .capsule)
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.white.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
+        }
+    }
+
+    /// The card's shared move between the stack and the open coin; off with Reduce Motion.
+    @ViewBuilder func matchedCard(id: String, in namespace: Namespace.ID, enabled: Bool) -> some View {
+        if enabled {
+            self.matchedGeometryEffect(id: id, in: namespace)
+        } else {
+            self
         }
     }
 
