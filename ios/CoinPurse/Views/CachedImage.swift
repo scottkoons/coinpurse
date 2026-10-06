@@ -9,6 +9,12 @@ struct CachedImage: View {
     @State private var image: UIImage?
     @State private var failed = false
 
+    init(picture: Picture?, contentMode: ContentMode = .fit) {
+        self.picture = picture
+        self.contentMode = contentMode
+        _image = State(initialValue: picture.flatMap { ImageCache.shared.inMemory($0.key) })
+    }
+
     var body: some View {
         Group {
             if let image {

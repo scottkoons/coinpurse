@@ -22,7 +22,22 @@ struct PurseView: View {
     @State private var addingPin = false
     @State private var recordingVoice = false
     @State private var showAccount = false
-    @State private var showReorder = false
+    /// The card being moved (touch and hold, then drag), how far it has
+    /// gone, and the place it would land.
+    @State private var moving: String?
+    @State private var moveOffset: CGFloat = 0
+    @State private var moveTarget: Int?
+    /// Down while a card is held; iOS resets it if the touch is taken away
+    /// (a call, a system gesture), so a lifted card is always put down.
+    @GestureState private var holding = false
+    /// A lifted card pulled up to the top of the screen opens when let go.
+    @State private var openReady = false
+    /// How far the purse is pulled down past its top; the cards fan apart.
+    @State private var pull: CGFloat = 0
+    @State private var headerBottom: CGFloat = 120
+    /// Bumped after the order of the purse changes, so every card is layered
+    /// again for its new place (the lazy stack keeps a card's old layering).
+    @State private var stackVersion = 0
     @State private var pendingDelete: Coin?
     @State private var searching = false
     @State private var testShare = false
@@ -52,7 +67,7 @@ struct PurseView: View {
                     CoinDetailView(
                         coin: coin,
                         namespace: cards,
-                        pile: pile(after: id),
+                        pile: visibleCoins.filter { $0.id != id },
                         onClose: closeCoin,
                         onDelete: { deleteOpenCoin(id) }
                     )
@@ -63,6 +78,11 @@ struct PurseView: View {
         }
         .onChange(of: model.coins.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
+            // Once the cards have slid into their new places, layer them again.
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                if moving == nil && model.coins.map(\.id) == ids { stackVersion += 1 }
+            }
             runQuickAction()
         }
         // From the icon menu, Siri, Shortcuts or the Action Button.
@@ -85,7 +105,6 @@ struct PurseView: View {
         .sheet(isPresented: $recordingVoice) { VoiceNoteView() }
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
-        .sheet(isPresented: $showReorder) { ReorderView() }
         #if DEBUG
         // UI tests open the Share to Coin Purse screen with two sample pictures.
         .sheet(isPresented: $testShare) {
@@ -128,13 +147,19 @@ struct PurseView: View {
                 stack(screenHeight: screenHeight)
             }
         }
-        .scrollDisabled(isOpen)
+        .modifier(PullTracker(pull: $pull))
+        .scrollDisabled(isOpen || moving != nil)
+        .onChange(of: holding) { _, down in
+            if !down { finishMove() }
+        }
         .allowsHitTesting(!isOpen)
         .accessibilityHidden(isOpen)
         .scrollDismissesKeyboard(.immediately)
         .refreshable { await model.refresh() }
         .safeAreaInset(edge: .top, spacing: 0) {
             header
+                // Where the title area ends: a lifted card pulled above it opens.
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { headerBottom = $0 }
                 .opacity(isOpen ? 0 : 1)
                 .offset(y: isOpen ? -16 : 0)
         }
@@ -160,17 +185,33 @@ struct PurseView: View {
                         // Holds the card's place while it is out of the stack.
                         Color.clear
                     } else {
-                        CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
+                        CoinCardView(coin: coin, faceShowing: isLast || moving == coin.id) { pendingDelete = coin }
                             .matchedCard(id: coin.id, in: cards, enabled: !reduceMotion)
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
                             .onTapGesture { openCoin(coin.id) }
-                            .contextMenu { menu(for: coin) }
+                            // Touch and hold to lift it, then drag to move it, as in Wallet.
+                            .gesture(searching ? nil : moveGesture(for: coin, at: i, count: coins.count))
+                            .overlay(alignment: .top) {
+                                if moving == coin.id && openReady {
+                                    Label("Release to open", systemImage: "arrow.up.left.and.arrow.down.right")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(.black.opacity(0.6), in: Capsule())
+                                        .offset(y: -40)
+                                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                                }
+                            }
+                            .scaleEffect(moving == coin.id ? 1.04 : 1)
+                            .shadow(color: .black.opacity(moving == coin.id ? 0.3 : 0), radius: 18, y: 10)
                     }
                 }
                 // A tucked-in card is drawn only as far as you can see it (its top,
                 // plus a little behind the next card's rounded corners), so it grows
-                // straight from that when it opens.
-                .frame(height: isLast ? lastCardHeight : peek + 30)
+                // straight from that when it opens. A lifted card shows all of
+                // itself, so you can see what is on it.
+                .frame(height: isLast || moving == coin.id ? lastCardHeight : peek + 30)
                 // Every row is exactly one card top tall, so the lazy stack always
                 // knows the full height (the last card hangs below its row, into
                 // the room left under the stack).
@@ -186,13 +227,21 @@ struct PurseView: View {
                         .accessibilityAddTraits(.isButton)
                         .accessibilityIdentifier("stackCard")
                         .accessibilityAction { openCoin(coin.id) }
+                        .accessibilityAction(named: "Move to top") { model.move(coin.id, to: 0) }
+                        .accessibilityAction(named: "Move up") { model.move(coin.id, to: max(0, i - 1)) }
+                        .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
                         .accessibilityAction(named: "Delete") { pendingDelete = coin }
                 }
-                .zIndex(Double(i))
+                .zIndex(moving == coin.id ? 1000 : Double(i))
+                // Moving a card: it follows the finger and the others make room.
+                .offset(y: moving == coin.id ? moveOffset : makeRoom(at: i, in: coins))
+                // Pulled down past the top, the cards fan apart, like a stretched stack.
+                .offset(y: pull * CGFloat(min(i, 12)) * 0.22)
                 // While a coin is out, the rest of the stack drops out of sight.
                 .offset(y: openId == nil || openId == coin.id || reduceMotion ? 0 : screenHeight + CGFloat(i) * 8)
             }
         }
+        .id(stackVersion)
         .padding(.horizontal, 16)
         .padding(.top, 8)
         // Room for the last card, which hangs below its row.
@@ -202,20 +251,73 @@ struct PurseView: View {
     /// The last card shows whole.
     private var lastCardHeight: CGFloat { CardMetrics.stackHeight + peek - CardMetrics.peek }
 
-    @ViewBuilder private func menu(for coin: Coin) -> some View {
-        Button { openCoin(coin.id) } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
-        Button { editing = CoinRef(id: coin.id) } label: { Label("Edit", systemImage: "pencil") }
-        Button { showReorder = true } label: { Label("Rearrange", systemImage: "arrow.up.arrow.down") }
-        Divider()
-        Button(role: .destructive) { pendingDelete = coin } label: { Label("Delete", systemImage: "trash") }
+    /// How far a card shifts to make room for the one being moved.
+    private func makeRoom(at i: Int, in coins: [Coin]) -> CGFloat {
+        guard let id = moving, let from = coins.firstIndex(where: { $0.id == id }),
+              let to = moveTarget else { return 0 }
+        if from < to, i > from, i <= to { return -peek }
+        if to < from, i >= to, i < from { return peek }
+        return 0
     }
 
-    /// The coins after this one (wrapping around), for the pile under an open coin.
-    private func pile(after id: String) -> [Coin] {
-        let list = model.coins
-        guard let i = list.firstIndex(where: { $0.id == id }) else { return [] }
-        return Array((list[(i + 1)...] + list[..<i]).prefix(3))
+    private func moveGesture(for coin: Coin, at i: Int, count: Int) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.35)
+            // Measured on the screen, not on the card that is itself moving.
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
+            .updating($holding) { value, state, _ in
+                if case .second(true, _) = value { state = true }
+            }
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if moving == nil {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        moving = coin.id
+                        moveTarget = i
+                    }
+                }
+                moveOffset = drag?.translation.height ?? 0
+                // Pulled all the way up, to the title: it will open when let go.
+                let ready = (drag?.location.y ?? .infinity) < openLine
+                if ready != openReady {
+                    if ready { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
+                    withAnimation(.snappy(duration: 0.2)) { openReady = ready }
+                }
+                let target = min(max(i + Int((moveOffset / peek).rounded()), 0), count - 1)
+                if target != moveTarget {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { moveTarget = target }
+                }
+            }
+            .onEnded { _ in finishMove() }
     }
+
+    /// How high a lifted card has to be pulled to open: into the title area,
+    /// above the first card (dropping it on the first card just moves it there).
+    private var openLine: CGFloat { headerBottom - 14 }
+
+    /// Puts the lifted card down where it is, and saves the new order; pulled
+    /// all the way up, it opens instead.
+    private func finishMove() {
+        guard let id = moving else { return }
+        if openReady {
+            openReady = false
+            moving = nil
+            moveTarget = nil
+            moveOffset = 0
+            openCoin(id)
+            return
+        }
+        let target = moveTarget
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            if let target { model.move(id, to: target) }
+            moving = nil
+            moveTarget = nil
+            moveOffset = 0
+        }
+    }
+
 
     private func openCoin(_ id: String) {
         searchFocused = false
@@ -255,7 +357,6 @@ struct PurseView: View {
         endSearch()
         editing = nil
         showAccount = false
-        showReorder = false
         switch action {
         case .addPicture: addingPicture = true
         case .voiceNote: recordingVoice = true
@@ -457,47 +558,6 @@ extension View {
 }
 
 /// Long-press opens this: drag the handles to set the saved order.
-struct ReorderView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var ids: [String] = []
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(ids, id: \.self) { id in
-                    if let coin = model.coin(id) {
-                        HStack(spacing: 12) {
-                            Circle().fill(coin.accentColor).frame(width: 10, height: 10)
-                            Text(coin.title)
-                        }
-                    }
-                }
-                .onMove { from, to in ids.move(fromOffsets: from, toOffset: to) }
-            }
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Rearrange")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        let newOrder = ids
-                        dismiss()
-                        if newOrder != model.coins.map(\.id) {
-                            Task { await model.reorder(newOrder) }
-                        }
-                    }
-                    .bold()
-                }
-            }
-        }
-        .onAppear { ids = model.coins.map(\.id) }
-    }
-}
-
 #if DEBUG
 /// Two pictures, as if shared from Photos (UI tests only): big camera-size
 /// photos stored sideways, read through the same code the Share extension uses.
@@ -538,6 +598,24 @@ private struct OfflineLabelStyle: LabelStyle {
             configuration.icon
         } else {
             Label(configuration)
+        }
+    }
+}
+
+/// How far the purse is pulled down past its top (iOS 18 and later; on
+/// iOS 17 the cards simply do not fan).
+private struct PullTracker: ViewModifier {
+    @Binding var pull: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geo in
+                -(geo.contentOffset.y + geo.contentInsets.top)
+            } action: { _, past in
+                pull = max(0, past)
+            }
+        } else {
+            content
         }
     }
 }

@@ -45,8 +45,10 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         addSubview(imageView)
         if ImageAnalyzer.isSupported {
             liveText.preferredInteractionTypes = .automatic
-            // Keep the Live Text button clear of the viewer's bottom bar.
-            liveText.supplementaryInterfaceContentInsets = UIEdgeInsets(top: 0, left: 0, bottom: 170, right: 12)
+            // Links, phone numbers and emails in the picture stay tappable and
+            // text can be selected, but without iOS's floating Live Text
+            // button, which is not clear in a picture viewer.
+            liveText.isSupplementaryInterfaceHidden = true
             imageView.addInteraction(liveText)
         }
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))

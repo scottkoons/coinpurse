@@ -24,6 +24,8 @@ struct EditorView: View {
     @State private var stagedMain: StagedPicture?
     @State private var stagedExtras: [StagedPicture] = []
     @State private var addingExtra = false
+    /// The add sheet is open to replace the first picture rather than add one.
+    @State private var replacingMain = false
     @State private var cropping: StagedCrop?
     @State private var removing: Picture?
     @State private var saving = false
@@ -74,13 +76,6 @@ struct EditorView: View {
                 Section("Color") {
                     AccentPicker(accent: $accent)
                 }
-                if hasMain {
-                    Section {
-                        extras
-                    } header: {
-                        Text("More pictures (\(extrasCount) of \(Config.maxExtraPictures))")
-                    }
-                }
                 if !startsWithPin { pinSection }
             }
             .onChange(of: error) { _, message in
@@ -110,7 +105,8 @@ struct EditorView: View {
             .sheet(isPresented: $addingExtra) {
                 AddPictureSheet { data in
                     addingExtra = false
-                    stage(data, asMain: false)
+                    stage(data, asMain: replacingMain)
+                    replacingMain = false
                 }
                 .presentationDetents([.height(260)])
             }
@@ -145,7 +141,7 @@ struct EditorView: View {
         Section {
             mainPicture
         } header: {
-            Text(startsWithPin ? "Photo of the spot (optional)" : "Picture")
+            Text(startsWithPin ? "Photo of the spot (optional)" : hasMain ? "Pictures (\(pictureCount) of \(Config.maxExtraPictures + 1))" : "Picture")
         } footer: {
             Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
         }
@@ -254,19 +250,50 @@ struct EditorView: View {
             .frame(maxHeight: 240)
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            PictureSourceButtons { data in stage(data, asMain: true) }
-
-            if let stagedMain {
-                Button {
-                    cropping = StagedCrop(picture: stagedMain, isMain: true)
-                } label: {
-                    Label("Crop or rotate", systemImage: "crop.rotate")
+            if hasMain {
+                // Every picture in one row, right under the first, with + to add one.
+                extras
+                HStack(spacing: 18) {
+                    if let stagedMain {
+                        Button {
+                            cropping = StagedCrop(picture: stagedMain, isMain: true)
+                        } label: {
+                            Label("Crop or rotate", systemImage: "crop.rotate")
+                        }
+                    }
+                    Button {
+                        replacingMain = true
+                        addingExtra = true
+                    } label: {
+                        Label("Replace", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .accessibilityLabel("Replace the first picture")
                 }
+                .buttonStyle(.borderless)
+                .font(.subheadline)
+            }
+
+            if pictureCount < Config.maxExtraPictures + 1 {
+                // A second Paste, Photos or Camera adds another picture; it never
+                // replaces the first one.
+                if hasMain {
+                    Text("Add another picture")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                PictureSourceButtons { data in stage(data, asMain: false) }
+            } else {
+                Text("A coin holds up to \(Config.maxExtraPictures + 1) pictures.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
     }
+
+    /// Pictures in the coin, counting ones not saved yet.
+    private var pictureCount: Int { (hasMain ? 1 : 0) + extrasCount }
 
     private var extras: some View {
         ScrollView(.horizontal, showsIndicators: false) {

@@ -38,11 +38,16 @@ final class LocationFinder: NSObject, @preconcurrency CLLocationManagerDelegate 
         #if DEBUG
         // UI tests can act out a person who said no to location.
         if ProcessInfo.processInfo.arguments.contains("-uiTestPinDenied") { throw Failure.denied }
-        // UI tests pass a spot in ("lat,lng") instead of using GPS.
+        // UI tests pass a spot in ("lat,lng", or "lat,lng,HHMM" for a set time today) instead of using GPS.
         if let fake = UserDefaults.standard.string(forKey: "uiTestPin") {
             let parts = fake.split(separator: ",").compactMap { Double($0) }
-            if parts.count == 2 {
-                return Pin(lat: parts[0], lng: parts[1], acc: 8, at: Date().timeIntervalSince1970 * 1000)
+            if parts.count >= 2 {
+                var when = Date()
+                if parts.count == 3 {
+                    let hhmm = Int(parts[2])
+                    when = Calendar.current.date(bySettingHour: hhmm / 100, minute: hhmm % 100, second: 0, of: Date()) ?? when
+                }
+                return Pin(lat: parts[0], lng: parts[1], acc: 8, at: when.timeIntervalSince1970 * 1000)
             }
         }
         #endif

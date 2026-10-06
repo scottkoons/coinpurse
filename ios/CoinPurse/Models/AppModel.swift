@@ -261,6 +261,26 @@ final class AppModel {
         }
     }
 
+    /// Moves a coin to a new place in the purse (dragged in the stack) and
+    /// saves the order. The purse changes at once; a failure puts it back.
+    func move(_ id: String, to index: Int) {
+        guard let from = coins.firstIndex(where: { $0.id == id }) else { return }
+        let before = coins
+        var list = coins
+        let moved = list.remove(at: from)
+        list.insert(moved, at: min(max(index, 0), list.count))
+        guard list.map(\.id) != before.map(\.id) else { return }
+        coins = list
+        Task {
+            do {
+                coins = try await api.reorder(ids: list.map(\.id))
+            } catch {
+                coins = before
+                await handle(error)
+            }
+        }
+    }
+
     func url(for picture: Picture) -> URL? { api.url(for: picture) }
 
     /// What a coin saved without a title will be called (the server decides;

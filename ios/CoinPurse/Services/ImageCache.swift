@@ -6,7 +6,8 @@ import UIKit
 actor ImageCache {
     static let shared = ImageCache()
 
-    private let memory = NSCache<NSString, UIImage>()
+    /// NSCache is safe to use from any thread.
+    nonisolated(unsafe) private let memory = NSCache<NSString, UIImage>()
     private let folder: URL
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
 
@@ -20,6 +21,12 @@ actor ImageCache {
     private func file(for key: String) -> URL {
         let safe = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? String(key.hashValue)
         return folder.appendingPathComponent(String(safe.suffix(200)))
+    }
+
+    /// A picture already in memory, right away (no waiting), so a card that is
+    /// drawn again shows its picture on the first frame instead of flashing.
+    nonisolated func inMemory(_ key: String) -> UIImage? {
+        memory.object(forKey: key as NSString)
     }
 
     func cached(_ key: String) -> UIImage? {
