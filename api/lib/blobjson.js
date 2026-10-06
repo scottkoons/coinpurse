@@ -23,8 +23,15 @@ function versionsPrefix(basePath) {
 }
 
 function versionStamp(pathname) {
-  const m = /\/(\d{15})-[0-9a-f]+\.json$/.exec(pathname || '');
+  // Older versions are "<stamp>-<random>.json"; claimed ones are "<stamp>.json".
+  const m = /\/(\d{15})(?:-[0-9a-f]+)?\.json$/.exec(pathname || '');
   return m ? Number(m[1]) : 0;
+}
+
+/** The one name the version after `base` may have (see writeJsonDocument's `after`). */
+function successorPathname(basePath, basePathname) {
+  const n = versionStamp(basePathname) + 1;
+  return `${versionsPrefix(basePath)}${String(n).padStart(15, '0')}.json`;
 }
 
 /**
@@ -68,7 +75,7 @@ async function readJsonDocument(basePath) {
       let lastErr = null;
       for (const v of versions.slice(0, KEEP_VERSIONS)) {
         try {
-          return { status: 'ok', data: await fetchJson(v.pathname) };
+          return { status: 'ok', data: await fetchJson(v.pathname), version: v.pathname };
         } catch (e) {
           lastErr = e;
         }
@@ -80,20 +87,50 @@ async function readJsonDocument(basePath) {
     // Legacy single file (pre-versioning). Exact-path prefix so a large
     // number of images can never push it past the list page limit.
     const text = await readBlobText(basePath, { fresh: true });
-    if (text == null) return { status: 'missing', data: null };
-    return { status: 'ok', data: JSON.parse(text) };
+    if (text == null) return { status: 'missing', data: null, version: null };
+    return { status: 'ok', data: JSON.parse(text), version: null };
   } catch (e) {
     console.error('readJsonDocument', basePath, e);
     return { status: 'error', data: null };
   }
 }
 
-async function writeJsonDocument(basePath, data) {
+/**
+ * Write a new version. With `{ after }` (the version this change was based
+ * on, or null when there was none) the write is a compare-and-swap: only one
+ * writer can claim the version that follows `after`. A second writer gets an
+ * error with code 'CONFLICT' and should read again and redo its change, so
+ * two changes made at the same moment never overwrite each other.
+ */
+async function writeJsonDocument(basePath, data, { after } = {}) {
   const existing = await listVersions(basePath);
-  const pathname = versionPathname(basePath, existing[0] && existing[0].pathname);
-  const result = await putBlob(pathname, JSON.stringify(data), {
-    contentType: 'application/json',
-  });
+  const claim = after !== undefined;
+  const pathname = claim
+    ? successorPathname(basePath, after)
+    : versionPathname(basePath, existing[0] && existing[0].pathname);
+  let result;
+  try {
+    result = await putBlob(pathname, JSON.stringify(data), {
+      contentType: 'application/json',
+      allowOverwrite: false,
+    });
+  } catch (e) {
+    if (claim) {
+      const err = new Error('Changed by someone else; read again');
+      err.code = 'CONFLICT';
+      err.cause = e;
+      throw err;
+    }
+    throw e;
+  }
+  // A version newer than the one we followed means our base was stale
+  // (another writer had already moved on): drop ours and redo the change.
+  if (claim && existing[0] && versionStamp(existing[0].pathname) >= versionStamp(pathname)) {
+    await deleteBlobs([pathname]).catch(() => {});
+    const err = new Error('Changed by someone else; read again');
+    err.code = 'CONFLICT';
+    throw err;
+  }
   // Best-effort prune (the new version plus KEEP_VERSIONS - 1 older ones stay).
   // Never fail the write because cleanup failed.
   try {

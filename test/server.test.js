@@ -444,3 +444,63 @@ test('a coin can hold a map pin, move it, and lose it', async () => {
   const other = await signIn('snoop@example.com');
   assert.equal((await call('coins/[id].js', { method: 'PUT', token: other, query: { id }, body: { pin: { lat: 1, lng: 1 } } })).status, 404);
 });
+
+test('changes that happen at the same moment are never lost', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('busy@example.com');
+  // Eight coins created at once (two phones, a share and the app...).
+  const ids = Array.from({ length: 8 }, (_, i) => `00000000-0000-4000-8000-00000000000${i}`);
+  await Promise.all(ids.map((id, i) => call('coins.js', { method: 'POST', token: t, body: { id, title: 'Coin ' + (i + 10) } })));
+  let coins = (await call('coins.js', { token: t })).data.coins;
+  assert.equal(coins.length, 8, 'a coin created at the same moment was lost');
+
+  // Five extra pictures sent to one coin at once: all five are kept, and the
+  // limit still holds when more arrive together.
+  const id = ids[0];
+  const pic = { method: 'POST', token: t, query: { id }, body: JPEG, headers: { 'content-type': 'image/jpeg' } };
+  await call('coins/[id]/image.js', pic);
+  const results = await Promise.all(Array.from({ length: 7 }, () => call('coins/[id]/attachments.js', pic)));
+  coins = (await call('coins.js', { token: t })).data.coins;
+  const coin = coins.find((c) => c.id === id);
+  assert.equal(coin.attachments.length, 5, 'pictures sent together were lost or went over the limit');
+  assert.equal(results.filter((r) => r.status === 200).length, 5);
+  assert.ok(coin.imageUrl, 'the main picture was lost');
+
+  // Editing text while pictures arrive keeps both.
+  await Promise.all([
+    call('coins/[id].js', { method: 'PUT', token: t, query: { id: ids[1] }, body: { title: 'Renamed' } }),
+    call('coins/[id]/image.js', { ...pic, query: { id: ids[1] } }),
+    call('coins/[id]/attachments.js', { ...pic, query: { id: ids[1] } }),
+  ]);
+  const second = (await call('coins.js', { token: t })).data.coins.find((c) => c.id === ids[1]);
+  assert.equal(second.title, 'Renamed');
+  assert.ok(second.imageUrl);
+  assert.equal(second.attachments.length, 1);
+
+  // Deleting one coin while another is created loses neither change.
+  await Promise.all([
+    call('coins/[id].js', { method: 'DELETE', token: t, query: { id: ids[2] } }),
+    call('coins.js', { method: 'POST', token: t, body: { id: '00000000-0000-4000-8000-000000000099', title: 'New' } }),
+  ]);
+  coins = (await call('coins.js', { token: t })).data.coins;
+  assert.ok(!coins.some((c) => c.id === ids[2]), 'deleted coin came back');
+  assert.ok(coins.some((c) => c.title === 'New'), 'new coin was lost');
+});
+
+test('a burst of untitled coins gets unique numbers and none are lost', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('burst@example.com');
+  const made = await Promise.all(Array.from({ length: 30 }, () => call('coins.js', { method: 'POST', token: t, body: {} })));
+  assert.ok(made.every((r) => r.status === 201), 'some creates failed');
+  const coins = (await call('coins.js', { token: t })).data.coins;
+  assert.equal(coins.length, 30);
+  const names = new Set(coins.map((c) => c.title));
+  assert.equal(names.size, 30, 'two coins got the same Coin number');
+  // A retried create (same id) during the burst still makes just one coin.
+  const id = '00000000-0000-4000-8000-0000000000aa';
+  await Promise.all([1, 2, 3].map(() => call('coins.js', { method: 'POST', token: t, body: { id, title: 'Once' } })));
+  const after = (await call('coins.js', { token: t })).data.coins;
+  assert.equal(after.filter((c) => c.title === 'Once').length, 1);
+});

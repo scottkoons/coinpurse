@@ -122,7 +122,9 @@ struct PurseView: View {
 
     private func stack(screenHeight: CGFloat) -> some View {
         let coins = visibleCoins
-        return VStack(spacing: 0) {
+        // Lazy: only cards near the screen are drawn, so a big purse does not
+        // load every picture at once (data, memory and battery).
+        return LazyVStack(spacing: 0) {
             ForEach(Array(coins.enumerated()), id: \.element.id) { i, coin in
                 let isLast = i == coins.count - 1
                 ZStack(alignment: .top) {

@@ -51,8 +51,8 @@ async function readJsonBlob(pathname) {
   return data;
 }
 
-async function writeJsonBlob(pathname, data) {
-  return writeJsonDocument(pathname, data);
+async function writeJsonBlob(pathname, data, opts) {
+  return writeJsonDocument(pathname, data, opts);
 }
 
 /** Ascending sortOrder (lower = closer to front). Migrate legacy updatedAt-desc if needed. */
@@ -119,9 +119,9 @@ async function readIndexDocument(userId) {
   if (!userId) {
     return { status: 'missing', coins: [], deletedIds: {}, raw: null };
   }
-  const { status, data } = await readJsonBlobStatus(userIndexPath(userId));
+  const { status, data, version } = await readJsonBlobStatus(userIndexPath(userId));
   if (status === 'missing') {
-    return { status: 'missing', coins: [], deletedIds: {}, raw: null };
+    return { status: 'missing', coins: [], deletedIds: {}, raw: null, version: null };
   }
   if (status === 'error') {
     return { status: 'error', coins: [], deletedIds: {}, raw: null };
@@ -129,7 +129,7 @@ async function readIndexDocument(userId) {
   const deletedIds = normalizeDeletedIds(data && data.deletedIds);
   let coins = Array.isArray(data && data.coins) ? data.coins : [];
   coins = filterTombstoned(sortCoinsByOrder(coins), deletedIds);
-  return { status: 'ok', coins, deletedIds, raw: data };
+  return { status: 'ok', coins, deletedIds, raw: data, version: version || null };
 }
 
 async function readIndex(userId) {
@@ -139,107 +139,129 @@ async function readIndex(userId) {
   return doc.coins;
 }
 
-async function writeIndexDocument(userId, { coins, deletedIds, extra } = {}) {
+async function writeIndexDocument(userId, { coins, deletedIds, extra } = {}, opts) {
   const payload = {
     coins: Array.isArray(coins) ? coins : [],
     deletedIds: pruneDeletedIds(normalizeDeletedIds(deletedIds)),
     updatedAt: Date.now(),
     ...(extra && typeof extra === 'object' ? extra : {}),
   };
-  await writeJsonBlob(userIndexPath(userId), payload);
+  await writeJsonBlob(userIndexPath(userId), payload, opts);
   return payload;
+}
+
+function codedError(message, code) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Change the purse safely when several changes arrive at once (two phones,
+ * a share while the app saves, several pictures uploading together).
+ * `change(doc)` gets the latest purse and returns { coins, deletedIds, result },
+ * or { result } alone when nothing needs saving. If someone else saved first,
+ * it reads the purse again and runs `change` again on top of theirs.
+ * Errors thrown by `change` (not found, deleted, full) go straight to the caller.
+ */
+async function mutateIndex(userId, change) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const doc = await readIndexDocument(userId);
+    if (doc.status === 'error') throw new Error('Could not read coin index');
+    const out = await change(doc);
+    if (!out || !out.coins) return out ? out.result : undefined;
+    try {
+      await writeIndexDocument(userId, { coins: out.coins, deletedIds: out.deletedIds || doc.deletedIds },
+        { after: doc.version });
+      return out.result;
+    } catch (e) {
+      if (e.code !== 'CONFLICT') throw e;
+      // Someone else saved first: wait a moment (a little longer each time) and redo.
+      await new Promise((r) => setTimeout(r, 15 + Math.random() * 40 * (attempt + 1)));
+    }
+  }
+  throw new Error('Too many changes at once; try again');
+}
+
+/**
+ * Change one coin in the latest purse. `edit(coin, doc)` returns the new coin
+ * (it may throw with a code). Throws NOT_FOUND or TOMBSTONED.
+ */
+async function updateCoin(userId, id, edit) {
+  return mutateIndex(userId, async (doc) => {
+    if (doc.deletedIds[id]) throw codedError('Coin was deleted', 'TOMBSTONED');
+    const i = doc.coins.findIndex((c) => c.id === id);
+    if (i < 0) throw codedError('Coin not found', 'NOT_FOUND');
+    const before = doc.coins[i];
+    const after = await edit({ ...before, attachments: [...(before.attachments || [])] }, doc);
+    const coins = doc.coins.slice();
+    coins[i] = { ...after, id: before.id };
+    sortCoinsByOrder(coins);
+    return { coins, result: { coin: coins.find((c) => c.id === id), before } };
+  });
 }
 
 async function writeIndex(userId, coins) {
   // Preserve existing tombstones when rewriting coin list only.
-  const doc = await readIndexDocument(userId);
-  const deletedIds = doc.status === 'ok' ? doc.deletedIds : {};
-  const cleaned = filterTombstoned(coins, deletedIds);
-  await writeIndexDocument(userId, { coins: cleaned, deletedIds });
+  await mutateIndex(userId, (doc) => ({ coins: filterTombstoned(coins, doc.deletedIds) }));
 }
 
 async function upsertCoin(userId, coin) {
-  const doc = await readIndexDocument(userId);
-  if (doc.status === 'error') throw new Error('Could not read coin index');
-  const deletedIds = { ...doc.deletedIds };
-  // Tombstones win: never revive a deleted id via image upload, accent PUT,
-  // or stale-client sync. New coins always use fresh UUIDs.
-  if (coin && coin.id && deletedIds[coin.id]) {
-    const err = new Error('Coin was deleted');
-    err.code = 'TOMBSTONED';
-    throw err;
-  }
-
-  const coins = doc.coins.slice();
-  const i = coins.findIndex((c) => c.id === coin.id);
-  if (i >= 0) {
-    if (typeof coin.sortOrder !== 'number') {
-      coin.sortOrder = coins[i].sortOrder;
+  return mutateIndex(userId, (doc) => {
+    // Tombstones win: never revive a deleted id via image upload, accent PUT,
+    // or stale-client sync. New coins always use fresh UUIDs.
+    if (coin && coin.id && doc.deletedIds[coin.id]) throw codedError('Coin was deleted', 'TOMBSTONED');
+    const coins = doc.coins.slice();
+    const next = { ...coin };
+    const i = coins.findIndex((c) => c.id === next.id);
+    if (i >= 0) {
+      if (typeof next.sortOrder !== 'number') next.sortOrder = coins[i].sortOrder;
+      // Merge into existing so a partial payload cannot wipe title/notes/image.
+      coins[i] = { ...coins[i], ...next, id: coins[i].id };
+    } else {
+      if (typeof next.sortOrder !== 'number') next.sortOrder = nextFrontSortOrder(coins);
+      coins.push(next);
     }
-    // Merge into existing so a partial payload cannot wipe title/notes/image.
-    coins[i] = { ...coins[i], ...coin, id: coins[i].id };
-  } else {
-    if (typeof coin.sortOrder !== 'number') {
-      coin.sortOrder = nextFrontSortOrder(coins);
-    }
-    coins.push(coin);
-  }
-  sortCoinsByOrder(coins);
-  await writeIndexDocument(userId, { coins, deletedIds });
-  return coins.find((c) => c.id === coin.id) || coin;
+    sortCoinsByOrder(coins);
+    return { coins, result: coins.find((c) => c.id === next.id) || next };
+  });
 }
 
 /**
  * Patch image fields on an existing non-tombstoned coin only.
  * Never creates an index entry (prevents Untitled draft ghosts).
+ * Returns { coin, before } so the caller can delete the picture it replaced.
  */
 async function patchCoinImage(userId, id, { imageUrl, imagePath }) {
-  const doc = await readIndexDocument(userId);
-  if (doc.status === 'error') throw new Error('Could not read coin index');
-  if (doc.deletedIds[id]) {
-    const err = new Error('Coin was deleted');
-    err.code = 'TOMBSTONED';
-    throw err;
-  }
-  const coins = doc.coins.slice();
-  const i = coins.findIndex((c) => c.id === id);
-  if (i < 0) {
-    const err = new Error('Coin not found');
-    err.code = 'NOT_FOUND';
-    throw err;
-  }
-  coins[i] = {
-    ...coins[i],
-    imageUrl: imageUrl != null ? imageUrl : coins[i].imageUrl,
-    imagePath: imagePath != null ? imagePath : coins[i].imagePath,
+  return updateCoin(userId, id, (coin) => ({
+    ...coin,
+    imageUrl: imageUrl != null ? imageUrl : coin.imageUrl,
+    imagePath: imagePath != null ? imagePath : coin.imagePath,
     updatedAt: Date.now(),
-  };
-  await writeIndexDocument(userId, { coins, deletedIds: doc.deletedIds });
-  return coins[i];
+  }));
 }
 
 /** Rewrite sortOrder 0..n-1 from ordered id list. Unknown ids ignored. */
 async function reorderCoins(userId, orderedIds) {
   if (!Array.isArray(orderedIds)) throw new Error('ids required');
-  const doc = await readIndexDocument(userId);
-  if (doc.status === 'error') throw new Error('Could not read coin index');
-  const byId = new Map(doc.coins.map((c) => [c.id, c]));
-  const next = [];
-  const seen = new Set();
-  for (const id of orderedIds) {
-    const c = byId.get(id);
-    if (!c || seen.has(id)) continue;
-    seen.add(id);
-    next.push(c);
-  }
-  for (const c of doc.coins) {
-    if (!seen.has(c.id)) next.push(c);
-  }
-  next.forEach((c, i) => {
-    c.sortOrder = i;
+  return mutateIndex(userId, (doc) => {
+    const byId = new Map(doc.coins.map((c) => [c.id, c]));
+    const next = [];
+    const seen = new Set();
+    for (const id of orderedIds) {
+      const c = byId.get(id);
+      if (!c || seen.has(id)) continue;
+      seen.add(id);
+      next.push({ ...c });
+    }
+    for (const c of doc.coins) {
+      if (!seen.has(c.id)) next.push({ ...c });
+    }
+    next.forEach((c, i) => {
+      c.sortOrder = i;
+    });
+    return { coins: next, result: next };
   });
-  await writeIndexDocument(userId, { coins: next, deletedIds: doc.deletedIds });
-  return next;
 }
 
 /** Delete a stored picture, but only if it sits in this user's own folder. */
@@ -249,12 +271,11 @@ async function deleteOwnedImage(userId, item) {
 }
 
 async function removeCoin(userId, id) {
-  const doc = await readIndexDocument(userId);
-  if (doc.status === 'error') throw new Error('Could not read coin index');
-  const coin = doc.coins.find((c) => c.id === id);
-  const next = doc.coins.filter((c) => c.id !== id);
-  const deletedIds = { ...doc.deletedIds, [id]: Date.now() };
-  await writeIndexDocument(userId, { coins: next, deletedIds });
+  const coin = await mutateIndex(userId, (doc) => {
+    const found = doc.coins.find((c) => c.id === id);
+    const deletedIds = { ...doc.deletedIds, [id]: Date.now() };
+    return { coins: doc.coins.filter((c) => c.id !== id), deletedIds, result: found };
+  });
   if (coin) {
     await deleteOwnedImage(userId, coin);
     for (const att of Array.isArray(coin.attachments) ? coin.attachments : []) {
@@ -279,6 +300,8 @@ module.exports = {
   writeIndex,
   writeIndexDocument,
   upsertCoin,
+  mutateIndex,
+  updateCoin,
   patchCoinImage,
   removeCoin,
   reorderCoins,

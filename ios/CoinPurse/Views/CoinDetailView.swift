@@ -50,9 +50,15 @@ struct CoinDetailView: View {
     @Environment(\.openURL) private var openURL
 
     private var pages: [CoinPage] { coin.pages }
-    private var isNotePage: Bool {
-        if case .note = currentPage { return true }
+    /// A note long enough to need scrolling: there, dragging down scrolls the
+    /// note, and the coin closes from its title bar (or Done) instead.
+    private var isScrollingNote: Bool {
+        if case .note(let text) = currentPage { return Self.noteScrolls(text) }
         return false
+    }
+
+    private static func noteScrolls(_ text: String) -> Bool {
+        text.count > 220 || text.filter { $0 == "\n" }.count > 5
     }
     private var currentPage: CoinPage? { pages.indices.contains(page) ? pages[page] : pages.first }
     /// Typed notes show under the card when the card is busy showing pictures or a map.
@@ -73,7 +79,7 @@ struct CoinDetailView: View {
                     .frame(height: cardHeight)
                     .padding(.horizontal, 16)
                     .padding(.top, 6 + drag)
-                    .simultaneousGesture(dragToClose, including: isNotePage ? .subviews : .all)
+                    .simultaneousGesture(dragToClose, including: isScrollingNote ? .subviews : .all)
                 VStack(spacing: 14) {
                     pageDots
                     if let notesBelow { notesPanel(notesBelow) }
@@ -154,6 +160,9 @@ struct CoinDetailView: View {
     private var card: some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin)
+                // The title bar always drags the coin down, even over a long note.
+                .contentShape(Rectangle())
+                .gesture(isScrollingNote ? dragToClose : nil)
             TabView(selection: $page) {
                 ForEach(Array(pages.enumerated()), id: \.offset) { i, p in
                     pageView(p)
@@ -188,16 +197,22 @@ struct CoinDetailView: View {
                 .onTapGesture { MapsLink.openDirections(to: pin, name: coin.title) }
                 .accessibilityAddTraits(.isButton)
         case .note(let text):
-            ScrollView {
-                Text(LinkedText.make(text))
-                    .font(.system(.title2, design: .rounded).weight(.semibold))
-                    .lineSpacing(5)
-                    .foregroundStyle(.white)
-                    .tint(.white)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(20)
-                    .accessibilityIdentifier("noteText")
+            let words = Text(LinkedText.make(text))
+                .font(.system(.title2, design: .rounded).weight(.semibold))
+                .lineSpacing(5)
+                .foregroundStyle(.white)
+                .tint(.white)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                .accessibilityIdentifier("noteText")
+            Group {
+                if Self.noteScrolls(text) {
+                    ScrollView { words }
+                } else {
+                    // Short: no scrolling, so a drag down always puts the coin back.
+                    words.frame(maxHeight: .infinity, alignment: .top)
+                }
             }
             .background(Color.black.opacity(0.18))
         }

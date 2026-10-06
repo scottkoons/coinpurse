@@ -1,5 +1,5 @@
 const { requireUser, json, readJsonBody } = require('../lib/auth');
-const { readIndexDocument, upsertCoin, removeCoin, isValidCoinId } = require('../lib/store');
+const { updateCoin, removeCoin, isValidCoinId } = require('../lib/store');
 const { presentCoin } = require('../lib/imageurl');
 const { cleanTitle, cleanNotes, validAccent, cleanPin } = require('../lib/coinfields');
 
@@ -13,37 +13,28 @@ module.exports = async function handler(req, res) {
   if (req.method === 'PUT') {
     const data = await readJsonBody(req, res);
     if (!data) return;
-    const doc = await readIndexDocument(user.id);
-    if (doc.status === 'error') {
-      return json(res, 503, { error: 'Could not read coin index' });
-    }
-    if (doc.deletedIds[id]) {
-      return json(res, 410, { error: 'Coin was deleted' });
-    }
-    const existing = doc.coins.find((c) => c.id === id);
-    if (!existing) return json(res, 404, { error: 'Not found' });
     // A pin is only changed when the request includes one (null removes it).
-    const pin = data.pin === undefined ? { ok: true, value: existing.pin || null } : cleanPin(data.pin);
-    if (!pin.ok) return json(res, 400, { error: 'That map pin is not a real place' });
-    // Only text, color, pin and order can change here. Picture fields sent by a
-    // client are ignored; pictures change only through the upload endpoints.
-    const coin = {
-      ...existing,
-      // Clearing the title keeps the old one (every coin has a name).
-      title: cleanTitle(data.title) || existing.title,
-      notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
-      accent: validAccent(data.accent) ? data.accent : existing.accent,
-      pin: pin.value,
-      sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : existing.sortOrder,
-      updatedAt: Date.now(),
-    };
+    const pin = data.pin === undefined ? null : cleanPin(data.pin);
+    if (pin && !pin.ok) return json(res, 400, { error: 'That map pin is not a real place' });
     try {
-      const saved = await upsertCoin(user.id, coin);
-      return json(res, 200, { coin: presentCoin(saved, user.id) });
+      // Applied to the latest copy of the coin, so pictures arriving at the
+      // same moment are kept.
+      const { coin } = await updateCoin(user.id, id, (existing) => ({
+        // Only text, color, pin and order can change here. Picture fields sent
+        // by a client are ignored; pictures change only through the upload endpoints.
+        ...existing,
+        // Clearing the title keeps the old one (every coin has a name).
+        title: cleanTitle(data.title) || existing.title,
+        notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
+        accent: validAccent(data.accent) ? data.accent : existing.accent,
+        pin: pin ? pin.value : existing.pin || null,
+        sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : existing.sortOrder,
+        updatedAt: Date.now(),
+      }));
+      return json(res, 200, { coin: presentCoin(coin, user.id) });
     } catch (e) {
-      if (e.code === 'TOMBSTONED') {
-        return json(res, 410, { error: 'Coin was deleted' });
-      }
+      if (e.code === 'TOMBSTONED') return json(res, 410, { error: 'Coin was deleted' });
+      if (e.code === 'NOT_FOUND') return json(res, 404, { error: 'Not found' });
       throw e;
     }
   }

@@ -411,6 +411,25 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
+        // A long note: dragging inside it scrolls; dragging the title bar closes the coin.
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Long note")
+        notes.tap()
+        notes.typeText(String(repeating: "Bring the blue cooler, two chairs and the tickets. ", count: 6))
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Long note").waitForExistence(timeout: 15))
+        card("Long note").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(1)
+        app.descendants(matching: .any)["noteText"].swipeDown()
+        sleep(1)
+        XCTAssertTrue(openCoin.exists, "scrolling a long note closed the coin")
+        openCoin.staticTexts["coinTitle"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "dragging the title bar did not close the coin")
+
         // Six pictures is the most a coin holds: the add button goes away.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "1")
         app.buttons["addPicture"].tap()
@@ -578,6 +597,44 @@ final class CoinPurseUITests: XCTestCase {
             done.fulfill()
         }.resume()
         wait(for: [done], timeout: 10)
+    }
+
+    /// A very big purse (150 coins, seed_big.py): it opens quickly, scrolls to
+    /// the end, and the last coin opens (TEST_RUNNER_BIG=1).
+    @MainActor
+    func testBigPurse() throws {
+        guard ProcessInfo.processInfo.environment["BIG"] == "1" else { throw XCTSkip("Set BIG=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        let started = Date()
+        XCTAssertTrue(card("Coin number 150").waitForExistence(timeout: 30))
+        print("BIG first card after \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
+        snap("b01-top")
+        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+        let scrollStart = Date()
+        var reached = false
+        for _ in 0..<60 {
+            low.press(forDuration: 0.02, thenDragTo: high, withVelocity: .fast, thenHoldForDuration: 0)
+            if card("Coin number 001").exists && card("Coin number 001").isHittable { reached = true; break }
+        }
+        print("BIG scrolled to the end in \(String(format: "%.1f", Date().timeIntervalSince(scrollStart))) s")
+        XCTAssertTrue(reached, "could not scroll to the last coin")
+        snap("b02-bottom")
+        card("Coin number 001").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coin number 001")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        // Search across all 150.
+        for _ in 0..<60 { high.press(forDuration: 0.02, thenDragTo: low, withVelocity: .fast, thenHoldForDuration: 0) }
+        app.buttons["Search"].tap()
+        app.textFields["searchField"].typeText("077")
+        XCTAssertTrue(card("Coin number 077").waitForExistence(timeout: 5))
+        snap("b03-search")
     }
 
     /// What Apple Maps shows after tapping a pin (TEST_RUNNER_MAPS=1, design purse).
