@@ -54,7 +54,9 @@ struct CoinCardHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
-                    .lineLimit(1)
+                    // Open, the whole name shows, even at the largest text sizes.
+                    .lineLimit(isOpen ? 3 : 1)
+                    .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
                 Text(subtitle)
                     .font(.caption.weight(.medium))

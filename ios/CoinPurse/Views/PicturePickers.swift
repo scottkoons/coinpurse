@@ -90,6 +90,11 @@ struct PictureSourceButtons: View {
                     paste
                     HStack(spacing: 10) { others }
                 }
+                // The largest text sizes: one button per line.
+                VStack(spacing: 10) {
+                    paste
+                    others
+                }
             }
 
             if loading { ProgressView() }
