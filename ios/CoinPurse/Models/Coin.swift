@@ -85,6 +85,8 @@ struct Picture: Hashable, Identifiable {
 /// The same six accent colors as the web app.
 enum AccentPalette {
     static let hex: [UInt32] = [0x6366F1, 0x06B6D4, 0x22C55E, 0xEAB308, 0xF97316, 0xEC4899]
+    /// What VoiceOver calls each color.
+    static let names = ["Indigo", "Teal", "Green", "Yellow", "Orange", "Pink"]
 
     static func color(_ index: Int) -> Color { shade(index, 1) }
 

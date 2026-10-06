@@ -12,7 +12,7 @@ nonisolated enum Config {
             return url
         }
         #endif
-        // TODO: replace with the production web address once confirmed.
+        // The live server (also serves the privacy and support pages).
         return URL(string: "https://coinpurse.yetignome.com")!
     }()
 

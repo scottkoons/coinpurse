@@ -35,9 +35,18 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppLock.self) private var lock
     @Environment(\.scenePhase) private var scenePhase
+    @State private var lockWindow = OverlayWindow(level: .alert + 1, passesTouches: false)
+    @State private var toastWindow = OverlayWindow(level: .alert + 2, passesTouches: true)
+
+    /// Locked, or hidden in the app switcher: nothing in the purse may show,
+    /// including anything open on top of it.
+    private var covered: Bool {
+        model.phase == .signedIn && lock.enabled && AppLock.canLock
+            && (lock.isLocked || scenePhase != .active)
+    }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        Group {
             switch model.phase {
             case .loading:
                 ProgressView()
@@ -46,25 +55,48 @@ struct RootView: View {
             case .signedIn:
                 PurseView()
             }
-            if let toast = model.toast {
-                Text(toast)
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.thinMaterial, in: Capsule())
-                    .padding(.horizontal, 24)
-                    // Clear of the Add Coin and Voice Note buttons.
-                    .padding(.bottom, model.phase == .signedIn ? 84 : 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(10)
-            }
-            // Locked, or hidden in the app switcher: never show the purse.
-            if model.phase == .signedIn && lock.enabled && AppLock.canLock
-                && (lock.isLocked || scenePhase != .active) {
-                LockView().zIndex(20)
+        }
+        .onChange(of: covered, initial: true) { _, isCovered in
+            if isCovered {
+                lockWindow.show(LockView().environment(lock))
+            } else {
+                lockWindow.hide()
             }
         }
-        .animation(.default, value: model.toast)
+        .onChange(of: model.toast, initial: true) { _, message in
+            if let message {
+                toastWindow.show(ToastView(message: message))
+            } else {
+                toastWindow.hide()
+            }
+        }
+    }
+}
+
+/// A short message at the bottom of the screen, above anything that is open.
+struct ToastView: View {
+    let message: String
+    @State private var shown = false
+
+    var body: some View {
+        VStack {
+            Spacer()
+            Text(message)
+                .font(.callout)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.thinMaterial, in: Capsule())
+                .padding(.horizontal, 24)
+                // Clear of the Picture, Voice and Pin buttons.
+                .padding(.bottom, 96)
+                .offset(y: shown ? 0 : 30)
+                .opacity(shown ? 1 : 0)
+                .accessibilityAddTraits(.isStaticText)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { shown = true }
+            UIAccessibility.post(notification: .announcement, argument: message)
+        }
     }
 }

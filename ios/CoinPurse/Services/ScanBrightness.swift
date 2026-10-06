@@ -5,24 +5,26 @@ import Vision
 /// Wallet does at a scanner, and puts it back afterwards.
 final class ScanBrightness {
     private var original: CGFloat?
-
-    private var screen: UIScreen? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }?
-            .screen
-    }
+    /// The screen that was brightened, kept so it can always be put back
+    /// (even while the app is leaving the foreground).
+    private weak var brightened: UIScreen?
 
     func raise() {
-        guard original == nil, let screen else { return }
+        guard original == nil,
+              let screen = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive })?
+                .screen else { return }
         original = screen.brightness
+        brightened = screen
         screen.brightness = 1
     }
 
     func restore() {
-        guard let value = original, let screen else { original = nil; return }
-        screen.brightness = value
+        guard let value = original else { return }
+        brightened?.brightness = value
         original = nil
+        brightened = nil
     }
 }
 

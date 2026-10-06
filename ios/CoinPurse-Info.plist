@@ -5,6 +5,12 @@
 	<!-- HTTPS only, standard Apple encryption: exempt from export paperwork. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- If Precise Location is off, a pin asks for it once, with this reason. -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PinYourSpot</key>
+		<string>Coin Purse needs your precise location for this pin, so you can find your way back to the exact spot.</string>
+	</dict>
 	<!-- Lets debug builds reach a local test server; all real traffic is HTTPS. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

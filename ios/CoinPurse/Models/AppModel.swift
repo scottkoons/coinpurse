@@ -8,8 +8,17 @@ final class AppModel {
 
     var phase: Phase = .loading
     var email: String = ""
-    var coins: [Coin] = []
+    var coins: [Coin] = [] {
+        didSet { saveSnapshot() }
+    }
+    /// False until the purse has been read once (from the phone or the server),
+    /// so a slow start shows a spinner instead of "Your purse is empty".
+    var coinsLoaded = false
+    /// The last refresh could not reach the server; what shows is the saved copy.
+    var isOffline = false
     var isRefreshing = false
+    /// Coins being deleted right now; a refresh that started earlier must not bring them back.
+    private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
     var toast: String?
 
@@ -43,6 +52,9 @@ final class AppModel {
             return
         }
         email = Self.emailInToken(token) ?? ""
+        // Show the purse saved on this phone right away (works with no signal),
+        // then bring it up to date.
+        loadSnapshot()
         phase = .signedIn
         await refresh()
     }
@@ -60,6 +72,7 @@ final class AppModel {
         token = newToken
         self.email = result.email
         coins = []
+        coinsLoaded = false
         phase = .signedIn
         await refresh()
     }
@@ -68,6 +81,8 @@ final class AppModel {
         Keychain.deleteToken()
         token = nil
         coins = []
+        coinsLoaded = false
+        Self.removeSnapshot()
         email = ""
         await ImageCache.shared.removeAll()
         phase = .signedOut
@@ -105,11 +120,17 @@ final class AppModel {
         defer { isRefreshing = false }
         do {
             let list = try await api.coins()
-            coins = list.coins
+            coins = list.coins.filter { !deleting.contains($0.id) }
             if let e = list.email { email = e }
+            isOffline = false
+        } catch APIError.network(let message) {
+            // Keep showing the saved purse, and say so.
+            isOffline = true
+            if coins.isEmpty { show(message) }
         } catch {
             await handle(error)
         }
+        coinsLoaded = true
     }
 
     func coin(_ id: String) -> Coin? { coins.first { $0.id == id } }
@@ -118,6 +139,10 @@ final class AppModel {
     /// Safe to repeat: the server treats a second create with the same id as a no-op.
     @discardableResult
     func saveCoinDetails(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
+        try await guarded(id) { try await self.saveDetails(id: id, title: title, notes: notes, accent: accent, pin: pin) }
+    }
+
+    private func saveDetails(id: String, title: String, notes: String, accent: Int, pin: Pin?) async throws -> Coin {
         let coin: Coin
         if self.coin(id) == nil {
             let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent, pin: pin)
@@ -135,19 +160,36 @@ final class AppModel {
 
     /// Drops, moves or (with nil) removes the map pin on a coin.
     func setPin(_ pin: Pin?, on coinId: String) async throws {
-        upsert(try await api.setPin(id: coinId, pin: pin))
+        let coin = try await guarded(coinId) { try await self.api.setPin(id: coinId, pin: pin) }
+        upsert(coin)
     }
 
     func uploadMainPicture(coinId: String, jpeg: Data) async throws {
-        let coin = try await api.uploadMainPicture(coinId: coinId, jpeg: jpeg)
+        let coin = try await guarded(coinId) { try await self.api.uploadMainPicture(coinId: coinId, jpeg: jpeg) }
         cacheUpload(jpeg, key: coin.imagePath)
         upsert(coin)
     }
 
     func uploadExtraPicture(coinId: String, jpeg: Data) async throws {
-        let coin = try await api.addPicture(coinId: coinId, jpeg: jpeg)
+        let coin = try await guarded(coinId) { try await self.api.addPicture(coinId: coinId, jpeg: jpeg) }
         cacheUpload(jpeg, key: coin.attachments.last?.imagePath)
         upsert(coin)
+    }
+
+    /// Every change to a coin goes through here: an expired sign-in signs out
+    /// (instead of failing forever), and a coin deleted on another device
+    /// leaves this phone too. The error still reaches the caller.
+    private func guarded<T>(_ coinId: String, _ op: () async throws -> T) async throws -> T {
+        do {
+            return try await op()
+        } catch APIError.unauthorized {
+            await signOut()
+            show("Please sign in again")
+            throw APIError.unauthorized
+        } catch APIError.gone {
+            coins.removeAll { $0.id == coinId }
+            throw APIError.gone
+        }
     }
 
     func addPicture(to coinId: String, jpeg: Data) async {
@@ -162,10 +204,10 @@ final class AppModel {
     func replacePicture(_ picture: Picture, of coinId: String, jpeg: Data) async throws {
         let coin: Coin
         if let attId = picture.attachmentId {
-            coin = try await api.replacePicture(coinId: coinId, attachmentId: attId, jpeg: jpeg)
+            coin = try await guarded(coinId) { try await self.api.replacePicture(coinId: coinId, attachmentId: attId, jpeg: jpeg) }
             cacheUpload(jpeg, key: coin.attachments.first { $0.id == attId }?.imagePath)
         } else {
-            coin = try await api.uploadMainPicture(coinId: coinId, jpeg: jpeg)
+            coin = try await guarded(coinId) { try await self.api.uploadMainPicture(coinId: coinId, jpeg: jpeg) }
             cacheUpload(jpeg, key: coin.imagePath)
         }
         upsert(coin)
@@ -181,24 +223,33 @@ final class AppModel {
     }
 
     func deleteCoin(_ id: String) async {
-        let before = coins
-        coins.removeAll { $0.id == id }
+        guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
+        let removed = coins.remove(at: index)
+        deleting.insert(id)
+        defer { deleting.remove(id) }
         do {
             try await api.deleteCoin(id: id)
             show("Deleted")
+        } catch APIError.gone {
+            // Already gone from the server: nothing to put back.
         } catch {
-            coins = before
+            // Put back only this coin, where it was; anything added meanwhile stays.
+            coins.insert(removed, at: min(index, coins.count))
             await handle(error)
         }
     }
 
     /// Persist a new order (front of the stack first).
     func reorder(_ ids: [String]) async {
+        let before = coins
         let byId = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
-        coins = ids.compactMap { byId[$0] }
+        let listed = Set(ids)
+        // Coins added after the Rearrange sheet opened keep their place at the front.
+        coins = coins.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] }
         do {
-            coins = try await api.reorder(ids: ids)
+            coins = try await api.reorder(ids: coins.map(\.id))
         } catch {
+            coins = before
             await handle(error)
         }
     }
@@ -238,12 +289,52 @@ final class AppModel {
         Task { await ImageCache.shared.store(data, key: key) }
     }
 
+    private var toastCount = 0
+
     func show(_ message: String) {
         toast = message
+        toastCount += 1
+        let mine = toastCount
         Task {
             try? await Task.sleep(for: .seconds(2.5))
-            if toast == message { toast = nil }
+            // Only clear our own message, not a newer one (even if it says the same thing).
+            if toastCount == mine { toast = nil }
         }
+    }
+
+    // MARK: Saved copy on the phone
+
+    /// The purse as last seen, kept on the phone so it opens instantly and
+    /// works with no signal (pictures are kept by ImageCache).
+    private static var snapshotURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("purse.json")
+    }
+
+    private struct Snapshot: Codable {
+        var email: String
+        var coins: [Coin]
+    }
+
+    private func saveSnapshot() {
+        guard phase == .signedIn, coinsLoaded || !coins.isEmpty else { return }
+        let snap = Snapshot(email: email, coins: coins)
+        guard let data = try? JSONEncoder().encode(snap) else { return }
+        // Protected while the phone is locked.
+        try? data.write(to: Self.snapshotURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    private func loadSnapshot() {
+        guard let data = try? Data(contentsOf: Self.snapshotURL),
+              let snap = try? JSONDecoder().decode(Snapshot.self, from: data),
+              snap.email.lowercased() == email.lowercased() else { return }
+        coins = snap.coins
+        coinsLoaded = true
+    }
+
+    private static func removeSnapshot() {
+        try? FileManager.default.removeItem(at: snapshotURL)
     }
 
     private func handle(_ error: Error) async {

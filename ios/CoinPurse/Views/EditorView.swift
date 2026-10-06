@@ -34,6 +34,7 @@ struct EditorView: View {
     @State private var locating = false
     @State private var pinError: String?
     @State private var finder = LocationFinder()
+    @Environment(\.openURL) private var openURL
     @FocusState private var titleFocused: Bool
 
     private var id: String { coinId ?? draftId }
@@ -177,6 +178,11 @@ struct EditorView: View {
             }
             if let pinError {
                 Text(pinError).font(.footnote).foregroundStyle(.red)
+                if finder.isDenied {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                }
             }
         } header: {
             Text("Map pin")
@@ -237,11 +243,11 @@ struct EditorView: View {
     private var extras: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(existingExtras) { picture in
-                    thumb { CachedImage(picture: picture, contentMode: .fill) } onRemove: { removing = picture }
+                ForEach(Array(existingExtras.enumerated()), id: \.element.id) { i, picture in
+                    thumb(number: i + 2) { CachedImage(picture: picture, contentMode: .fill) } onRemove: { removing = picture }
                 }
-                ForEach(stagedExtras) { staged in
-                    thumb {
+                ForEach(Array(stagedExtras.enumerated()), id: \.element.id) { i, staged in
+                    thumb(number: existingExtras.count + i + 2) {
                         Image(uiImage: staged.image).resizable().scaledToFill()
                     } onRemove: {
                         stagedExtras.removeAll { $0.id == staged.id }
@@ -263,7 +269,7 @@ struct EditorView: View {
         }
     }
 
-    private func thumb<Content: View>(@ViewBuilder _ content: () -> Content, onRemove: @escaping () -> Void) -> some View {
+    private func thumb<Content: View>(number: Int, @ViewBuilder _ content: () -> Content, onRemove: @escaping () -> Void) -> some View {
         content()
             .frame(width: 72, height: 72)
             .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -276,7 +282,7 @@ struct EditorView: View {
                 }
                 .buttonStyle(.plain)
                 .offset(x: 6, y: -6)
-                .accessibilityLabel("Remove picture")
+                .accessibilityLabel("Remove picture \(number)")
             }
     }
 

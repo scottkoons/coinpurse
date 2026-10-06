@@ -14,7 +14,8 @@ extension Coin {
         var list: [CoinPage] = []
         if let pin { list.append(.map(pin)) }
         list += pictures.enumerated().map { .picture($1, index: $0) }
-        if list.isEmpty { list.append(.note(notes)) }
+        // Only a title? The page shows it big, rather than an empty card.
+        if list.isEmpty { list.append(.note(notes.isEmpty ? title : notes)) }
         return list
     }
 }
@@ -34,6 +35,9 @@ struct CoinDetailView: View {
 
     @State private var page = 0
     @State private var drag: CGFloat = 0
+    /// True while a finger is down; if the system cancels the drag, the card springs back.
+    @GestureState private var dragging = false
+    @State private var closing = false
     @State private var appeared = false
     @State private var fullScreen: FullScreenPicture?
     @State private var editing = false
@@ -41,9 +45,15 @@ struct CoinDetailView: View {
     @State private var confirmDelete = false
     @State private var confirmMovePin = false
     @State private var locating = false
+    @State private var locationOff = false
     @State private var finder = LocationFinder()
+    @Environment(\.openURL) private var openURL
 
     private var pages: [CoinPage] { coin.pages }
+    private var isNotePage: Bool {
+        if case .note = currentPage { return true }
+        return false
+    }
     private var currentPage: CoinPage? { pages.indices.contains(page) ? pages[page] : pages.first }
     /// Typed notes show under the card when the card is busy showing pictures or a map.
     private var notesBelow: String? {
@@ -53,7 +63,7 @@ struct CoinDetailView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let reserved: CGFloat = 52 + 6 + 36 + 100 + 58 + (notesBelow == nil ? 0 : 86)
+            let reserved: CGFloat = 52 + 6 + 36 + actionSize + 44 + 58 + (notesBelow == nil ? 0 : 86)
             let cardHeight = max(300, min(geo.size.height - reserved, 620))
             VStack(spacing: 0) {
                 topBar
@@ -63,7 +73,7 @@ struct CoinDetailView: View {
                     .frame(height: cardHeight)
                     .padding(.horizontal, 16)
                     .padding(.top, 6 + drag)
-                    .simultaneousGesture(dragToClose)
+                    .simultaneousGesture(dragToClose, including: isNotePage ? .subviews : .all)
                 VStack(spacing: 14) {
                     pageDots
                     if let notesBelow { notesPanel(notesBelow) }
@@ -81,11 +91,17 @@ struct CoinDetailView: View {
                     .offset(y: appeared ? 0 : 60)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .onAppear {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.9).delay(0.1)) { appeared = true }
         }
         .onChange(of: pages.count) { _, count in
             if page >= count { page = max(0, count - 1) }
+        }
+        .onChange(of: dragging) { _, isDragging in
+            if !isDragging && !closing && drag != 0 {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { drag = 0 }
+            }
         }
         .fullScreenCover(item: $fullScreen) { ref in
             ViewerView(coinId: coin.id, startIndex: ref.index)
@@ -99,6 +115,14 @@ struct CoinDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("“\(coin.title)” and everything in it will be deleted. This cannot be undone.")
+        }
+        .alert("Location is off", isPresented: $locationOff) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Turn on Location for Coin Purse in Settings to drop a pin.")
         }
         .confirmationDialog("Move this pin to where you are now?", isPresented: $confirmMovePin, titleVisibility: .visible) {
             Button("Move Pin Here") { Task { await dropPin() } }
@@ -223,6 +247,13 @@ struct CoinDetailView: View {
                 }
                 .accessibilityElement()
                 .accessibilityLabel("Page \(page + 1) of \(pages.count)")
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment: if page < pages.count - 1 { withAnimation { page += 1 } }
+                    case .decrement: if page > 0 { withAnimation { page -= 1 } }
+                    @unknown default: break
+                    }
+                }
             }
         }
         .frame(minHeight: 12)
@@ -277,6 +308,8 @@ struct CoinDetailView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
+            // The whole column takes the tap, not just the symbol.
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .disabled(busy)
@@ -307,6 +340,7 @@ struct CoinDetailView: View {
 
     private var dragToClose: some Gesture {
         DragGesture(minimumDistance: 14)
+            .updating($dragging) { _, active, _ in active = true }
             .onChanged { value in
                 let dy = value.translation.height
                 guard dy > 0, abs(dy) > abs(value.translation.width) else { return }
@@ -315,6 +349,7 @@ struct CoinDetailView: View {
             }
             .onEnded { value in
                 if drag > 110 || (drag > 0 && value.predictedEndTranslation.height > 320) {
+                    closing = true
                     onClose()
                 } else {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { drag = 0 }
@@ -350,6 +385,8 @@ struct CoinDetailView: View {
             withAnimation { page = 0 }
             model.show(coin.pin == nil ? "Pinned" : "Pin moved")
         } catch is CancellationError {
+        } catch LocationFinder.Failure.denied {
+            locationOff = true
         } catch {
             model.show(error.localizedDescription)
         }

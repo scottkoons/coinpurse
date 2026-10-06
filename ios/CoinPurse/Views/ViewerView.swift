@@ -22,6 +22,10 @@ struct ViewerView: View {
     @State private var confirmRemovePicture = false
     @State private var busy = false
     @State private var brightness = ScanBrightness()
+    /// Pictures that could not be loaded (offline and not saved yet).
+    @State private var failed: Set<String> = []
+    @State private var brightnessCheck: Task<Void, Never>?
+    @State private var visible = false
     /// Which pictures hold a code, so each is only checked once.
     @State private var hasCode: [String: Bool] = [:]
 
@@ -58,6 +62,17 @@ struct ViewerView: View {
                         Group {
                             if let img = images[picture.key] {
                                 ZoomableImage(image: img) { dismiss() }
+                            } else if failed.contains(picture.key) {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "photo.badge.exclamationmark").font(.largeTitle)
+                                    Text("Could not load this picture.").font(.headline)
+                                    Button("Try Again") {
+                                        failed.remove(picture.key)
+                                        Task { await load(picture) }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                                .foregroundStyle(.white)
                             } else {
                                 ProgressView().tint(.white)
                             }
@@ -79,12 +94,17 @@ struct ViewerView: View {
         }
         .onChange(of: coin == nil) { _, gone in if gone { dismiss() } }
         // Bright for codes, back to normal for anything else or when leaving.
-        .onChange(of: index) { _, _ in Task { await updateBrightness() } }
-        .onChange(of: images.count) { _, _ in Task { await updateBrightness() } }
+        .onChange(of: index) { _, _ in checkBrightness() }
+        .onChange(of: images.count) { _, _ in checkBrightness() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await updateBrightness() } } else { brightness.restore() }
+            if phase == .active { checkBrightness() } else { brightnessCheck?.cancel(); brightness.restore() }
         }
-        .onDisappear { brightness.restore() }
+        .onAppear { visible = true }
+        .onDisappear {
+            visible = false
+            brightnessCheck?.cancel()
+            brightness.restore()
+        }
         .sheet(item: $share) { item in
             ShareSheet(image: item.image).presentationDetents([.medium, .large])
         }
@@ -135,6 +155,7 @@ struct ViewerView: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
                     .glassCircle()
+                    .contentShape(Circle())
             }
             .accessibilityLabel("Back")
             Spacer(minLength: 0)
@@ -156,6 +177,7 @@ struct ViewerView: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
                     .glassCircle()
+                    .contentShape(Circle())
             }
             .accessibilityLabel("More")
         }
@@ -198,6 +220,10 @@ struct ViewerView: View {
                                 .strokeBorder(i == index ? Color.white : Color.clear, lineWidth: 2)
                         )
                         .onTapGesture { withAnimation { index = i } }
+                        .accessibilityElement()
+                        .accessibilityLabel("Picture \(i + 1)")
+                        .accessibilityAddTraits(i == index ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityAction { withAnimation { index = i } }
                 }
                 if pictures.count < Config.maxExtraPictures + 1 {
                     Button { adding = true } label: {
@@ -229,6 +255,12 @@ struct ViewerView: View {
 
     // MARK: Actions
 
+    /// One check at a time; a newer one (or leaving) cancels the old.
+    private func checkBrightness() {
+        brightnessCheck?.cancel()
+        brightnessCheck = Task { await updateBrightness() }
+    }
+
     private func updateBrightness() async {
         guard let current, let image = images[current.key] else { brightness.restore(); return }
         let found: Bool
@@ -238,8 +270,8 @@ struct ViewerView: View {
             found = await CodeFinder.hasCode(image)
             hasCode[current.key] = found
         }
-        // Still on the same picture?
-        guard self.current?.key == current.key, scenePhase == .active else { return }
+        // Still here, on the same picture?
+        guard !Task.isCancelled, visible, self.current?.key == current.key, scenePhase == .active else { return }
         if found { brightness.raise() } else { brightness.restore() }
     }
 
@@ -248,6 +280,8 @@ struct ViewerView: View {
         guard let url = model.url(for: picture) else { return }
         if let img = await ImageCache.shared.image(key: picture.key, url: url) {
             images[picture.key] = img
+        } else {
+            failed.insert(picture.key)
         }
     }
 

@@ -26,13 +26,18 @@ final class LocationFinder: NSObject, @preconcurrency CLLocationManagerDelegate 
     }
 
     var isDenied: Bool {
-        manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestPinDenied") { return true }
+        #endif
+        return manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted
     }
 
     /// Your current spot. Waits up to about six seconds for a precise fix,
     /// then settles for the best one it has.
     func currentPin() async throws -> Pin {
         #if DEBUG
+        // UI tests can act out a person who said no to location.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestPinDenied") { throw Failure.denied }
         // UI tests pass a spot in ("lat,lng") instead of using GPS.
         if let fake = UserDefaults.standard.string(forKey: "uiTestPin") {
             let parts = fake.split(separator: ",").compactMap { Double($0) }
@@ -56,6 +61,21 @@ final class LocationFinder: NSObject, @preconcurrency CLLocationManagerDelegate 
     }
 
     private func begin() {
+        // Precise Location turned off for the app: a pin could be a mile out.
+        // Ask once, for this pin only (iOS explains why with our message).
+        if manager.accuracyAuthorization == .reducedAccuracy {
+            Task { [weak self] in
+                guard let self else { return }
+                _ = try? await self.manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "PinYourSpot")
+                self.startUpdates()
+            }
+        } else {
+            startUpdates()
+        }
+    }
+
+    private func startUpdates() {
+        guard continuation != nil else { return }
         manager.startUpdatingLocation()
         deadline?.cancel()
         deadline = Task { [weak self] in
@@ -98,7 +118,8 @@ final class LocationFinder: NSObject, @preconcurrency CLLocationManagerDelegate 
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        for fix in locations where fix.horizontalAccuracy >= 0 {
+        // Skip fixes the iPhone remembered from earlier: a pin is where you are now.
+        for fix in locations where fix.horizontalAccuracy >= 0 && abs(fix.timestamp.timeIntervalSinceNow) < 10 {
             if best == nil || fix.horizontalAccuracy < best!.horizontalAccuracy { best = fix }
         }
         // Good enough to find a car: stop early.

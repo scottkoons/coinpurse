@@ -128,7 +128,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["voiceNote"].tap()
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         snap("12-voice-listening")
-        app.buttons["Done"].tap()
+        app.buttons["stopRecording"].tap()
         let voiceText = app.descendants(matching: .any)["voiceText"]
         XCTAssertTrue(voiceText.waitForExistence(timeout: 5))
         XCTAssertEqual(voiceText.value as? String, "Milk, eggs, avocados, coffee and bread")
@@ -229,7 +229,7 @@ final class CoinPurseUITests: XCTestCase {
         // Add a voice note; untitled, so it takes the next number (the seed has a Coin 1).
         app.buttons["voiceNote"].tap()
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
-        app.buttons["Done"].tap()
+        app.buttons["stopRecording"].tap()
         XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 5))
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Coin 2").waitForExistence(timeout: 15))
@@ -346,6 +346,238 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Coffee gift card"].press(forDuration: 1.2)
         sleep(2)
         snap("d12-menu")
+    }
+
+    /// Edge cases: odd inputs, limits, empty and error states (TEST_RUNNER_EDGE=1).
+    @MainActor
+    func testEdgeCases() throws {
+        guard ProcessInfo.processInfo.environment["EDGE"] == "1" else { throw XCTSkip("Set EDGE=1 to run") }
+
+        // No connection: signing in says so plainly instead of hanging.
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:9"
+        app.launch()
+        let email = app.textFields["you@example.com"]
+        XCTAssertTrue(email.waitForExistence(timeout: 10))
+        email.tap()
+        email.typeText("review@example.com")
+        app.buttons["Email me a code"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Could not reach Coin Purse'")).firstMatch
+            .waitForExistence(timeout: 20), "offline sign-in shows no message")
+        snap("e01-offline")
+        app.terminate()
+
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestPinDenied"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
+
+        // A title and nothing else: the card shows the title big, not a blank.
+        app.buttons["addPicture"].tap()
+        let title = app.textFields["titleField"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Locker 🔑 #17")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Locker 🔑 #17").waitForExistence(timeout: 15))
+        card("Locker 🔑 #17").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any)["noteText"].label, "Locker 🔑 #17")
+        snap("e02-title-only")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // A very long title and note: they truncate in the stack and stay readable open.
+        let longTitle = String(repeating: "Very long title ", count: 8).trimmingCharacters(in: .whitespaces)
+        UIPasteboard.general.image = Self.sample(color: .systemIndigo, label: "Long")
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(longTitle)
+        let notes = app.textFields["Notes"].exists ? app.textFields["Notes"] : app.textViews["Notes"]
+        notes.tap()
+        notes.typeText(String(repeating: "Gate 4, row K, seat 12. ", count: 12))
+        tapPaste()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card(longTitle).waitForExistence(timeout: 15))
+        snap("e03-long-title-stack")
+        card(longTitle).tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(1)
+        snap("e04-long-open")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // Six pictures is the most a coin holds: the add button goes away.
+        UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "1")
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Six pictures")
+        tapPaste()
+        for n in 2...6 {
+            UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "\(n)")
+            let add = app.buttons["Add picture"].firstMatch
+            if !add.waitForExistence(timeout: 2) { app.swipeUp() }
+            add.tap()
+            tapPaste()
+        }
+        XCTAssertFalse(app.buttons["Add picture"].exists, "a seventh picture should not be offered")
+        snap("e05-six-pictures")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Six pictures").waitForExistence(timeout: 30))
+        card("Six pictures").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        for _ in 1...5 { openCoin.swipeLeft() }
+        XCTAssertTrue(app.descendants(matching: .any)["Page 6 of 6"].waitForExistence(timeout: 3))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // Location turned off: Pin explains how to turn it on, nothing breaks.
+        app.buttons["addPin"].tap()
+        XCTAssertTrue(app.staticTexts["Turn on Location for Coin Purse in Settings to drop a pin."].waitForExistence(timeout: 10))
+        snap("e06-location-off")
+        app.buttons["Cancel"].tap()
+        card("Locker 🔑 #17").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Add Pin"].tap()
+        XCTAssertTrue(app.staticTexts["Turn on Location for Coin Purse in Settings to drop a pin."].waitForExistence(timeout: 5),
+                      "Add Pin with location off shows no message")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // Search appears once a purse has six coins.
+        XCTAssertFalse(app.buttons["Search"].exists, "search should wait for a bigger purse")
+        for n in 1...3 {
+            app.buttons["addPicture"].tap()
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            title.tap()
+            title.typeText("Quick \(n)")
+            app.buttons["Save"].tap()
+            XCTAssertTrue(card("Quick \(n)").waitForExistence(timeout: 15))
+        }
+        // Search with nothing found says so.
+        XCTAssertTrue(app.buttons["Search"].waitForExistence(timeout: 3))
+        app.buttons["Search"].tap()
+        app.textFields["searchField"].typeText("zzzz")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'No Results'")).firstMatch.waitForExistence(timeout: 3))
+        snap("e07-no-results")
+        app.buttons["Cancel"].tap()
+
+        // Toss every coin: the purse goes back to empty.
+        let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
+        while cards.count > 0 {
+            let top = cards.element(boundBy: 0)
+            let name = top.label
+            top.tap()
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+            app.buttons["Delete"].tap()
+            app.alerts.buttons["Delete"].tap()
+            XCTAssertTrue(card(name).waitForNonExistence(timeout: 10), "\(name) was not deleted")
+        }
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 5))
+        snap("e08-empty-again")
+    }
+
+    /// No signal: the purse still opens from the copy saved on the phone,
+    /// changes fail clearly and nothing is lost (TEST_RUNNER_OFFLINE=1).
+    @MainActor
+    func testOffline() throws {
+        guard ProcessInfo.processInfo.environment["OFFLINE"] == "1" else { throw XCTSkip("Set OFFLINE=1 to run") }
+        setServerOffline(false)
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        signIn()
+        XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
+
+        // Two coins while online: a ticket picture and a note.
+        UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "Ticket")
+        app.buttons["addPicture"].tap()
+        let title = app.textFields["titleField"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Ticket")
+        tapPaste()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Ticket").waitForExistence(timeout: 15))
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Gate code 2468")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Gate code 2468").waitForExistence(timeout: 15))
+
+        // The signal drops, and the app is started fresh.
+        setServerOffline(true)
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:3000"
+        app.launch()
+        XCTAssertTrue(card("Ticket").waitForExistence(timeout: 20), "saved coins did not show offline")
+        XCTAssertTrue(card("Gate code 2468").exists)
+        XCTAssertTrue(offlineNote.waitForExistence(timeout: 30), "no offline note")
+        snap("o01-offline-purse")
+
+        // The ticket picture opens from the phone.
+        card("Ticket").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertTrue(openCoin.buttons["Picture 1"].waitForExistence(timeout: 5))
+        sleep(2)
+        XCTAssertFalse(openCoin.activityIndicators.firstMatch.exists, "picture still loading offline")
+        snap("o02-offline-open")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // Saving fails with a clear message, and the editor keeps what was typed.
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Offline coin")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Could not reach Coin Purse'")).firstMatch
+            .waitForExistence(timeout: 70), "offline save shows no message")
+        XCTAssertEqual(title.value as? String, "Offline coin")
+        snap("o03-offline-save")
+        app.buttons["Cancel"].tap()
+
+        // Deleting fails and the coin comes back.
+        card("Gate code 2468").tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Delete"].tap()
+        app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(card("Gate code 2468").waitForExistence(timeout: 70), "offline delete lost the coin")
+
+        // Signal back: a pull to refresh clears the note and everything works.
+        setServerOffline(false)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+        XCTAssertTrue(offlineNote.waitForNonExistence(timeout: 15), "offline note did not clear")
+        app.buttons["addPicture"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Back online")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Back online").waitForExistence(timeout: 15))
+        snap("o04-back-online")
+    }
+
+    @MainActor
+    private var offlineNote: XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Offline'")).firstMatch
+    }
+
+    private func setServerOffline(_ on: Bool) {
+        let done = expectation(description: "offline switch")
+        URLSession.shared.dataTask(with: URL(string: "http://localhost:3000/__test/offline?on=\(on ? 1 : 0)")!) { _, _, _ in
+            done.fulfill()
+        }.resume()
+        wait(for: [done], timeout: 10)
     }
 
     /// What Apple Maps shows after tapping a pin (TEST_RUNNER_MAPS=1, design purse).

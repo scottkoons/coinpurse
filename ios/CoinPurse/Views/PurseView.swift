@@ -86,7 +86,11 @@ struct PurseView: View {
     private func stackLayer(screenHeight: CGFloat) -> some View {
         let isOpen = openId != nil
         return ScrollView {
-            if model.coins.isEmpty {
+            if model.coins.isEmpty && !model.coinsLoaded {
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, minHeight: screenHeight - 220)
+            } else if model.coins.isEmpty {
                 emptyState
                     .frame(minHeight: screenHeight - 220)
             } else if visibleCoins.isEmpty {
@@ -97,6 +101,8 @@ struct PurseView: View {
             }
         }
         .scrollDisabled(isOpen)
+        .allowsHitTesting(!isOpen)
+        .accessibilityHidden(isOpen)
         .scrollDismissesKeyboard(.immediately)
         .refreshable { await model.refresh() }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -226,6 +232,15 @@ struct PurseView: View {
                 Text("Coin Purse")
                     .font(.system(.title, design: .rounded).weight(.bold))
                     .accessibilityAddTraits(.isHeader)
+                if model.isOffline {
+                    Label("Offline", systemImage: "wifi.slash")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.secondarySystemBackground), in: Capsule())
+                        .accessibilityLabel("Offline. Showing coins saved on this iPhone.")
+                }
                 Spacer()
                 if model.coins.count >= searchThreshold {
                     circleButton("magnifyingglass", label: "Search") {
@@ -256,6 +271,7 @@ struct PurseView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 42, height: 42)
                 .glassCircle()
+                .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
@@ -330,10 +346,11 @@ struct PurseView: View {
 }
 
 extension View {
-    /// Apple's Liquid Glass on iOS 26, frosted glass before that.
+    /// Apple's Liquid Glass on iOS 26, frosted glass before that. Not the
+    /// "interactive" kind: inside a button, that one takes the tap for itself.
     @ViewBuilder func glassCapsule() -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .capsule)
+            self.glassEffect(.regular, in: .capsule)
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
@@ -351,7 +368,7 @@ extension View {
 
     @ViewBuilder func glassCircle() -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: .circle)
+            self.glassEffect(.regular, in: .circle)
         } else {
             self.background(.ultraThinMaterial, in: Circle())
         }

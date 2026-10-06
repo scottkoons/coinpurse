@@ -63,8 +63,22 @@ function route(pathname) {
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
+// Test-only switch: GET /__test/offline?on=1 makes every API call fail like a
+// dropped connection, so the app's offline behavior can be tested.
+let offline = false;
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/__test/offline') {
+    offline = url.searchParams.get('on') === '1';
+    console.log('offline mode', offline);
+    res.end(offline ? 'offline' : 'online');
+    return;
+  }
+  if (offline && url.pathname.startsWith('/api/')) {
+    req.socket.destroy();
+    return;
+  }
   if (url.pathname.startsWith('/api/')) {
     const { file, query } = route(url.pathname);
     if (!file) { res.statusCode = 404; return res.end('{"error":"Not found"}'); }

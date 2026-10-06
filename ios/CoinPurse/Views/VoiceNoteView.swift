@@ -15,6 +15,8 @@ struct VoiceNoteView: View {
     @State private var saving = false
     @State private var error: String?
     @State private var started = false
+    /// One id for this note, so tapping Save again after a failure never makes two.
+    @State private var draftId = UUID().uuidString.lowercased()
     @FocusState private var editing: Bool
 
     private var canSave: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -23,7 +25,7 @@ struct VoiceNoteView: View {
         NavigationStack {
             Group {
                 switch capture.state {
-                case .idle, .listening:
+                case .idle, .starting, .listening, .stopping:
                     listening
                 case .finished:
                     review
@@ -134,10 +136,12 @@ struct VoiceNoteView: View {
                     .animation(.easeOut(duration: 0.12), value: capture.level)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Done")
+                .accessibilityLabel("Stop recording")
+                .accessibilityIdentifier("stopRecording")
                 .disabled(capture.state != .listening)
 
-                Text(capture.state == .listening ? "Listening.  Tap when you are done." : "Getting ready…")
+                Text(capture.state == .listening ? "Listening.  Tap when you are done."
+                     : capture.state == .stopping ? "Finishing…" : "Getting ready…")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -228,7 +232,7 @@ struct VoiceNoteView: View {
         defer { saving = false }
         do {
             try await model.saveCoinDetails(
-                id: UUID().uuidString.lowercased(),
+                id: draftId,
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 notes: text.trimmingCharacters(in: .whitespacesAndNewlines),
                 accent: accent
@@ -255,7 +259,7 @@ struct AccentPicker: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Color \(i + 1)")
+                .accessibilityLabel(AccentPalette.names[i])
                 .accessibilityAddTraits(accent == i ? .isSelected : [])
             }
         }

@@ -153,7 +153,8 @@ struct CoinFace: View {
                     .clipped()
                     .background(Color.black.opacity(0.2))
             } else {
-                NoteFace(notes: coin.notes)
+                // Only a title? Show it big, rather than an empty card.
+                NoteFace(notes: coin.notes.isEmpty ? coin.title : coin.notes)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

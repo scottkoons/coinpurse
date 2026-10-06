@@ -90,17 +90,18 @@ struct PinMarker: View {
 /// the purse never waits on Maps.
 final class MapSnapshots {
     static let shared = MapSnapshots()
-    private var cache: [String: UIImage] = [:]
+    /// iOS empties this by itself when memory runs low.
+    private let cache = NSCache<NSString, UIImage>()
 
     private func key(_ pin: Pin, _ size: CGSize, _ dark: Bool) -> String {
         "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height)),\(dark)"
     }
 
-    func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? { cache[key(pin, size, dark)] }
+    func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? { cache.object(forKey: key(pin, size, dark) as NSString) }
 
     func image(for pin: Pin, size: CGSize, dark: Bool) async -> UIImage? {
         let key = key(pin, size, dark)
-        if let hit = cache[key] { return hit }
+        if let hit = cache.object(forKey: key as NSString) { return hit }
         let options = MKMapSnapshotter.Options()
         let center = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
         let wide = PinMapView.spanMeters * Double(size.width / max(size.height, 1))
@@ -108,7 +109,7 @@ final class MapSnapshots {
         options.size = size
         options.traitCollection = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
         guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
-        cache[key] = snapshot.image
+        cache.setObject(snapshot.image, forKey: key as NSString)
         return snapshot.image
     }
 }

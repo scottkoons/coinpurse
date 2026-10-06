@@ -2,12 +2,15 @@ import Foundation
 
 enum APIError: LocalizedError {
     case unauthorized
+    /// The coin no longer exists (deleted on another device).
+    case gone
     case server(String)
     case network(String)
 
     var errorDescription: String? {
         switch self {
         case .unauthorized: return "Your sign-in expired. Please sign in again."
+        case .gone: return "This coin was deleted on another device."
         case .server(let message): return message
         case .network(let message): return message
         }
@@ -53,7 +56,9 @@ struct APIClient {
     struct CoinResult: Decodable { let coin: Coin }
 
     func coins() async throws -> CoinList {
-        try await send("GET", "/api/coins")
+        // Short: with a weak signal the purse already shows its saved copy,
+        // and saying "Offline" soon beats a long wait.
+        try await send("GET", "/api/coins", timeout: 15)
     }
 
     func createCoin(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
@@ -124,12 +129,12 @@ struct APIClient {
 
     private func send<T: Decodable>(
         _ method: String, _ path: String,
-        json: [String: Any]? = nil, body: Data? = nil, contentType: String? = nil
+        json: [String: Any]? = nil, body: Data? = nil, contentType: String? = nil, timeout: TimeInterval = 60
     ) async throws -> T {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.server("Bad address") }
         var req = URLRequest(url: url)
         req.httpMethod = method
-        req.timeoutInterval = 60
+        req.timeoutInterval = timeout
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let json {
             req.httpBody = try JSONSerialization.data(withJSONObject: json)
@@ -149,6 +154,7 @@ struct APIClient {
         let http = response as? HTTPURLResponse
         let status = http?.statusCode ?? 0
         if status == 401 && token != nil { throw APIError.unauthorized }
+        if (status == 404 || status == 410) && path.hasPrefix("/api/coins/") { throw APIError.gone }
         if let renewed = http?.value(forHTTPHeaderField: "X-Coinpurse-Token"), !renewed.isEmpty {
             onTokenRenewed?(renewed)
         }
