@@ -62,14 +62,20 @@ async function requireAuth(req, res) {
 }
 
 async function readJsonBody(req, res, limit = 64 * 1024) {
-  let body = '';
+  // Collect raw bytes and decode once at the end: a character can be split
+  // across two chunks, and the limit is in bytes, not string length.
+  const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
-    body += chunk;
-    if (body.length > limit) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buf.length;
+    if (size > limit) {
       json(res, 413, { error: 'Request too large' });
       return null;
     }
+    chunks.push(buf);
   }
+  const body = Buffer.concat(chunks).toString('utf8');
   try {
     const data = JSON.parse(body || '{}');
     if (data && typeof data === 'object' && !Array.isArray(data)) return data;

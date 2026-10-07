@@ -9,12 +9,15 @@ const { Writable } = require('stream');
 
 // ---------- in-memory @vercel/blob ----------
 const { installMockBlob } = require('./mockblob');
-const { sdk: fakeBlob, stores } = installMockBlob();
+const { sdk: fakeBlob, stores, hooks } = installMockBlob();
 
 // ---------- capture sign-in emails ----------
 const sentCodes = [];
+// Set to true to make the email service refuse to send.
+let failMail = false;
 global.fetch = async (url, init) => {
   if (String(url).includes('api.resend.com')) {
+    if (failMail) return new Response(JSON.stringify({ message: 'mail is down' }), { status: 500 });
     const body = JSON.parse(init.body);
     sentCodes.push({ to: body.to[0], code: body.text.match(/\d{6}/)[0] });
     return new Response(JSON.stringify({ id: 'x' }), { status: 200 });
@@ -31,15 +34,16 @@ process.env.ADMIN_EMAILS = 'boss@example.com';
 const api = (p) => require(path.join(__dirname, '..', 'api', p));
 
 // ---------- request helper ----------
-async function call(route, { method = 'GET', token, body, query = {}, headers = {} } = {}) {
+// `bodyChunks` sends a JSON body as these exact pieces (to split a character).
+async function call(route, { method = 'GET', token, body, bodyChunks, query = {}, headers = {} } = {}) {
   const handler = api(route);
-  const raw = body == null ? [] : [Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body))];
+  const raw = bodyChunks || (body == null ? [] : [Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body))]);
   const req = {
     method,
     query,
     headers: {
       ...(token ? { authorization: 'Bearer ' + token } : {}),
-      ...(body != null && !Buffer.isBuffer(body) ? { 'content-type': 'application/json' } : {}),
+      ...(bodyChunks || (body != null && !Buffer.isBuffer(body)) ? { 'content-type': 'application/json' } : {}),
       ...headers,
     },
     async *[Symbol.asyncIterator]() { for (const c of raw) yield c; },
@@ -68,7 +72,10 @@ async function signIn(email) {
   return v.data.token;
 }
 
-const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+// Tiny but complete 1x1 pictures (the server checks both ends of the file).
+const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AP//Z', 'base64');
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mM4UaEBAAN0AWn1BwN7AAAAAElFTkSuQmCC', 'base64');
+const WEBP = Buffer.from('UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAdQvCIXpf+BiOh/AAA=', 'base64');
 const reset = () => { for (const s of Object.values(stores)) s.files.clear(); sentCodes.length = 0; };
 const modes = ['public', 'private'];
 
@@ -522,11 +529,9 @@ test('odd and oversized input is handled safely', async () => {
   // Too big.
   const huge = Buffer.concat([JPEG, Buffer.alloc(4 * 1024 * 1024 + 10)]);
   assert.equal((await up(huge, 'image/jpeg')).status, 413);
-  // Real PNG and WebP headers pass.
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
-  assert.equal((await up(png, 'image/png')).status, 200);
-  const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.from([1, 0, 0, 0]), Buffer.from('WEBPVP8 ')]);
-  assert.equal((await up(webp, 'image/webp')).status, 200);
+  // Real PNG and WebP pictures pass.
+  assert.equal((await up(PNG, 'image/png')).status, 200);
+  assert.equal((await up(WEBP, 'image/webp')).status, 200);
   // Ids that try to reach other folders are refused.
   for (const bad of ['../../etc', 'a/b', 'short', '', 'x'.repeat(200), 'abc def ghi']) {
     assert.equal((await call('coins/[id].js', { method: 'PUT', token: t, query: { id: bad }, body: { title: 'y' } })).status, 400, bad);
@@ -552,4 +557,311 @@ test('a purse stops at 500 coins', async () => {
   assert.equal((await call('coins.js', { token: t })).data.coins.length, 500);
   const extra = await call('coins.js', { method: 'POST', token: t, body: { title: 'One too many' } });
   assert.equal(extra.status, 400);
+});
+
+// ---------- regression tests ----------
+
+const indexVersions = (mode = 'private') =>
+  [...stores[mode + '-token'].files.keys()].filter((p) => p.includes('/index.versions/'));
+
+test('a save held up while others land is never reported saved and then lost', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('slow@example.com');
+  assert.equal((await call('coins.js', { method: 'POST', token: t, body: { title: 'First' } })).status, 201);
+
+  // Pause the next index write (a slow phone's) between reading its base
+  // version and claiming the one after it.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let held = false;
+  hooks.beforePut = async (pathname) => {
+    if (!held && pathname.includes('/index.versions/')) {
+      held = true;
+      await gate;
+    }
+  };
+  let slow;
+  try {
+    slow = call('coins.js', { method: 'POST', token: t, body: { id: 'slow-coin-0001', title: 'Slow' } });
+    while (!held) await new Promise((r) => setImmediate(r));
+    // Seven other saves land meanwhile (more than the versions kept).
+    for (let i = 0; i < 7; i++) {
+      assert.equal((await call('coins.js', { method: 'POST', token: t, body: { title: 'Fast ' + i } })).status, 201);
+    }
+  } finally {
+    hooks.beforePut = null;
+    release();
+  }
+  const r = await slow;
+  const coins = (await call('coins.js', { token: t })).data.coins;
+  const present = coins.some((c) => c.id === 'slow-coin-0001');
+  assert.ok(present || r.status !== 201, 'the server said the coin was saved, but it is gone');
+  // It should in fact have been saved, on top of the others.
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.ok(present);
+  assert.equal(coins.length, 9);
+
+  // Young versions are kept; once they are older than the safety window a
+  // write prunes down to the newest five.
+  assert.ok(indexVersions().length > 5, 'versions were pruned while a writer could still want them');
+  const files = stores['private-token'].files;
+  for (const p of indexVersions()) files.get(p).uploadedAt = new Date(Date.now() - 11 * 60 * 1000);
+  assert.equal((await call('coins.js', { method: 'POST', token: t, body: { title: 'Later' } })).status, 201);
+  assert.equal(indexVersions().length, 5);
+  assert.equal((await call('coins.js', { token: t })).data.coins.length, 10);
+});
+
+test('JSON bodies: a character split across chunks, and the limit in bytes', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('bytes@example.com');
+  const title = 'Ticket \u{1F39F}️ stub';
+  const raw = Buffer.from(JSON.stringify({ title }));
+  const cut = raw.indexOf(Buffer.from('\u{1F39F}')) + 2; // inside the 4-byte emoji
+  const r = await call('coins.js', { method: 'POST', token: t, bodyChunks: [raw.subarray(0, cut), raw.subarray(cut)] });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.coin.title, title);
+
+  // 80,000 bytes, but only about 40,000 characters.
+  const big = Buffer.from(JSON.stringify({ notes: 'é'.repeat(39994) }));
+  assert.equal(big.length, 80000);
+  assert.ok(big.toString().length < 64 * 1024);
+  const tooBig = await call('coins.js', { method: 'POST', token: t, bodyChunks: [big.subarray(0, 40001), big.subarray(40001)] });
+  assert.equal(tooBig.status, 413);
+});
+
+test('deleting ids the purse never had does not push out real tombstones', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('tomb@example.com');
+  const id = 'gone-coin-0001';
+  assert.equal((await call('coins.js', { method: 'POST', token: t, body: { id, title: 'Gone' } })).status, 201);
+  assert.equal((await call('coins/[id].js', { method: 'DELETE', token: t, query: { id } })).status, 200);
+  const before = indexVersions().length;
+  for (let i = 0; i < 500; i++) {
+    const r = await call('coins/[id].js', { method: 'DELETE', token: t, query: { id: require('crypto').randomUUID() } });
+    assert.equal(r.status, 200);
+  }
+  // Deleting the same coin again is also a quiet no-op.
+  assert.equal((await call('coins/[id].js', { method: 'DELETE', token: t, query: { id } })).status, 200);
+  assert.equal(indexVersions().length, before, 'a delete of an unknown id wrote the purse');
+  assert.equal((await call('coins.js', { method: 'POST', token: t, body: { id, title: 'Back?' } })).status, 409);
+});
+
+test('coin ids named like built-in properties behave like any other id', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('proto@example.com');
+  const ids = ['toString', 'constructor', '__proto__', 'hasOwnProperty', 'isPrototypeOf', '__defineGetter__'];
+  for (const id of ids) {
+    const r = await call('coins.js', { method: 'POST', token: t, body: { id, title: 'T ' + id } });
+    assert.equal(r.status, 201, id + ' ' + JSON.stringify(r.data));
+    assert.equal(r.data.coin.id, id);
+    const pic = { method: 'POST', token: t, query: { id }, body: JPEG, headers: { 'content-type': 'image/jpeg' } };
+    assert.equal((await call('coins/[id]/image.js', pic)).status, 200, id);
+    assert.equal((await call('coins/[id]/attachments.js', pic)).status, 200, id);
+    assert.equal((await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { title: 'U ' + id } })).status, 200, id);
+  }
+  let coins = (await call('coins.js', { token: t })).data.coins;
+  assert.deepEqual(coins.map((c) => c.id).sort(), [...ids].sort());
+  // Deleting them leaves real tombstones that hold.
+  for (const id of ['__proto__', 'toString']) {
+    assert.equal((await call('coins/[id].js', { method: 'DELETE', token: t, query: { id } })).status, 200);
+    assert.equal((await call('coins.js', { method: 'POST', token: t, body: { id, title: 'again' } })).status, 409, id);
+    assert.equal((await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { title: 'x' } })).status, 410, id);
+  }
+  coins = (await call('coins.js', { token: t })).data.coins;
+  assert.deepEqual(coins.map((c) => c.id).sort(), ['__defineGetter__', 'constructor', 'hasOwnProperty', 'isPrototypeOf']);
+});
+
+test('a sortOrder that is not a finite number is ignored', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('order@example.com');
+  const json = { 'content-type': 'application/json' };
+  const made = await call('coins.js', { method: 'POST', token: t, body: Buffer.from('{"title":"Far","sortOrder":1e309}'), headers: json });
+  assert.equal(made.status, 201);
+  assert.ok(Number.isFinite(made.data.coin.sortOrder));
+  const id = made.data.coin.id;
+  const was = made.data.coin.sortOrder;
+  const put = await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: Buffer.from('{"sortOrder":-1e309}'), headers: json });
+  assert.equal(put.status, 200);
+  assert.equal(put.data.coin.sortOrder, was);
+  assert.equal((await call('coins.js', { token: t })).data.coins[0].sortOrder, was);
+});
+
+test('two pictures saved in the same millisecond both succeed', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('samems@example.com');
+  const id = (await call('coins.js', { method: 'POST', token: t, body: { title: 'Fast' } })).data.coin.id;
+  const pic = { method: 'POST', token: t, query: { id }, body: JPEG, headers: { 'content-type': 'image/jpeg' } };
+  const attId = (await call('coins/[id]/attachments.js', pic)).data.attachment.id;
+  const realNow = Date.now;
+  const frozen = realNow();
+  const files = stores['private-token'].files;
+  try {
+    Date.now = () => frozen;
+    const a = await call('coins/[id]/image.js', pic);
+    const b = await call('coins/[id]/image.js', pic);
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
+    assert.notEqual(a.data.coin.imagePath, b.data.coin.imagePath);
+    assert.ok(files.has(b.data.coin.imagePath));
+    assert.ok(!files.has(a.data.coin.imagePath), 'the replaced picture was not removed');
+    // Replacing an extra picture twice in one millisecond works too.
+    const replace = { ...pic, method: 'PUT', query: { id, attId } };
+    assert.equal((await call('coins/[id]/attachments.js', replace)).status, 200);
+    assert.equal((await call('coins/[id]/attachments.js', replace)).status, 200);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('pictures cut off part way are refused', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('cutoff@example.com');
+  const id = (await call('coins.js', { method: 'POST', token: t, body: { title: 'Pics' } })).data.coin.id;
+  const up = (body, type) => call('coins/[id]/image.js', { method: 'POST', token: t, query: { id }, body, headers: { 'content-type': type } });
+  const zeros = (n) => Buffer.alloc(n);
+  // JPEG: must end with FF D9; zero padding after it is fine.
+  assert.equal((await up(JPEG.subarray(0, JPEG.length - 2), 'image/jpeg')).status, 415);
+  assert.equal((await up(JPEG.subarray(0, 100), 'image/jpeg')).status, 415);
+  assert.equal((await up(Buffer.concat([JPEG.subarray(0, 100), zeros(8)]), 'image/jpeg')).status, 415);
+  assert.equal((await up(Buffer.concat([JPEG, zeros(16)]), 'image/jpeg')).status, 200);
+  // PNG: must end with the IEND chunk.
+  assert.equal((await up(PNG.subarray(0, PNG.length - 12), 'image/png')).status, 415);
+  assert.equal((await up(PNG.subarray(0, PNG.length - 1), 'image/png')).status, 415);
+  assert.equal((await up(PNG, 'image/png')).status, 200);
+  // WebP: the RIFF size must match the file (off by one allowed for padding).
+  assert.equal((await up(WEBP.subarray(0, WEBP.length - 4), 'image/webp')).status, 415);
+  assert.equal((await up(Buffer.concat([WEBP, zeros(8)]), 'image/webp')).status, 415);
+  assert.equal((await up(Buffer.concat([WEBP, zeros(1)]), 'image/webp')).status, 200);
+  assert.equal((await up(WEBP, 'image/webp')).status, 200);
+});
+
+test('a pin time outside 2000 to tomorrow becomes now', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('pintime@example.com');
+  const day = 24 * 60 * 60 * 1000;
+  const pinAt = async (at) => {
+    const before = Date.now();
+    const r = await call('coins.js', { method: 'POST', token: t, body: { pin: { lat: 1, lng: 2, at } } });
+    assert.equal(r.status, 201);
+    return { at: r.data.coin.pin.at, before, after: Date.now() };
+  };
+  for (const bad of [1e308, Date.now() + 2 * day, Date.UTC(1999, 11, 31), 5]) {
+    const p = await pinAt(bad);
+    assert.ok(p.at >= p.before && p.at <= p.after, `${bad} was kept as ${p.at}`);
+  }
+  const fine = Date.now() - day;
+  assert.equal((await pinAt(fine)).at, fine);
+  assert.equal((await pinAt(Date.UTC(2000, 0, 1))).at, Date.UTC(2000, 0, 1));
+});
+
+test('session tokens must be exactly payload.signature', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('shape@example.com');
+  const [data, sig] = t.split('.');
+  assert.equal((await call('coins.js', { token: t })).status, 200);
+  for (const bad of [t + '.extra', t + '.', `${data}.${sig}.${sig}`, '.' + sig, data + '.', data]) {
+    assert.equal((await call('coins.js', { token: bad })).status, 401, bad);
+  }
+  const { verifySigned } = require('../api/lib/crypto');
+  assert.ok(verifySigned(t));
+  assert.equal(verifySigned(t + '.extra'), null);
+});
+
+test('default names ignore "Coin N" titles with more than 9 digits', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('bignum@example.com');
+  const make = async (title) => (await call('coins.js', { method: 'POST', token: t, body: title == null ? {} : { title } })).data.coin.title;
+  await make('Coin 9007199254740992');
+  await make('Coin ' + '9'.repeat(400));
+  await make('Coin 1000000000');
+  assert.equal(await make(null), 'Coin 1');
+  await make('Coin 41');
+  assert.equal(await make(null), 'Coin 42');
+  await make('Coin 999999998');
+  assert.equal(await make(null), 'Coin 999999999');
+});
+
+test('long titles and notes are never cut in the middle of a character', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('emoji@example.com');
+  const coin = '\u{1FA99}';
+  const r = await call('coins.js', { method: 'POST', token: t, body: { title: 'a'.repeat(199) + coin + 'tail', notes: 'n'.repeat(4999) + coin } });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.coin.title, 'a'.repeat(199));
+  assert.equal(r.data.coin.notes, 'n'.repeat(4999));
+  assert.ok(r.data.coin.title.isWellFormed() && r.data.coin.notes.isWellFormed());
+  // An emoji that fits whole is kept.
+  const whole = await call('coins/[id].js', { method: 'PUT', token: t, query: { id: r.data.coin.id }, body: { title: 'a'.repeat(198) + coin + 'tail' } });
+  assert.equal(whole.data.coin.title, 'a'.repeat(198) + coin);
+});
+
+test('a missing picture is told apart from a missing coin', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const t = await signIn('pictures@example.com');
+  const id = (await call('coins.js', { method: 'POST', token: t, body: { title: 'Has pics' } })).data.coin.id;
+  const pic = { token: t, body: JPEG, headers: { 'content-type': 'image/jpeg' } };
+  const attId = (await call('coins/[id]/attachments.js', { ...pic, method: 'POST', query: { id } })).data.attachment.id;
+  const gone = { error: 'Picture not found', code: 'PICTURE_GONE' };
+
+  // Coin there, picture not.
+  const put = await call('coins/[id]/attachments.js', { ...pic, method: 'PUT', query: { id, attId: 'no-such-picture' } });
+  assert.equal(put.status, 404);
+  assert.deepEqual(put.data, gone);
+  const del = await call('coins/[id]/attachments.js', { method: 'DELETE', token: t, query: { id, attId: 'no-such-picture' } });
+  assert.equal(del.status, 404);
+  assert.deepEqual(del.data, gone);
+  assert.equal((await call('coins/[id]/attachments.js', { method: 'DELETE', token: t, query: { id, attId } })).status, 200);
+  assert.deepEqual((await call('coins/[id]/attachments.js', { method: 'DELETE', token: t, query: { id, attId } })).data, gone);
+
+  // Coin missing or deleted: unchanged answers, without the picture code.
+  const missing = await call('coins/[id]/attachments.js', { method: 'DELETE', token: t, query: { id: 'never-there-01', attId } });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.data.code, undefined);
+  await call('coins/[id].js', { method: 'DELETE', token: t, query: { id } });
+  const deleted = await call('coins/[id]/attachments.js', { ...pic, method: 'PUT', query: { id, attId } });
+  assert.equal(deleted.status, 410);
+  assert.equal(deleted.data.code, undefined);
+});
+
+test('a failed email keeps the code already sent and does not use up the limit', async () => {
+  reset();
+  process.env.COINPURSE_STORE = 'private';
+  const email = 'mailfail@example.com';
+  const request = () => call('auth/request-link.js', { method: 'POST', body: { email } });
+  assert.equal((await request()).status, 200);
+  const first = sentCodes.filter((c) => c.to === email).pop().code;
+  failMail = true;
+  try {
+    assert.equal((await request()).status, 502);
+  } finally {
+    failMail = false;
+  }
+  assert.equal((await call('auth/verify-code.js', { method: 'POST', body: { email, code: first } })).status, 200);
+
+  const other = 'mailfail2@example.com';
+  const requestOther = () => call('auth/request-link.js', { method: 'POST', body: { email: other } });
+  failMail = true;
+  try {
+    for (let i = 0; i < 3; i++) assert.equal((await requestOther()).status, 502);
+  } finally {
+    failMail = false;
+  }
+  // The three failures gave their slots back: three real sends still fit,
+  // and the limit holds after them.
+  for (let i = 0; i < 3; i++) assert.equal((await requestOther()).status, 200);
+  assert.equal((await requestOther()).status, 429);
+  const code = sentCodes.filter((c) => c.to === other).pop().code;
+  assert.equal((await call('auth/verify-code.js', { method: 'POST', body: { email: other, code } })).status, 200);
 });

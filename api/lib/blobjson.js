@@ -13,10 +13,31 @@ const { listBlobs, readBlobText, putBlob, deleteBlobs } = require('./blob');
  * Fix: every write goes to a brand new, never-overwritten pathname inside a
  * versions folder. Readers list that folder (the list API is not CDN cached)
  * and fetch the newest version, whose URL has never been cached anywhere.
- * Old versions are pruned after each write.
+ * Old versions are pruned after each write (see PRUNE_AFTER_MS).
  */
 
 const KEEP_VERSIONS = 5;
+
+/**
+ * A version is pruned only once it is older than this, even when more than
+ * KEEP_VERSIONS newer ones exist. A claiming writer (see `after` below) wants
+ * one exact successor name. If that name were deleted while the writer sat
+ * between reading its base and its put, its create-only put would succeed on
+ * the freed name, it would look like the newest version from its own (older)
+ * listing, and its change would be silently buried under the real newest one.
+ * A writer only wants a successor name if it read the base while that name did
+ * not exist yet, so the writer started before the successor was uploaded.
+ * vercel.json caps every function at 60 seconds (maxDuration), so once a
+ * version is 10 minutes old every writer that could still want its name has
+ * been stopped. Keep the two in step: this window must stay well above the
+ * function time limit.
+ */
+const PRUNE_AFTER_MS = 10 * 60 * 1000;
+
+function uploadedMs(blob) {
+  const t = blob && blob.uploadedAt ? new Date(blob.uploadedAt).getTime() : NaN;
+  return Number.isFinite(t) ? t : null;
+}
 
 function versionsPrefix(basePath) {
   return basePath.replace(/\.json$/, '') + '.versions/';
@@ -131,10 +152,18 @@ async function writeJsonDocument(basePath, data, { after } = {}) {
     err.code = 'CONFLICT';
     throw err;
   }
-  // Best-effort prune (the new version plus KEEP_VERSIONS - 1 older ones stay).
-  // Never fail the write because cleanup failed.
+  // Best-effort prune (the new version plus KEEP_VERSIONS - 1 older ones always
+  // stay, and so does anything younger than PRUNE_AFTER_MS; a version with no
+  // upload time is kept too). Never fail the write because cleanup failed.
   try {
-    const stale = existing.slice(KEEP_VERSIONS - 1).map((v) => v.pathname);
+    const cutoff = Date.now() - PRUNE_AFTER_MS;
+    const stale = existing
+      .slice(KEEP_VERSIONS - 1)
+      .filter((v) => {
+        const t = uploadedMs(v);
+        return t != null && t < cutoff;
+      })
+      .map((v) => v.pathname);
     if (stale.length) await deleteBlobs(stale);
   } catch (e) {
     console.warn('writeJsonDocument prune', basePath, e);

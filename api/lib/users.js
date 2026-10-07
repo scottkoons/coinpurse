@@ -188,18 +188,29 @@ function isAlreadyExists(e) {
  * Rate limits that cannot be raced. Each use claims one of `count` numbered
  * slot files with a create-only write, which the store refuses if the file
  * exists. Many parallel requests still get at most `count` slots between
- * them. Returns false when every slot is taken.
+ * them. Returns the claimed slot's pathname (so a request that fails later
+ * can give it back with releaseSlots), or null when every slot is taken.
  */
 async function claimSlot(email, name, count) {
   for (let i = 0; i < count; i++) {
+    const pathname = `${slotPrefix(email)}${name}-${i}`;
     try {
-      await putBlob(`${slotPrefix(email)}${name}-${i}`, '1', { contentType: 'text/plain', allowOverwrite: false });
-      return true;
+      await putBlob(pathname, '1', { contentType: 'text/plain', allowOverwrite: false });
+      return pathname;
     } catch (e) {
       if (!isAlreadyExists(e)) throw e;
     }
   }
-  return false;
+  return null;
+}
+
+/** Best effort: free slots claimed by a request that did not go through. */
+async function releaseSlots(pathnames) {
+  try {
+    await deleteBlobs(pathnames.filter(Boolean));
+  } catch (e) {
+    console.warn('releaseSlots', e);
+  }
 }
 
 /** Best effort: remove slots whose names do not start with one of `keep`. */
@@ -226,6 +237,7 @@ module.exports = {
   readLogin,
   writeLogin,
   claimSlot,
+  releaseSlots,
   pruneSlots,
   accountPath,
   LEGACY_USERS_PATH,

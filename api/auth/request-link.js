@@ -1,6 +1,6 @@
 const { json, readJsonBody } = require('../lib/auth');
 const { hashPin, randomId } = require('../lib/crypto');
-const { normalizeEmail, writeLogin, claimSlot, pruneSlots } = require('../lib/users');
+const { normalizeEmail, writeLogin, claimSlot, releaseSlots, pruneSlots } = require('../lib/users');
 const { reviewCode } = require('../lib/review');
 const { sendSignInCodeEmail } = require('../lib/mail');
 const crypto = require('crypto');
@@ -39,13 +39,27 @@ module.exports = async function handler(req, res) {
   const now = Date.now();
   const window = `send-w${Math.floor(now / SHORT_WINDOW_MS)}`;
   const day = `send-d${Math.floor(now / DAY_MS)}`;
-  if (!(await claimSlot(email, window, SHORT_LIMIT)) || !(await claimSlot(email, day, DAY_LIMIT))) {
+  const windowSlot = await claimSlot(email, window, SHORT_LIMIT);
+  const daySlot = windowSlot && (await claimSlot(email, day, DAY_LIMIT));
+  if (!windowSlot || !daySlot) {
     return json(res, 429, { error: 'Too many codes requested. Wait a few minutes and try again.' });
   }
 
   const code = sixDigitCode();
   const codeId = randomId();
   const { salt, hash } = hashPin(code);
+
+  // Email first, save second. If the email fails, the code already in the
+  // person's inbox keeps working and this attempt does not count against
+  // their limit.
+  try {
+    await sendSignInCodeEmail({ to: email, code });
+  } catch (e) {
+    console.error('sendSignInCodeEmail', e);
+    await releaseSlots([windowSlot, daySlot]);
+    return json(res, 502, { error: 'Could not send email. Try again.' });
+  }
+
   // No account is created here; that waits until the code is verified.
   // A new code replaces the old one, and its guesses are counted afresh.
   await writeLogin(email, {
@@ -55,12 +69,5 @@ module.exports = async function handler(req, res) {
     codeExp: now + CODE_TTL_MS,
   });
   await pruneSlots(email, [window, day, `try-${codeId}`]);
-
-  try {
-    await sendSignInCodeEmail({ to: email, code });
-  } catch (e) {
-    console.error('sendSignInCodeEmail', e);
-    return json(res, 502, { error: 'Could not send email. Try again.' });
-  }
   return json(res, 200, ok);
 };

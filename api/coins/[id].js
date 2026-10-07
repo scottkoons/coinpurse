@@ -28,7 +28,8 @@ module.exports = async function handler(req, res) {
         notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
         accent: validAccent(data.accent) ? data.accent : existing.accent,
         pin: pin ? pin.value : existing.pin || null,
-        sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : existing.sortOrder,
+        // JSON such as 1e309 parses to Infinity, which would be saved as null.
+        sortOrder: Number.isFinite(data.sortOrder) ? data.sortOrder : existing.sortOrder,
         updatedAt: Date.now(),
       }));
       return json(res, 200, { coin: presentCoin(coin, user.id) });

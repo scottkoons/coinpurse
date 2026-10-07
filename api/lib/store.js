@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { readJsonDocument, writeJsonDocument } = require('./blobjson');
 const { listBlobs, deleteBlobs, deleteBlobsQuiet } = require('./blob');
 const { pathOfImage, ownsPath } = require('./imageurl');
@@ -23,9 +24,12 @@ function userIndexPath(userId) {
 /**
  * Image paths carry a version stamp so replacing an image (crop, rotate,
  * new paste) gets a fresh URL instead of a stale CDN copy of the old one.
+ * The random part keeps two uploads in the same millisecond from wanting the
+ * same (create-only) path. Nothing parses these names; only the
+ * "users/<uid>/" prefix matters (see ownsPath).
  */
 function imageVersion() {
-  return Date.now().toString(36);
+  return Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex');
 }
 
 function userImagePath(userId, coinId, ext) {
@@ -87,9 +91,18 @@ function nextFrontSortOrder(coins) {
   return found ? min - 1 : 0;
 }
 
+/**
+ * Tombstone lookup. Ids such as "toString" or "constructor" are valid coin ids,
+ * so membership must never fall through to Object.prototype.
+ */
+function isTombstoned(deletedIds, id) {
+  return !!deletedIds && Object.hasOwn(deletedIds, id);
+}
+
 function normalizeDeletedIds(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const out = {};
+  // No prototype, so an id named "__proto__" is stored like any other.
+  const out = Object.create(null);
   for (const [id, ts] of Object.entries(raw)) {
     if (!id) continue;
     const n = Number(ts);
@@ -108,7 +121,7 @@ function pruneDeletedIds(deletedIds) {
 
 function filterTombstoned(coins, deletedIds) {
   if (!deletedIds || !Object.keys(deletedIds).length) return coins || [];
-  return (coins || []).filter((c) => c && c.id && !deletedIds[c.id]);
+  return (coins || []).filter((c) => c && c.id && !isTombstoned(deletedIds, c.id));
 }
 
 /**
@@ -189,7 +202,7 @@ async function mutateIndex(userId, change) {
  */
 async function updateCoin(userId, id, edit) {
   return mutateIndex(userId, async (doc) => {
-    if (doc.deletedIds[id]) throw codedError('Coin was deleted', 'TOMBSTONED');
+    if (isTombstoned(doc.deletedIds, id)) throw codedError('Coin was deleted', 'TOMBSTONED');
     const i = doc.coins.findIndex((c) => c.id === id);
     if (i < 0) throw codedError('Coin not found', 'NOT_FOUND');
     const before = doc.coins[i];
@@ -210,7 +223,7 @@ async function upsertCoin(userId, coin) {
   return mutateIndex(userId, (doc) => {
     // Tombstones win: never revive a deleted id via image upload, accent PUT,
     // or stale-client sync. New coins always use fresh UUIDs.
-    if (coin && coin.id && doc.deletedIds[coin.id]) throw codedError('Coin was deleted', 'TOMBSTONED');
+    if (coin && coin.id && isTombstoned(doc.deletedIds, coin.id)) throw codedError('Coin was deleted', 'TOMBSTONED');
     const coins = doc.coins.slice();
     const next = { ...coin };
     const i = coins.findIndex((c) => c.id === next.id);
@@ -273,6 +286,11 @@ async function deleteOwnedImage(userId, item) {
 async function removeCoin(userId, id) {
   const coin = await mutateIndex(userId, (doc) => {
     const found = doc.coins.find((c) => c.id === id);
+    // Only a coin that exists gets a tombstone. Deleting an id that is already
+    // tombstoned, or one this purse never had, changes nothing and writes
+    // nothing; otherwise a flood of made-up ids would push real tombstones
+    // out (MAX_TOMBSTONES) and let deleted coins come back.
+    if (!found) return { result: undefined };
     const deletedIds = { ...doc.deletedIds, [id]: Date.now() };
     return { coins: doc.coins.filter((c) => c.id !== id), deletedIds, result: found };
   });
@@ -310,6 +328,7 @@ module.exports = {
   deleteOwnedImage,
   deleteAllUserData,
   isValidCoinId,
+  isTombstoned,
   userImagePath,
   userAttachmentPath,
   MAX_ATTACHMENTS,

@@ -55,8 +55,12 @@ function signPayload(payload, maxAgeMs) {
 }
 
 function verifySigned(token) {
-  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
-  const [data, sig] = token.split('.');
+  if (!token || typeof token !== 'string') return null;
+  // Exactly "payload.signature": anything after a second dot would otherwise
+  // be ignored, so one token could be written many ways.
+  const parts = token.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const [data, sig] = parts;
   if (!safeEqual(sig, hmac(data))) return null;
   try {
     const body = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));

@@ -6,6 +6,7 @@ const {
   sortCoinsByOrder,
   nextFrontSortOrder,
   isValidCoinId,
+  isTombstoned,
   MAX_COINS,
 } = require('./lib/store');
 const { presentCoin } = require('./lib/imageurl');
@@ -43,7 +44,7 @@ module.exports = async function handler(req, res) {
       // are all kept and never share a "Coin N" name.
       outcome = await mutateIndex(user.id, (doc) => {
         // Never revive a deleted id (stale client / retry after toss).
-        if (doc.deletedIds[id]) return { result: { status: 409 } };
+        if (isTombstoned(doc.deletedIds, id)) return { result: { status: 409 } };
         const already = doc.coins.find((c) => c.id === id);
         if (already) return { result: { status: 200, coin: already } };
         if (doc.coins.length >= MAX_COINS) return { result: { status: 400 } };
@@ -59,7 +60,8 @@ module.exports = async function handler(req, res) {
           imagePath: null,
           attachments: [],
           pin: pin.value,
-          sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : nextFrontSortOrder(doc.coins),
+          // JSON such as 1e309 parses to Infinity, which would be saved as null.
+          sortOrder: Number.isFinite(data.sortOrder) ? data.sortOrder : nextFrontSortOrder(doc.coins),
           createdAt: now,
           updatedAt: now,
         };

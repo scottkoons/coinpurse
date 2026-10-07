@@ -4,6 +4,7 @@ const {
   patchCoinImage,
   userImagePath,
   isValidCoinId,
+  isTombstoned,
   deleteOwnedImage,
 } = require('../../lib/store');
 const { putBlob, deleteBlobsQuiet } = require('../../lib/blob');
@@ -24,7 +25,7 @@ module.exports = async function handler(req, res) {
   if (doc.status === 'error') {
     return json(res, 503, { error: 'Could not read coin index' });
   }
-  if (doc.deletedIds[id]) {
+  if (isTombstoned(doc.deletedIds, id)) {
     return json(res, 410, { error: 'Coin was deleted' });
   }
   const existing = doc.coins.find((c) => c.id === id);

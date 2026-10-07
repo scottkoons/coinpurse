@@ -5,6 +5,7 @@ const {
   updateCoin,
   userAttachmentPath,
   isValidCoinId,
+  isTombstoned,
   deleteOwnedImage,
   MAX_ATTACHMENTS,
 } = require('../../lib/store');
@@ -24,9 +25,17 @@ function gone() {
   return err;
 }
 
+/**
+ * The coin is there but this one picture is not. The code lets the app tell
+ * that apart from a 404 for the whole coin, so it drops only the picture.
+ */
+function pictureGone(res) {
+  return json(res, 404, { error: 'Picture not found', code: 'PICTURE_GONE' });
+}
+
 function failed(res, e) {
   if (e.code === 'FULL') return json(res, 400, { error: `Max ${MAX_ATTACHMENTS} extra images` });
-  if (e.code === 'ATT_NOT_FOUND') return json(res, 404, { error: 'Attachment not found' });
+  if (e.code === 'ATT_NOT_FOUND') return pictureGone(res);
   if (e.code === 'TOMBSTONED') return json(res, 410, { error: 'Coin was deleted' });
   if (e.code === 'NOT_FOUND') return json(res, 404, { error: 'Not found' });
   console.error('attachments', e);
@@ -51,7 +60,7 @@ module.exports = async function handler(req, res) {
   if (doc.status === 'error') {
     return json(res, 503, { error: 'Could not read coin index' });
   }
-  if (doc.deletedIds[id]) return json(res, 410, { error: 'Coin was deleted' });
+  if (isTombstoned(doc.deletedIds, id)) return json(res, 410, { error: 'Coin was deleted' });
   const coin = doc.coins.find((c) => c.id === id);
   if (!coin) return json(res, 404, { error: 'Save the coin before adding images' });
   if (!Array.isArray(coin.attachments)) coin.attachments = [];
@@ -83,7 +92,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'PUT') {
     const attId = req.query.attId || req.query.attachmentId;
     if (!attId) return json(res, 400, { error: 'Missing attId' });
-    if (!coin.attachments.some((a) => a.id === attId)) return json(res, 404, { error: 'Attachment not found' });
+    if (!coin.attachments.some((a) => a.id === attId)) return pictureGone(res);
 
     const upload = await readImageUpload(req, res);
     if (!upload) return;

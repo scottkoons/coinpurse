@@ -1,8 +1,13 @@
 /**
  * In-memory stand-in for @vercel/blob, used by the tests and the local dev
  * server. Two stores: 'public-token' and 'private-token'.
+ *
+ * Like the real list(), listed blobs carry uploadedAt (a Date). Tests can set
+ * hooks.beforePut to an async function (pathname, opts) to hold a put back,
+ * for example to pause one writer while others finish.
  */
 function createMockBlob() {
+  const hooks = { beforePut: null };
   const stores = {
     'public-token': { access: 'public', files: new Map() },
     'private-token': { access: 'private', files: new Map() },
@@ -14,10 +19,11 @@ function createMockBlob() {
   }
   const sdk = {
     async put(pathname, body, opts) {
+      if (hooks.beforePut) await hooks.beforePut(pathname, opts);
       const s = storeFor(opts);
       if (opts.access !== s.access) throw new Error('mock blob: access mismatch');
       if (s.files.has(pathname) && !opts.allowOverwrite) throw new Error('Vercel Blob: This blob already exists, use `allowOverwrite: true` if you want to overwrite it.');
-      s.files.set(pathname, { body: Buffer.from(body), contentType: opts.contentType });
+      s.files.set(pathname, { body: Buffer.from(body), contentType: opts.contentType, uploadedAt: new Date() });
       return { url: `https://store.${s.access}.blob.vercel-storage.com/${pathname}`, pathname };
     },
     async list(opts) {
@@ -38,7 +44,12 @@ function createMockBlob() {
       const slice = names.slice(start, start + limit);
       const more = start + limit < names.length;
       return {
-        blobs: slice.map((p) => ({ pathname: p, url: `https://store.${s.access}.blob.vercel-storage.com/${p}` })),
+        blobs: slice.map((p) => ({
+          pathname: p,
+          url: `https://store.${s.access}.blob.vercel-storage.com/${p}`,
+          size: s.files.get(p).body.length,
+          uploadedAt: s.files.get(p).uploadedAt,
+        })),
         hasMore: more,
         cursor: more ? String(start + limit) : undefined,
       };
@@ -60,7 +71,7 @@ function createMockBlob() {
       for (const p of [].concat(list)) s.files.delete(p);
     },
   };
-  return { sdk, stores };
+  return { sdk, stores, hooks };
 }
 
 /** Make require('@vercel/blob') return the mock. Call before loading api/. */
