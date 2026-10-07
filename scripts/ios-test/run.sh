@@ -35,6 +35,7 @@ SUITES=(
   "testShareFromPhotos:TEST_RUNNER_PHOTOS=1:"
   "testQuickActions:TEST_RUNNER_QUICK=1:"
   "testBigPurse:TEST_RUNNER_BIG=1:seed_big.py"
+  "testLargePurse:TEST_RUNNER_LARGE=1:seed_big.py"
   "testComesBackFresh:TEST_RUNNER_RETURN=1:"
   "testTapAccuracy:TEST_RUNNER_TAP=1:seed.py"
   "testStress:TEST_RUNNER_STRESS=1:seed_design.py"

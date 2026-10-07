@@ -8,14 +8,14 @@ enum CoinPage: Hashable {
 }
 
 extension Coin {
-    /// What the open card shows: the map first (where you parked matters
-    /// most), else the first picture, else the note. Every picture is also
-    /// under the card as a thumbnail.
-    var face: CoinPage {
-        if let pin { return .map(pin) }
-        if let first = pictures.first { return .picture(first, index: 0) }
+    /// The pages of an open coin, swiped through on the card: its pictures,
+    /// then its map pin last. A coin with neither shows its note.
+    var pages: [CoinPage] {
+        var list: [CoinPage] = pictures.enumerated().map { .picture($1, index: $0) }
+        if let pin { list.append(.map(pin)) }
         // Only a title? The card shows it big, rather than an empty window.
-        return .note(notes.isEmpty ? title : notes)
+        if list.isEmpty { list.append(.note(notes.isEmpty ? title : notes)) }
+        return list
     }
 }
 
@@ -42,6 +42,8 @@ struct CoinDetailView: View {
     @State private var peekLift: CGFloat = 0
 
     @State private var drag: CGFloat = 0
+    /// The page showing on the card (a picture, or the map).
+    @State private var page = 0
     /// True while a finger is down; if the system cancels the drag, the card springs back.
     @GestureState private var dragging = false
     @State private var closing = false
@@ -63,7 +65,7 @@ struct CoinDetailView: View {
     /// A note long enough to need scrolling: there, dragging down scrolls the
     /// note, and the coin closes from its title bar (or Done) instead.
     private var isScrollingNote: Bool {
-        if case .note(let text) = coin.face { return Self.noteScrolls(text) }
+        if case .note(let text) = coin.pages.first { return Self.noteScrolls(text) }
         return false
     }
 
@@ -75,8 +77,8 @@ struct CoinDetailView: View {
         let n = coin.notes.trimmingCharacters(in: .whitespacesAndNewlines)
         return n.isEmpty || !coin.hasContent ? nil : n
     }
-    /// Pictures beyond what the card face shows, as thumbnails under the card.
-    private var showsThumbnails: Bool { coin.pictures.count > 1 || (coin.pin != nil && !coin.pictures.isEmpty) }
+    /// More than one page: thumbnails under the card show where you are.
+    private var showsThumbnails: Bool { coin.pages.count > 1 }
 
     var body: some View {
         GeometryReader { geo in
@@ -118,6 +120,10 @@ struct CoinDetailView: View {
         .task {
             try? await Task.sleep(for: .milliseconds(450))
             settled = true
+        }
+        .onChange(of: coin.id) { _, _ in page = 0 }
+        .onChange(of: coin.pages.count) { _, count in
+            if page >= count { page = max(0, count - 1) }
         }
         .onChange(of: dragging) { _, isDragging in
             if !isDragging && !closing && drag != 0 {
@@ -180,8 +186,15 @@ struct CoinDetailView: View {
                 // The title bar always drags the coin down, even over a long note.
                 .contentShape(Rectangle())
                 .gesture(isScrollingNote ? dragToClose : nil)
-            faceView
-                .overlay(alignment: .bottom) { tapHint }
+            // Swipe sideways through the pictures (and the map, last); tap one to open it.
+            TabView(selection: $page) {
+                ForEach(Array(coin.pages.enumerated()), id: \.offset) { i, p in
+                    pageView(p)
+                        .overlay(alignment: .bottom) { tapHint(for: p) }
+                        .tag(i)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -192,9 +205,9 @@ struct CoinDetailView: View {
         .accessibilityIdentifier("openCoin")
     }
 
-    /// The card's window: the map pin, else the first picture, else the note.
-    @ViewBuilder private var faceView: some View {
-        switch coin.face {
+    /// One page on the card: a picture, the map, or the note.
+    @ViewBuilder private func pageView(_ p: CoinPage) -> some View {
+        switch p {
         case .picture(let picture, let index):
             CachedImage(picture: picture, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -202,7 +215,7 @@ struct CoinDetailView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { fullScreen = FullScreenPicture(index: index) }
                 .accessibilityAddTraits(.isButton)
-                .accessibilityLabel("Picture 1")
+                .accessibilityLabel("Picture \(index + 1)")
                 .accessibilityHint("Shows it full screen")
         case .map(let pin):
             LivePinMap(pin: pin, name: coin.title, tint: coin.accentColor)
@@ -232,8 +245,8 @@ struct CoinDetailView: View {
     }
 
     /// What a tap does, on the card itself: a small glass chip.
-    @ViewBuilder private var tapHint: some View {
-        switch coin.face {
+    @ViewBuilder private func tapHint(for p: CoinPage) -> some View {
+        switch p {
         case .map:
             hintChip(Label("Directions", systemImage: "figure.walk"))
         case .picture:
@@ -254,26 +267,55 @@ struct CoinDetailView: View {
         .allowsHitTesting(false)
     }
 
-    /// Every picture in the coin; tap one to see it full size.
+    /// Every page as a thumbnail (the map last), the one showing outlined;
+    /// tap one to show it on the card.
     private var thumbnails: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(Array(coin.pictures.enumerated()), id: \.element) { i, picture in
-                    Button { fullScreen = FullScreenPicture(index: i) } label: {
-                        CachedImage(picture: picture, contentMode: .fill)
-                            .frame(width: 60, height: 60)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.12)))
+        ScrollViewReader { row in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(Array(coin.pages.enumerated()), id: \.offset) { i, p in
+                        Button { withAnimation(.snappy) { page = i } } label: {
+                            thumbnail(p)
+                                .frame(width: 60, height: 60)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(i == page ? Color.accentColor : Color.primary.opacity(0.12),
+                                                  lineWidth: i == page ? 3 : 1))
+                        }
+                        .buttonStyle(PressableStyle())
+                        .id(i)
+                        .accessibilityLabel(thumbnailLabel(p))
+                        .accessibilityIdentifier("thumbnail")
+                        .accessibilityAddTraits(i == page ? .isSelected : [])
+                        .accessibilityHint("Shows it on the card")
                     }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityLabel("Picture \(i + 1)")
-                    .accessibilityHint("Shows it full screen")
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
             }
-            .padding(.horizontal, 16)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onChange(of: page) { _, i in withAnimation { row.scrollTo(i, anchor: .center) } }
         }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+    }
+
+    @ViewBuilder private func thumbnail(_ p: CoinPage) -> some View {
+        switch p {
+        case .picture(let picture, _):
+            CachedImage(picture: picture, contentMode: .fill)
+        case .map(let pin):
+            PinMapView(pin: pin, tint: coin.accentColor)
+                .allowsHitTesting(false)
+        case .note:
+            Color(.secondarySystemBackground)
+        }
+    }
+
+    private func thumbnailLabel(_ p: CoinPage) -> String {
+        switch p {
+        case .picture(_, let index): return "Picture \(index + 1)"
+        case .map: return "Map pin"
+        case .note: return "Note"
+        }
     }
 
     private func notesPanel(_ text: String) -> some View {
@@ -445,7 +487,8 @@ struct CoinDetailView: View {
 
     private func share() async {
         let c = coin
-        switch c.face {
+        let pages = c.pages
+        switch pages.indices.contains(page) ? pages[page] : pages[0] {
         case .map(let pin):
             var items: [Any] = [c.title]
             if let link = MapsLink.shareURL(for: pin, name: c.title) { items.append(link) }
@@ -474,6 +517,10 @@ struct CoinDetailView: View {
         do {
             let pin = try await finder.currentPin()
             try await model.setPin(pin, on: id)
+            // Show where it landed: the map is the last page.
+            if let updated = model.coin(id), id == coin.id {
+                withAnimation(.snappy) { page = updated.pages.count - 1 }
+            }
             model.show(hadPin ? "Pin moved" : "Pinned")
         } catch is CancellationError {
         } catch LocationFinder.Failure.denied {

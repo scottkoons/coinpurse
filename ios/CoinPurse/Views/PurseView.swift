@@ -14,7 +14,6 @@ struct PurseView: View {
     @Namespace private var cards
     /// How much of each tucked-in card shows; grows with larger text.
     @ScaledMetric(relativeTo: .headline) private var peek: CGFloat = CardMetrics.peek
-    @ScaledMetric(relativeTo: .caption) private var barHeight: CGFloat = 66
     @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var openId: String?
@@ -22,6 +21,7 @@ struct PurseView: View {
     @State private var addingPicture = false
     @State private var addingPin = false
     @State private var recordingVoice = false
+    @State private var typingNote = false
     @State private var showAccount = false
     /// The card being moved (touch and hold, then drag), how far it has
     /// gone, and the place it would land.
@@ -110,6 +110,7 @@ struct PurseView: View {
         .sheet(isPresented: $addingPicture) { EditorView(coinId: nil) }
         .sheet(isPresented: $addingPin) { EditorView(coinId: nil, startsWithPin: true) }
         .sheet(isPresented: $recordingVoice) { VoiceNoteView() }
+        .sheet(isPresented: $typingNote) { EditorView(coinId: nil, startsWithText: true) }
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
@@ -491,6 +492,9 @@ struct PurseView: View {
                         searchFocused = true
                     }
                 }
+                if model.coins.count >= 2 {
+                    circleButton("arrow.up.arrow.down", label: "Rearrange") { showReorder = true }
+                }
                 circleButton("person.fill", label: "Account") { showAccount = true }
             }
         }
@@ -528,48 +532,45 @@ struct PurseView: View {
 
     // MARK: Add
 
-    /// Three ways to add a coin, where your thumb is.
+    /// One clear way to add a coin, where your thumb is: New Coin, then how
+    /// to start it (a picture, your voice, or typing).
     private var addBar: some View {
-        HStack(spacing: 0) {
-            barButton("Picture", "camera.fill", id: "addPicture", hint: "Add a picture coin") { addingPicture = true }
-            Divider().frame(height: 30)
-            barButton("Voice", "mic.fill", id: "voiceNote", hint: "Add a voice note") { recordingVoice = true }
-            Divider().frame(height: 30)
-            barButton("Pin", "mappin.and.ellipse", id: "addPin", hint: "Pin where you are") { addingPin = true }
+        Menu {
+            Section("New Coin") {
+                Button { addingPicture = true } label: {
+                    Label("Picture", systemImage: "camera")
+                    Text("Paste, Photos or Camera")
+                }
+                Button { recordingVoice = true } label: {
+                    Label("Voice Note", systemImage: "mic")
+                    Text("Say it, saved as text")
+                }
+                Button { typingNote = true } label: {
+                    Label("Typed Note", systemImage: "square.and.pencil")
+                    Text("A code, a list, a reminder")
+                }
+            }
+        } label: {
+            Label("New Coin", systemImage: "plus")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 26)
+                .frame(minHeight: 54)
+                // The deep indigo of the cards: white text reads clearly in light and dark.
+                .background(AccentPalette.cardColors(0).top, in: Capsule())
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                .contentShape(Capsule())
         }
-        .padding(.horizontal, 8)
-        // At the largest text sizes the bar shows symbols only, like a tab bar.
-        .frame(height: typeSize.isAccessibilitySize ? 76 : barHeight)
-        .glassCapsule()
-        .padding(.horizontal, 22)
+        .menuOrder(.fixed)
+        .accessibilityIdentifier("newCoin")
+        .accessibilityHint("Choose a picture, a voice note or a typed note")
         .padding(.top, 10)
         .padding(.bottom, 4)
+        .frame(maxWidth: .infinity)
         .background {
             LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground).opacity(0.85)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
-    }
-
-    private func barButton(_ title: String, _ icon: String, id: String, hint: String,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: typeSize.isAccessibilitySize ? 28 : 20, weight: .semibold))
-                if !typeSize.isAccessibilitySize {
-                    Text(title)
-                        .font(.caption.weight(.semibold))
-                }
-            }
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        // Touch and hold shows the name big, as in Apple's tab bars.
-        .accessibilityShowsLargeContentViewer { Label(title, systemImage: icon) }
-        .accessibilityLabel(hint)
-        .accessibilityIdentifier(id)
     }
 
     // MARK: Empty
@@ -584,7 +585,7 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Your purse is empty")
                 .font(.system(.title2, design: .rounded).weight(.bold))
-            Text("Snap a ticket or a QR code, say a quick note, or pin where you parked.")
+            Text("Tap New Coin to add a picture of a ticket or a code, a voice note, or a typed note.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)

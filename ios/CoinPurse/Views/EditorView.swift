@@ -16,6 +16,8 @@ struct EditorView: View {
     let coinId: String?
     /// Opened from Pin: find where you are right away, map first.
     var startsWithPin = false
+    /// New Coin, Typed Note: the title and notes first, ready to type; a picture is optional.
+    var startsWithText = false
 
     @State private var draftId = UUID().uuidString.lowercased()
     @State private var title = ""
@@ -69,6 +71,9 @@ struct EditorView: View {
                     pinSection
                     detailsSection
                     pictureSection
+                } else if startsWithText {
+                    detailsSection
+                    pictureSection
                 } else {
                     pictureSection
                     detailsSection
@@ -86,7 +91,7 @@ struct EditorView: View {
             }
             .disabled(saving)
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(coinId != nil ? "Edit coin" : startsWithPin ? "Pin your spot" : "New coin")
+            .navigationTitle(coinId != nil ? "Edit coin" : startsWithPin ? "Pin your spot" : startsWithText ? "New note" : "New coin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -141,7 +146,7 @@ struct EditorView: View {
         Section {
             mainPicture
         } header: {
-            Text(startsWithPin ? "Photo of the spot (optional)" : hasMain ? "Pictures (\(pictureCount) of \(Config.maxExtraPictures + 1))" : "Picture")
+            Text(startsWithPin ? "Photo of the spot (optional)" : startsWithText && !hasMain ? "Picture (optional)" : hasMain ? "Pictures (\(pictureCount) of \(Config.maxExtraPictures + 1))" : "Picture")
         } footer: {
             Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
         }
@@ -356,6 +361,13 @@ struct EditorView: View {
             accent = model.suggestedAccent()
             // From Pin: start finding you straight away.
             if startsWithPin { Task { await locate() } }
+            // Typed Note: the keyboard is up and ready.
+            if startsWithText {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    titleFocused = true
+                }
+            }
         }
     }
 

@@ -35,7 +35,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // A picture coin: paste with one tap, title, notes with links, a second picture.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "QR 1")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         let title = app.textFields["titleField"]
         XCTAssertTrue(reveal(title))
         snap("2a-editor-empty")
@@ -60,7 +60,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // A second coin.
         UIPasteboard.general.image = Self.sample(color: .systemOrange, label: "Gift")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Gift card")
@@ -71,7 +71,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // A quick coin: picture only, so it is named Coin 1. Then toss it.
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "Note")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(app.staticTexts["Leave the title blank and it is saved as Coin 1."]))
         tapPaste()
         app.buttons["Save"].tap()
@@ -93,8 +93,13 @@ final class CoinPurseUITests: XCTestCase {
         // Every picture is a thumbnail under the card.
         XCTAssertTrue(app.buttons["Picture 2"].waitForExistence(timeout: 3), "second picture has no thumbnail")
 
-        // Full size: the viewer opens on that picture, with share and crop.
-        app.buttons["Picture 2"].firstMatch.tap()
+        // Swipe the card to the second picture (its thumbnail lights up), then
+        // tap it: the viewer opens on that picture, with share and crop.
+        openCoin.swipeLeft()
+        sleep(1)
+        let thumb2 = app.buttons.matching(identifier: "thumbnail").matching(NSPredicate(format: "label == 'Picture 2'")).firstMatch
+        XCTAssertTrue(thumb2.isSelected, "swiping did not move to picture 2")
+        openCoin.buttons["Picture 2"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 5))
         snap("6-viewer")
         app.buttons["viewerShare"].tap()
@@ -128,7 +133,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "swipe down did not close the coin")
 
         // A voice note, saved just as it was said.
-        app.buttons["voiceNote"].tap()
+        newCoin("Voice Note")
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         snap("12-voice-listening")
         app.buttons["stopRecording"].tap()
@@ -147,9 +152,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // Pin your spot from the bottom bar: it finds you straight away.
-        app.buttons["addPin"].tap()
-        XCTAssertTrue(app.staticTexts["Within 26 ft"].waitForExistence(timeout: 10) || app.buttons["Move Pin Here"].waitForExistence(timeout: 5),
-                      "Pin did not find a spot")
+        newCoin("Typed Note"); pinInEditor()
+        XCTAssertTrue(reveal(app.buttons["Move Pin Here"]), "Pin did not find a spot")
         reveal(title); title.tap()
         title.typeText("Car")
         app.buttons["Save"].tap()
@@ -231,7 +235,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Cancel"].tap()
 
         // Add a voice note; untitled, so it takes the next number (the seed has a Coin 1).
-        app.buttons["voiceNote"].tap()
+        newCoin("Voice Note")
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         app.buttons["stopRecording"].tap()
         XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 5))
@@ -278,7 +282,7 @@ final class CoinPurseUITests: XCTestCase {
             // Tap where the card is, even while the last coin is still closing.
             let name = names[n % names.count]
             let f = card(name).frame
-            if f.midY > app.buttons["addPicture"].frame.minY - 8 {
+            if f.midY > app.buttons["newCoin"].frame.minY - 8 {
                 // Under the add bar (large text): bring it up first, never tap the bar.
                 tapCard(name)
             } else {
@@ -534,7 +538,7 @@ final class CoinPurseUITests: XCTestCase {
         let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
         XCTAssertTrue(cards.firstMatch.waitForExistence(timeout: 15))
         sleep(2)
-        let bar = app.buttons["addPicture"]
+        let bar = app.buttons["newCoin"]
         let account = app.buttons["Account"]
         var checked = 0
         var names: [String] = []
@@ -590,7 +594,7 @@ final class CoinPurseUITests: XCTestCase {
         // Snap or paste: a return label, pasted with one tap.
         chapter("snap")
         UIPasteboard.general.image = UIImage(contentsOfFile: imgDir + "/return-label.jpg")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         pause(1.2)
         tapPaste()
         let title = app.textFields["titleField"]
@@ -603,7 +607,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // Say it.
         chapter("say")
-        app.buttons["voiceNote"].tap()
+        newCoin("Voice Note")
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         pause(3)
         app.buttons["stopRecording"].tap()
@@ -618,8 +622,8 @@ final class CoinPurseUITests: XCTestCase {
 
         // Pin your spot.
         chapter("pin")
-        app.buttons["addPin"].tap()
-        XCTAssertTrue(app.buttons["Move Pin Here"].waitForExistence(timeout: 10))
+        newCoin("Typed Note"); pinInEditor()
+        XCTAssertTrue(reveal(app.buttons["Move Pin Here"]))
         pause(2)
         reveal(title); title.tap()
         title.typeText("Parking spot")
@@ -678,7 +682,9 @@ final class CoinPurseUITests: XCTestCase {
         tapCard("Tailgate tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         pause(2.5)
-        app.buttons["Picture 2"].firstMatch.tap()
+        openCoin.swipeLeft()
+        pause(1.5)
+        openCoin.buttons["Picture 2"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
         pause(3)
         app.buttons["Back"].tap()
@@ -746,6 +752,186 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("Garage code").waitForNonExistence(timeout: 10))
         pause(3)
         chapter("end")
+    }
+
+    /// Every touch on a big purse (150 coins, most with pictures), each result
+    /// checked on the screen and on the server (TEST_RUNNER_LARGE=1, seed_big.py).
+    @MainActor
+    func testLargePurse() throws {
+        guard ProcessInfo.processInfo.environment["LARGE"] == "1" else { throw XCTSkip("Set LARGE=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Coin number 150").waitForExistence(timeout: 30))
+        sleep(2)
+        func titles() -> [String] { (serverCoins() ?? []).compactMap { $0["title"] as? String } }
+        func tapAt(_ e: XCUIElement) {
+            let f = e.frame
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.midX, dy: f.midY)).tap()
+        }
+        func openTitle() -> String { openCoin.staticTexts["coinTitle"].label }
+        func scrollDown(_ n: Int) {
+            for _ in 0..<n {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                    .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+            }
+            sleep(1)
+        }
+        let start = titles()
+        XCTAssertEqual(start.count, 150)
+
+        // 1. Pull down to fan the stack, let go: nothing moves for good, taps still land.
+        let pullFrom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        pullFrom.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)),
+                       withVelocity: .slow, thenHoldForDuration: 1.0)
+        sleep(2)
+        XCTAssertEqual(titles(), start, "fanning changed the order")
+        tapAt(card("Coin number 149"))
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertEqual(openTitle(), "Coin number 149", "a tap after fanning opened the wrong coin")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // 2. Deep in the stack, every visible card opens itself.
+        scrollDown(8)
+        let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
+        let bar = app.buttons["newCoin"], account = app.buttons["Account"]
+        var checked = 0
+        for i in 0..<cards.count where checked < 6 {
+            let c = cards.element(boundBy: i)
+            guard c.exists, c.frame.minY > account.frame.maxY, c.frame.maxY < bar.frame.minY else { continue }
+            let name = c.label
+            tapAt(c)
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(name) did not open")
+            XCTAssertEqual(openTitle(), name, "tapped \(name), another coin opened")
+            app.buttons["Done"].tap()
+            XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+            sleep(1)
+            checked += 1
+        }
+        XCTAssertGreaterThanOrEqual(checked, 4, "too few cards checked deep in the stack")
+        print("LARGE deep cards checked: \(checked)")
+
+        // 3. The coins waiting at the bottom of an open coin are the next ones, in order.
+        let deep = cards.allElementsBoundByIndex.first { $0.frame.minY > account.frame.maxY + 40 && $0.frame.maxY < bar.frame.minY }!
+        let deepName = deep.label
+        tapAt(deep)
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        let order = titles()
+        let at = order.firstIndex(of: deepName)!
+        let pile = app.descendants(matching: .any).matching(identifier: "pileCard")
+        XCTAssertTrue(pile.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(pile.firstMatch.label, order[at + 1], "the first waiting coin is not the next one")
+        // A small pull drops back; a tap brings it up; a long pull brings the next.
+        let pf = pile.firstMatch.frame
+        let grab = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: pf.midX, dy: pf.minY + 20))
+        grab.press(forDuration: 0.1, thenDragTo: grab.withOffset(CGVector(dx: 0, dy: -80)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        sleep(1)
+        XCTAssertEqual(openTitle(), deepName, "a small pull swapped the coin")
+        pile.firstMatch.tap()
+        sleep(1)
+        XCTAssertEqual(openTitle(), order[at + 1], "tapping the waiting coin did not bring it up")
+        let pf2 = pile.firstMatch.frame
+        let grab2 = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: pf2.midX, dy: pf2.minY + 20))
+        grab2.press(forDuration: 0.1, thenDragTo: grab2.withOffset(CGVector(dx: 0, dy: -340)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(1)
+        XCTAssertEqual(openTitle(), order[at + 2], "pulling the waiting coin up did not bring it up")
+        snap("l01-pile")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(titles(), start, "swapping coins changed the order")
+
+        // 4. Touch, hold and drag a card up three places, deep in the stack.
+        sleep(1)
+        let visible = cards.allElementsBoundByIndex.filter { $0.frame.minY > account.frame.maxY + 8 && $0.frame.maxY < bar.frame.minY - 8 }
+        XCTAssertGreaterThanOrEqual(visible.count, 5)
+        let mover = visible[4], target = visible[1]
+        let moverName = mover.label, targetName = target.label
+        let mf = mover.frame, tf = target.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: mf.midX, dy: mf.midY))
+            .press(forDuration: 0.8, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: tf.midX, dy: tf.minY + 10)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        sleep(2)
+        XCTAssertFalse(openCoin.exists, "moving a card opened it")
+        let afterMove = titles()
+        XCTAssertEqual(afterMove.count, 150)
+        XCTAssertEqual(afterMove.firstIndex(of: moverName), start.firstIndex(of: targetName), "the card did not land where it was dropped")
+        snap("l02-moved")
+
+        // 5. Hold and pull a card up to the title: it opens, and the order stays.
+        let opener = cards.allElementsBoundByIndex.first { $0.frame.minY > account.frame.maxY + 120 && $0.frame.maxY < bar.frame.minY }!
+        let openerName = opener.label
+        let of = opener.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: of.midX, dy: of.midY))
+            .press(forDuration: 0.8, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: of.midX, dy: account.frame.midY)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "pulling a card to the title did not open it")
+        XCTAssertEqual(openTitle(), openerName)
+        XCTAssertEqual(titles(), afterMove, "opening by pulling up changed the order")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // 6. The Rearrange list with 150 coins: a far-down coin to the top.
+        app.buttons["Account"].tap()
+        app.buttons["Rearrange Coins"].tap()
+        let farName = afterMove[120]
+        let farButton = app.buttons["Move \(farName) to the top"]
+        // 120 rows down: keep scrolling the list until it comes into view.
+        for _ in 0..<80 where !(farButton.exists && farButton.isHittable) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.8))
+                .press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.3)))
+        }
+        XCTAssertTrue(farButton.isHittable, "\(farName) is not reachable in the Rearrange list")
+        farButton.tap()
+        sleep(1)
+        app.navigationBars["Rearrange"].buttons["Done"].tap()
+        sleep(1)
+        app.navigationBars["Account"].buttons["Done"].firstMatch.tap()
+        sleep(2)
+        XCTAssertEqual(titles().first, farName, "Rearrange did not move the coin to the top")
+
+        // 7. The trash can on a card mid-stack: asks, then the coin is gone everywhere.
+        scrollDown(4)
+        let victim = cards.allElementsBoundByIndex.first { $0.frame.minY > account.frame.maxY + 8 && $0.frame.maxY < bar.frame.minY - 8 }!
+        let victimName = victim.label
+        let vf = victim.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: vf.maxX - 28, dy: vf.minY + 31)).tap()
+        let confirm = app.alerts.buttons["Delete"].exists ? app.alerts.buttons["Delete"] : app.buttons.matching(identifier: "Delete").firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the trash can did not ask first")
+        confirm.tap()
+        XCTAssertTrue(card(victimName).waitForNonExistence(timeout: 10), "\(victimName) is still in the purse")
+        sleep(1)
+        XCTAssertEqual(titles().count, 149, "the server still has the tossed coin")
+        XCTAssertFalse(titles().contains(victimName))
+
+        // 8. A new coin while scrolled down: the purse comes back to the top to show it.
+        scrollDown(3)
+        UIPasteboard.general.image = Self.sample(color: .systemPurple, label: "New")
+        newCoin("Picture")
+        tapPaste()
+        let title = app.textFields["titleField"]
+        reveal(title); title.tap()
+        title.typeText("Brand new coin")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Brand new coin").waitForExistence(timeout: 15))
+        sleep(2)
+        XCTAssertTrue(card("Brand new coin").isHittable, "the new coin is out of view at the top")
+        XCTAssertEqual(titles().first, "Brand new coin")
+        snap("l03-new-on-top")
+
+        // 9. Search finds one among 150 and opens it.
+        app.buttons["Search"].tap()
+        app.textFields["searchField"].typeText("number 042")
+        XCTAssertTrue(card("Coin number 042").waitForExistence(timeout: 5))
+        tapCard("Coin number 042")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        XCTAssertEqual(openTitle(), "Coin number 042")
+        app.buttons["Done"].tap()
+        app.buttons["Cancel"].firstMatch.tap()
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertEqual(titles().count, 150)
     }
 
     /// Screenshots of every screen in the design, against a sample purse
@@ -821,19 +1007,19 @@ final class CoinPurseUITests: XCTestCase {
         sleep(2)
         XCTAssertFalse(open.exists, "swipe down should put the coin back")
 
-        app.buttons["addPin"].tap()
+        newCoin("Typed Note"); pinInEditor()
         sleep(4)
         snap("d08-pin")
         app.buttons["Cancel"].tap()
         sleep(1)
 
-        app.buttons["voiceNote"].tap()
+        newCoin("Voice Note")
         sleep(2)
         snap("d09-voice")
         app.buttons["Cancel"].tap()
         sleep(1)
 
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         sleep(2)
         snap("d10-new-coin")
         app.buttons["Cancel"].tap()
@@ -884,7 +1070,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
 
         // A title and nothing else: the card shows the title big, not a blank.
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         let title = app.textFields["titleField"]
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
@@ -901,7 +1087,7 @@ final class CoinPurseUITests: XCTestCase {
         // A very long title and note: they truncate in the stack and stay readable open.
         let longTitle = String(repeating: "Very long title ", count: 8).trimmingCharacters(in: .whitespaces)
         UIPasteboard.general.image = Self.sample(color: .systemIndigo, label: "Long")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText(longTitle)
@@ -920,7 +1106,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // A long note: dragging inside it scrolls; dragging the title bar closes the coin.
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Long note")
@@ -940,7 +1126,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // Six pictures is the most a coin holds: the add button goes away.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "1")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Six pictures")
@@ -963,7 +1149,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // Location turned off: Pin explains how to turn it on, nothing breaks.
-        app.buttons["addPin"].tap()
+        newCoin("Typed Note"); pinInEditor()
         XCTAssertTrue(app.staticTexts["Turn on Location for Coin Purse in Settings to drop a pin."].waitForExistence(timeout: 10))
         snap("e06-location-off")
         app.buttons["Cancel"].tap()
@@ -978,7 +1164,7 @@ final class CoinPurseUITests: XCTestCase {
         // Search appears once a purse has six coins.
         XCTAssertFalse(app.buttons["Search"].exists, "search should wait for a bigger purse")
         for n in 1...3 {
-            app.buttons["addPicture"].tap()
+            newCoin("Picture")
             XCTAssertTrue(reveal(title))
             reveal(title); title.tap()
             title.typeText("Quick \(n)")
@@ -1050,7 +1236,7 @@ final class CoinPurseUITests: XCTestCase {
 
         // Two coins while online: a ticket picture and a note.
         UIPasteboard.general.image = Self.sample(color: .systemTeal, label: "Ticket")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         let title = app.textFields["titleField"]
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
@@ -1058,7 +1244,7 @@ final class CoinPurseUITests: XCTestCase {
         tapPaste()
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Ticket").waitForExistence(timeout: 15))
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Gate code 2468")
@@ -1088,7 +1274,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // Saving fails with a clear message, and the editor keeps what was typed.
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Offline coin")
@@ -1113,7 +1299,7 @@ final class CoinPurseUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
             .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
         XCTAssertTrue(offlineNote.waitForNonExistence(timeout: 15), "offline note did not clear")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
         title.typeText("Back online")
@@ -1151,14 +1337,26 @@ final class CoinPurseUITests: XCTestCase {
             wait(for: [done], timeout: 15)
             return out
         }
-        _ = post("/api/auth/request-link", ["email": "review@example.com"])
-        guard let auth = post("/api/auth/verify-code", ["email": "review@example.com", "code": "123456"]),
-              let token = (try? JSONSerialization.jsonObject(with: auth) as? [String: Any])?["token"] as? String else { return nil }
-        var req = URLRequest(url: URL(string: Self.baseURL + "/api/coins")!)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        guard let data = fetch(req) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["coins"] as? [[String: Any]]
+        // One sign-in, reused: signing in for every check runs into the server's rate limit.
+        for attempt in 0..<2 {
+            if serverToken == nil || attempt > 0 {
+                _ = post("/api/auth/request-link", ["email": "review@example.com"])
+                guard let auth = post("/api/auth/verify-code", ["email": "review@example.com", "code": "123456"]),
+                      let token = (try? JSONSerialization.jsonObject(with: auth) as? [String: Any])?["token"] as? String else { return nil }
+                serverToken = token
+            }
+            var req = URLRequest(url: URL(string: Self.baseURL + "/api/coins")!)
+            req.setValue("Bearer \(serverToken ?? "")", forHTTPHeaderField: "Authorization")
+            if let data = fetch(req),
+               let coins = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["coins"] as? [[String: Any]] {
+                return coins
+            }
+            // The saved sign-in was refused (an account deleted and made again): sign in once more.
+        }
+        return nil
     }
+
+    private var serverToken: String?
 
     @MainActor
     private var offlineNote: XCUIElement {
@@ -1186,7 +1384,7 @@ final class CoinPurseUITests: XCTestCase {
         signIn()
         XCTAssertTrue(app.staticTexts["Your purse is empty"].waitForExistence(timeout: 10))
         UIPasteboard.general.image = Self.sample(color: .systemGreen, label: "T1")
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         let title = app.textFields["titleField"]
         XCTAssertTrue(reveal(title))
         reveal(title); title.tap()
@@ -1293,7 +1491,7 @@ final class CoinPurseUITests: XCTestCase {
         for _ in 0..<3 { app.swipeUp(velocity: .slow) }
         sleep(2)
         let lastFrame = card("Coin number 001").frame
-        let barTop = app.buttons["addPicture"].frame.minY
+        let barTop = app.buttons["newCoin"].frame.minY
         print("BIG last card bottom \(lastFrame.maxY), bar top \(barTop)")
         snap("b02-bottom")
         XCTAssertLessThanOrEqual(lastFrame.maxY, barTop + 12, "at rest, the last coin is partly under the add bar")
@@ -1360,15 +1558,15 @@ final class CoinPurseUITests: XCTestCase {
         audit("Full size picture")
         app.buttons["Back"].tap()
         app.buttons["Done"].tap()
-        app.buttons["addPicture"].tap()
+        newCoin("Picture")
         sleep(1)
         audit("New coin")
         app.buttons["Cancel"].tap()
-        app.buttons["addPin"].tap()
+        newCoin("Typed Note"); pinInEditor()
         sleep(3)
-        audit("Pin your spot")
+        audit("New note with a pin")
         app.buttons["Cancel"].tap()
-        app.buttons["voiceNote"].tap()
+        newCoin("Voice Note")
         sleep(1)
         audit("Voice note")
         app.buttons["stopRecording"].tap()
@@ -1474,7 +1672,7 @@ final class CoinPurseUITests: XCTestCase {
     private func tapCard(_ name: String) {
         let c = card(name)
         XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
-        let bar = app.buttons["addPicture"]
+        let bar = app.buttons["newCoin"]
         for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 8 {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
@@ -1507,6 +1705,25 @@ final class CoinPurseUITests: XCTestCase {
     }
 
     // MARK: Helpers
+
+    /// New Coin, then how to start it: "Picture", "Voice Note" or "Typed Note".
+    @MainActor
+    private func newCoin(_ kind: String) {
+        let button = app.buttons["newCoin"]
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "no New Coin button")
+        button.tap()
+        let item = app.buttons[kind]
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "no \(kind) in the New Coin menu")
+        item.tap()
+    }
+
+    /// In the coin editor: Pin where I am now.
+    @MainActor
+    private func pinInEditor() {
+        let pin = app.buttons["Pin where I am now"]
+        XCTAssertTrue(reveal(pin), "no Pin where I am now in the editor")
+        pin.tap()
+    }
 
     /// Scrolls a form until the element is on screen. Forms build rows only as
     /// they scroll in, so on a small iPhone or at the largest text sizes a field

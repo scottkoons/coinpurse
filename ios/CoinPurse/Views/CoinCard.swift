@@ -199,9 +199,7 @@ struct CoinFace: View {
 
     private var face: some View {
         Group {
-            if let pin = coin.pin {
-                PinMapView(pin: pin, tint: coin.accentColor)
-            } else if let first = coin.pictures.first {
+            if let first = coin.pictures.first {
                 // The window keeps the card's size; the picture fills it from the top.
                 Color.clear
                     .overlay(alignment: .top) {
@@ -209,6 +207,8 @@ struct CoinFace: View {
                     }
                     .clipped()
                     .background(Color.black.opacity(0.2))
+            } else if let pin = coin.pin {
+                PinMapView(pin: pin, tint: coin.accentColor)
             } else {
                 // Only a title? Show it big, rather than an empty card.
                 NoteFace(notes: coin.notes.isEmpty ? coin.title : coin.notes)
