@@ -1564,6 +1564,12 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Cancel"].tap()
         newCoin("Typed Note"); pinInEditor()
         sleep(3)
+        // Keyboard down first (a drag on the form), as when reading it.
+        if app.keyboards.count > 0 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
+            sleep(1)
+        }
         audit("New note with a pin")
         app.buttons["Cancel"].tap()
         newCoin("Voice Note")
