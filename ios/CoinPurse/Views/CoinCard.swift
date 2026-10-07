@@ -214,7 +214,10 @@ struct CoinFace: View {
                 NoteFace(notes: coin.notes.isEmpty ? coin.title : coin.notes)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Never drawn smaller than a full window: a tucked card shows the top of
+        // it, and as the card opens (or the purse fans) more is simply revealed,
+        // instead of the map or picture being redrawn at every size.
+        .frame(maxWidth: .infinity, minHeight: 170, maxHeight: .infinity)
     }
 }
 

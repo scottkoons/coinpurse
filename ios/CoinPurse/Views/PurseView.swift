@@ -246,7 +246,9 @@ struct PurseView: View {
                 // A tucked-in card is drawn only as far as you can see it (its top,
                 // plus a little behind the next card's rounded corners), so it grows
                 // straight from that when it opens.
-                .frame(height: isLast ? lastCardHeight : peek + 30)
+                // Pulled down, each card grows by as much as it moves apart, so the
+                // stack opens up like real cards and shows more of each one.
+                .frame(height: isLast ? lastCardHeight : peek + 30 + fanStep)
                 // Every row is exactly one card top tall, so the lazy stack always
                 // knows the full height (the last card hangs below its row, into
                 // the room left under the stack).
@@ -271,7 +273,7 @@ struct PurseView: View {
                 // Moving a card: the others make room for it.
                 .offset(y: moving == coin.id ? 0 : makeRoom(at: i, in: coins))
                 // Pulled down past the top, the cards fan apart, like a stretched stack.
-                .offset(y: pull * CGFloat(min(i, 12)) * 0.22)
+                .offset(y: fanStep * CGFloat(min(i, 12)))
                 // While a coin is out, the rest of the stack drops out of sight.
                 .offset(y: openId == nil || openId == coin.id || reduceMotion ? 0 : screenHeight + CGFloat(i) * 8)
             }
@@ -350,6 +352,10 @@ struct PurseView: View {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { moveTarget = target }
         }
     }
+
+    /// How far apart each card moves when the purse is pulled down: up to a
+    /// whole card, so a long pull shows every card in full, like Wallet.
+    private var fanStep: CGFloat { min(pull * 0.35, lastCardHeight - peek - 30) }
 
     /// Where a coin sits in the purse right now.
     private func coins(beforeMoving id: String) -> Int? { model.coins.firstIndex { $0.id == id } }

@@ -779,6 +779,11 @@ final class CoinPurseUITests: XCTestCase {
         snap("d02-purse-scrolled")
         high.press(forDuration: 0.05, thenDragTo: low)
         sleep(1)
+        // Pulled down and held: the stack fans open (seen in screen recordings).
+        let pullFrom = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        pullFrom.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)),
+                       withVelocity: .slow, thenHoldForDuration: 2.5)
+        sleep(1)
 
         // Open the parking coin: map first.
         tapCard("Parking spot")
