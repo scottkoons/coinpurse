@@ -22,6 +22,11 @@ final class AppModel {
     private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
     var toast: String?
+    /// A coin just swiped away: gone from the purse, with an Undo bar for a
+    /// few seconds before it is deleted on the server.
+    private(set) var undoable: Coin?
+    private var undoIndex = 0
+    private var undoTask: Task<Void, Never>?
 
     private var token: String?
     /// Which sign-in this is: changes when someone signs in or out (not when
@@ -96,6 +101,9 @@ final class AppModel {
     }
 
     func signOut() async {
+        // A coin waiting on Undo stays (nobody is here to delete it for).
+        undoTask?.cancel()
+        undoable = nil
         session += 1
         spotlightTask?.cancel()
         Keychain.deleteToken()
@@ -291,6 +299,70 @@ final class AppModel {
             guard session == mine else { return }
             // Put back only this coin, where it was; anything added meanwhile stays.
             coins.insert(removed, at: min(index, coins.count))
+            changes += 1
+            await handle(error, from: mine)
+        }
+    }
+
+    /// Swiped away: off the purse at once, with an Undo bar. The server
+    /// delete waits until the Undo moment passes (or the app leaves the
+    /// screen), so Undo puts back the whole coin, pictures and all.
+    func deleteWithUndo(_ id: String) {
+        // One Undo at a time: an earlier swiped coin is deleted now.
+        if let earlier = takeUndoable() { Task { await deleteOnServer(earlier.coin, putBackAt: earlier.index) } }
+        guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
+        let removed = coins.remove(at: index)
+        changes += 1
+        // A refresh meanwhile must not bring it back.
+        deleting.insert(id)
+        undoable = removed
+        undoIndex = index
+        let mine = session
+        undoTask = Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, session == mine else { return }
+            // This timer is done; finishing must not cancel it (and with it
+            // the delete it is about to send).
+            undoTask = nil
+            await finishUndoable()
+        }
+    }
+
+    /// Puts the swiped coin back where it was.
+    func undoDelete() {
+        undoTask?.cancel()
+        guard let coin = undoable else { return }
+        undoable = nil
+        deleting.remove(coin.id)
+        coins.insert(coin, at: min(undoIndex, coins.count))
+        changes += 1
+    }
+
+    /// Deletes the coin waiting on Undo now (its moment passed, another coin
+    /// was swiped, or the app is leaving the screen).
+    func finishUndoable() async {
+        guard let pending = takeUndoable() else { return }
+        await deleteOnServer(pending.coin, putBackAt: pending.index)
+    }
+
+    private func takeUndoable() -> (coin: Coin, index: Int)? {
+        undoTask?.cancel()
+        guard let coin = undoable else { return nil }
+        undoable = nil
+        return (coin, undoIndex)
+    }
+
+    private func deleteOnServer(_ coin: Coin, putBackAt index: Int) async {
+        let mine = session
+        defer { deleting.remove(coin.id) }
+        do {
+            try await api.deleteCoin(id: coin.id)
+        } catch APIError.gone {
+            // Already gone from the server.
+        } catch {
+            guard session == mine else { return }
+            // Could not delete it: it comes back, and says why.
+            coins.insert(coin, at: min(index, coins.count))
             changes += 1
             await handle(error, from: mine)
         }

@@ -51,6 +51,8 @@ struct CoinPurseApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     lock.scenePhaseChanged(phase, signedIn: model.phase == .signedIn)
+                    // Leaving the app ends the Undo moment for a swiped-away coin.
+                    if phase == .background { Task { await model.finishUndoable() } }
                     if phase == .active, model.phase == .signedIn, !lock.isLocked {
                         Task { await model.refresh() }
                     }

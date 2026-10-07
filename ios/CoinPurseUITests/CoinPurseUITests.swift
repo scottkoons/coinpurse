@@ -264,6 +264,72 @@ final class CoinPurseUITests: XCTestCase {
         snap("tour-final")
     }
 
+    /// Swipe a coin's bar to the left to delete it, as in Mail: a short swipe
+    /// shows Delete and closes again with a tap; Delete then Undo keeps the
+    /// coin; a full swipe deletes it on the server once Undo has passed
+    /// (TEST_RUNNER_SWIPE=1, seed_design.py).
+    @MainActor
+    func testSwipeToDelete() throws {
+        guard ProcessInfo.processInfo.environment["SWIPE"] == "1" else { throw XCTSkip("Set SWIPE=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+        let start = serverCoinCount()
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let delete = app.buttons["swipeDelete"]
+        func swipe(_ name: String, by dx: CGFloat, fast: Bool = false) {
+            let f = card(name).frame
+            let from = origin.withOffset(CGVector(dx: f.maxX - 70, dy: f.midY))
+            from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: dx, dy: 0)),
+                       withVelocity: fast ? .fast : .slow, thenHoldForDuration: fast ? 0 : 0.1)
+            sleep(1)
+        }
+
+        // A short swipe: Delete shows; a tap elsewhere closes it and opens nothing.
+        swipe("Coffee gift card", by: -120)
+        XCTAssertTrue(delete.waitForExistence(timeout: 3), "a short swipe did not show Delete")
+        snap("w01-swiped-open")
+        tapCard("Parking spot")
+        sleep(1)
+        XCTAssertFalse(openCoin.exists, "a tap that closes a swiped card opened a coin")
+        XCTAssertFalse(delete.exists, "a tap did not close the swiped card")
+
+        // Delete, then Undo: the coin comes back and stays on the server.
+        swipe("Coffee gift card", by: -120)
+        XCTAssertTrue(delete.waitForExistence(timeout: 3))
+        // Delete shows in the strip the card uncovered, at its right edge.
+        let red = delete.frame
+        origin.withOffset(CGVector(dx: red.maxX - 44, dy: red.minY + 31)).tap()
+        XCTAssertTrue(card("Coffee gift card").waitForNonExistence(timeout: 5), "Delete did not remove the coin")
+        let undo = app.buttons["undoDelete"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 3), "no Undo after deleting")
+        snap("w02-undo")
+        undo.tap()
+        XCTAssertTrue(card("Coffee gift card").waitForExistence(timeout: 5), "Undo did not bring the coin back")
+        sleep(7)
+        XCTAssertEqual(serverCoinCount(), start, "Undo still deleted the coin on the server")
+
+        // A full swipe across deletes without asking; after the Undo moment it
+        // is gone from the server too.
+        let f = card("Grocery list").frame
+        swipe("Grocery list", by: -(f.width - 40), fast: true)
+        XCTAssertFalse(app.alerts.firstMatch.exists, "a full swipe asked first")
+        XCTAssertTrue(card("Grocery list").waitForNonExistence(timeout: 5), "a full swipe did not delete the coin")
+        XCTAssertTrue(undo.waitForExistence(timeout: 3))
+        sleep(7)
+        XCTAssertFalse(undo.exists, "the Undo bar did not go away")
+        XCTAssertEqual(serverCoinCount(), start - 1, "the server still has the swiped coin")
+        XCTAssertFalse((serverCoins() ?? []).contains { $0["title"] as? String == "Grocery list" })
+
+        // Scrolling still works with swiping on the cards.
+        XCTAssertTrue(card("Parking spot").isHittable)
+        snap("w03-after")
+    }
+
     /// Slow card moves to film and check frame by frame (TEST_RUNNER_DRAGFILM=1, seed_design.py).
     @MainActor
     func testDragFilm() throws {

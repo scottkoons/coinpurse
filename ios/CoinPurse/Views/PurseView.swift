@@ -38,6 +38,16 @@ struct PurseView: View {
     @State private var raised = false
     /// Let go: the lifted card is sliding into its place and under the cards after it.
     @State private var settling = false
+    /// Swiping a card's bar to the left, as in Mail: which card, how far it
+    /// is pulled (negative), where it started, and whether letting go now
+    /// deletes it (pulled most of the way across).
+    @State private var swipeId: String?
+    @State private var swipeX: CGFloat = 0
+    @State private var swipeStart: CGFloat = 0
+    @State private var swipeArmed = false
+    @State private var stackWidth: CGFloat = 360
+    /// How far a swiped card stays open to show its Delete button.
+    private let revealWidth: CGFloat = 88
     /// How far the purse is pulled down past its top; the cards fan apart.
     @State private var pull: CGFloat = 0
     @State private var pulledToRefresh = false
@@ -173,6 +183,8 @@ struct PurseView: View {
             }
         }
         .modifier(PullTracker(pull: $pull))
+        // Scrolling the purse closes a card swiped open, as in Mail.
+        .modifier(ScrollStarted { if swipeId != nil { closeSwipe() } })
         // Pulled down far enough, the purse also refreshes (once per pull).
         .onChange(of: pull) { _, amount in
             if amount > 90, !pulledToRefresh {
@@ -208,11 +220,20 @@ struct PurseView: View {
                 .offset(y: isOpen ? -16 : 0)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !searching {
-                addBar
-                    .opacity(isOpen ? 0 : 1)
-                    .offset(y: isOpen ? 110 : 0)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            VStack(spacing: 10) {
+                undoBar
+                if !searching {
+                    addBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .opacity(isOpen ? 0 : 1)
+            .offset(y: isOpen ? 110 : 0)
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.undoable?.id)
+        }
+        .onChange(of: model.undoable?.id) { _, id in
+            if id != nil, let coin = model.undoable {
+                AccessibilityNotification.Announcement("Deleted \(coin.title).  Undo is at the bottom of the screen.").post()
             }
         }
         }
@@ -230,21 +251,38 @@ struct PurseView: View {
                         // Holds the card's place while it is out of the stack.
                         Color.clear
                     } else {
-                        CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
+                        if swipeId == coin.id {
+                            swipeAction(coin, height: isLast ? lastCardHeight : peek + 20)
+                        }
+                        // Swiped sideways, a tucked card is only its bar (a rounded strip),
+                        // so none of the rest of it peeks out beside the card after it.
+                        CoinCardView(coin: coin, faceShowing: isLast,
+                                     height: swipeId == coin.id && !isLast ? peek : nil) { pendingDelete = coin }
                             // While it is lifted, the lifted copy above the stack is the card.
                             // While a coin is open, the cards under it at the bottom are these
                             // coins; the purse's own copies step aside until it closes.
                             .matchedCard(id: moving == coin.id ? "held-" + coin.id : openId == nil ? coin.id : "purse-" + coin.id,
                                          in: cards, enabled: !reduceMotion)
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
-                            .onTapGesture { openCoin(coin.id) }
+                            // With a card swiped open, a tap anywhere just closes it (as in Mail).
+                            .onTapGesture {
+                                if swipeId != nil { closeSwipe() } else { openCoin(coin.id) }
+                            }
                             // Touch and hold to lift it, then drag to move it, as in Wallet.
                             // iOS's own touch-and-hold works alongside the purse's scrolling: a
                             // finger that moves before the hold completes just scrolls.
+                            // Swipe the bar to the left to delete it, as in Mail. Always attached
+                            // (switching it off when a card lifts rebuilt the card and cancelled
+                            // the lift); a lifted card simply ignores it (see beginSwipe).
+                            .modifier(SwipeToDelete(enabled: !searching,
+                                                    began: { beginSwipe(coin.id) },
+                                                    changed: { dx in dragSwipe(coin.id, by: dx) },
+                                                    ended: { velocity in endSwipe(coin.id, velocity: velocity) }))
                             .modifier(HoldToMove(enabled: !searching,
                                                  began: { y in liftCard(coin, at: i, fingerY: y) },
                                                  changed: { y in dragCard(coin.id, at: i, count: coins.count, fingerY: y) },
                                                  ended: { finishMove(coin.id, at: i) }))
+                            .offset(x: swipeId == coin.id ? swipeX : 0)
                             .opacity(moving == coin.id ? 0 : 1)
                     }
                 }
@@ -291,6 +329,7 @@ struct PurseView: View {
             }
         }
         .id(stackVersion)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stackWidth = $0 }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         // Room for the last card, which hangs below its row.
@@ -336,6 +375,119 @@ struct PurseView: View {
             .accessibilityHidden(true)
     }
 
+    // MARK: Swipe to delete
+
+    /// Red, behind the card: Delete shows in the part the card has uncovered.
+    /// Pulled far enough to delete on letting go, the word follows the card.
+    private func swipeAction(_ coin: Coin, height: CGFloat) -> some View {
+        let uncovered = max(-swipeX, 0)
+        return RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous)
+            .fill(Color.red)
+            .frame(height: height)
+            .overlay(alignment: .trailing) {
+                Button { swipeDelete(coin.id) } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: "trash.fill").font(.title3)
+                        Text("Delete").font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .frame(width: max(uncovered, revealWidth), height: min(height, peek),
+                           alignment: swipeArmed ? .leading : .center)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .accessibilityIdentifier("swipeDelete")
+            }
+            // VoiceOver deletes with the card's own Delete action.
+            .accessibilityHidden(true)
+    }
+
+    /// Past this far across, letting go deletes it (Mail's full swipe).
+    private var fullSwipe: CGFloat { stackWidth * 0.55 }
+
+    private func beginSwipe(_ id: String) {
+        guard moving == nil else { return }
+        if swipeId != id {
+            // Another card was open: it closes, this one starts from closed.
+            swipeId = id
+            swipeX = 0
+            swipeArmed = false
+        }
+        swipeStart = swipeX
+    }
+
+    private func dragSwipe(_ id: String, by dx: CGFloat) {
+        guard swipeId == id else { return }
+        // Never to the right of where it rests.
+        swipeX = min(0, swipeStart + dx)
+        let armed = -swipeX > fullSwipe
+        if armed != swipeArmed {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            withAnimation(.snappy(duration: 0.2)) { swipeArmed = armed }
+        }
+    }
+
+    private func endSwipe(_ id: String, velocity: CGFloat) {
+        guard swipeId == id else { return }
+        if swipeArmed || (velocity < -1200 && -swipeX > revealWidth) {
+            swipeDelete(id)
+        } else if (-swipeX > revealWidth / 2 && velocity < 300) || velocity < -400 {
+            // Stays open, showing Delete.
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { swipeX = -revealWidth }
+        } else {
+            closeSwipe()
+        }
+    }
+
+    private func closeSwipe() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+            swipeX = 0
+            swipeArmed = false
+        } completion: {
+            if swipeX == 0 { swipeId = nil }
+        }
+    }
+
+    /// The card slides off to the left, the cards after it close the gap, and
+    /// the Undo bar comes up.
+    private func swipeDelete(_ id: String) {
+        if !swipeArmed { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+        withAnimation(.easeIn(duration: 0.18)) { swipeX = -(stackWidth + 40) } completion: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.deleteWithUndo(id) }
+            var now = Transaction()
+            now.disablesAnimations = true
+            withTransaction(now) {
+                swipeId = nil
+                swipeX = 0
+                swipeArmed = false
+            }
+        }
+    }
+
+    /// For a few seconds after a swipe delete: what went, and Undo.
+    @ViewBuilder private var undoBar: some View {
+        if let coin = model.undoable {
+            HStack(spacing: 12) {
+                Text("Deleted “\(coin.title)”")
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button("Undo") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.undoDelete() }
+                }
+                .font(.subheadline.weight(.semibold))
+                .accessibilityIdentifier("undoDelete")
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(.thinMaterial, in: Capsule())
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
     /// How far a card shifts to make room for the one being moved.
     private func makeRoom(at i: Int, in coins: [Coin]) -> CGFloat {
         guard let id = moving, let from = coins.firstIndex(where: { $0.id == id }),
@@ -348,6 +500,7 @@ struct PurseView: View {
     private func liftCard(_ coin: Coin, at i: Int, fingerY: CGFloat) {
         // One card at a time (another finger, or the last one still settling).
         guard moving == nil else { return }
+        if swipeId != nil { closeSwipe() }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         moveStartY = fingerY
         moveOffset = 0
@@ -759,6 +912,72 @@ private struct HoldToMove: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *), enabled {
             content.gesture(HoldRecognizer(began: began, changed: changed, ended: ended))
+        } else {
+            content
+        }
+    }
+}
+
+/// A sideways swipe on a card, for Swipe to Delete. iOS's own pan that only
+/// starts when the finger moves more sideways than up or down, so scrolling
+/// the purse and touch and hold work as before.
+private struct SwipeToDelete: ViewModifier {
+    let enabled: Bool
+    let began: () -> Void
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), enabled {
+            content.gesture(SwipeRecognizer(began: began, changed: changed, ended: ended))
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct SwipeRecognizer: UIGestureRecognizerRepresentable {
+    let began: () -> Void
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat) -> Void
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let v = pan.velocity(in: pan.view)
+            return abs(v.x) > abs(v.y) * 1.5
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = context.coordinator
+        return pan
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        // Measured on the screen, so the card moving under the finger does not shake it.
+        switch recognizer.state {
+        case .began: began()
+        case .changed: changed(context.converter.translation(in: .global)?.x ?? 0)
+        case .ended, .cancelled, .failed: ended(context.converter.velocity(in: .global)?.x ?? 0)
+        default: break
+        }
+    }
+}
+
+/// Runs `action` when a finger starts scrolling the purse.
+private struct ScrollStarted: ViewModifier {
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollPhaseChange { _, phase in
+                if phase == .interacting { action() }
+            }
         } else {
             content
         }

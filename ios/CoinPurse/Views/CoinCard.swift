@@ -16,6 +16,8 @@ struct CoinCardView: View {
     let coin: Coin
     /// False when the next card covers this one's window (all but the last in the stack).
     var faceShowing = true
+    /// Set to draw only the top of the card (its bar), as a card of its own.
+    var height: CGFloat?
     var onDelete: (() -> Void)?
 
     var body: some View {
@@ -28,6 +30,7 @@ struct CoinCardView: View {
                 // VoiceOver skips what is tucked behind the next card.
                 .accessibilityHidden(!faceShowing)
         }
+        .frame(height: height, alignment: .top)
         .cardSurface(coin.accent)
     }
 }
