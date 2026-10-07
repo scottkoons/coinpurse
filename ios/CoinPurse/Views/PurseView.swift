@@ -27,13 +27,13 @@ struct PurseView: View {
     @State private var moving: String?
     @State private var moveOffset: CGFloat = 0
     @State private var moveTarget: Int?
-    /// Down while a card is held; iOS resets it if the touch is taken away
-    /// (a call, a system gesture), so a lifted card is always put down.
-    @GestureState private var holding = false
+    /// Where the finger was when the card lifted, on the screen.
+    @State private var moveStartY: CGFloat = 0
     /// A lifted card pulled up to the top of the screen opens when let go.
     @State private var openReady = false
     /// How far the purse is pulled down past its top; the cards fan apart.
     @State private var pull: CGFloat = 0
+    @State private var pulledToRefresh = false
     @State private var headerBottom: CGFloat = 120
     /// Bumped after the order of the purse changes, so every card is layered
     /// again for its new place (the lazy stack keeps a card's old layering).
@@ -148,14 +148,28 @@ struct PurseView: View {
             }
         }
         .modifier(PullTracker(pull: $pull))
-        .scrollDisabled(isOpen || moving != nil)
-        .onChange(of: holding) { _, down in
-            if !down { finishMove() }
+        // Pulled down far enough, the purse also refreshes (once per pull).
+        .onChange(of: pull) { _, amount in
+            if amount > 90, !pulledToRefresh {
+                pulledToRefresh = true
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Task { await model.refresh() }
+            } else if amount < 4 {
+                pulledToRefresh = false
+            }
         }
+        // Offline: try again every 15 seconds; the Offline note goes away by itself.
+        .task(id: model.isOffline) {
+            while model.isOffline, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled, model.isOffline else { break }
+                await model.refresh()
+            }
+        }
+        .scrollDisabled(isOpen || moving != nil)
         .allowsHitTesting(!isOpen)
         .accessibilityHidden(isOpen)
         .scrollDismissesKeyboard(.immediately)
-        .refreshable { await model.refresh() }
         .safeAreaInset(edge: .top, spacing: 0) {
             header
                 // Where the title area ends: a lifted card pulled above it opens.
@@ -191,7 +205,12 @@ struct PurseView: View {
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
                             .onTapGesture { openCoin(coin.id) }
                             // Touch and hold to lift it, then drag to move it, as in Wallet.
-                            .gesture(searching ? nil : moveGesture(for: coin, at: i, count: coins.count))
+                            // iOS's own touch-and-hold works alongside the purse's scrolling: a
+                            // finger that moves before the hold completes just scrolls.
+                            .modifier(HoldToMove(enabled: !searching,
+                                                 began: { y in liftCard(coin, at: i, fingerY: y) },
+                                                 changed: { y in dragCard(at: i, count: coins.count, fingerY: y) },
+                                                 ended: finishMove))
                             .opacity(moving == coin.id ? 0 : 1)
                     }
                 }
@@ -277,36 +296,30 @@ struct PurseView: View {
         return 0
     }
 
-    private func moveGesture(for coin: Coin, at i: Int, count: Int) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.35)
-            // Measured on the screen, not on the card that is itself moving.
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
-            .updating($holding) { value, state, _ in
-                if case .second(true, _) = value { state = true }
-            }
-            .onChanged { value in
-                guard case .second(true, let drag) = value else { return }
-                if moving == nil {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        moving = coin.id
-                        moveTarget = i
-                    }
-                }
-                moveOffset = drag?.translation.height ?? 0
-                // Pulled all the way up, to the title: it will open when let go.
-                let ready = (drag?.location.y ?? .infinity) < openLine
-                if ready != openReady {
-                    if ready { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
-                    withAnimation(.snappy(duration: 0.2)) { openReady = ready }
-                }
-                let target = min(max(i + Int((moveOffset / peek).rounded()), 0), count - 1)
-                if target != moveTarget {
-                    UISelectionFeedbackGenerator().selectionChanged()
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { moveTarget = target }
-                }
-            }
-            .onEnded { _ in finishMove() }
+    private func liftCard(_ coin: Coin, at i: Int, fingerY: CGFloat) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        moveStartY = fingerY
+        moveOffset = 0
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            moving = coin.id
+            moveTarget = i
+        }
+    }
+
+    private func dragCard(at i: Int, count: Int, fingerY: CGFloat) {
+        guard moving != nil else { return }
+        moveOffset = fingerY - moveStartY
+        // Pulled all the way up, to the title: it will open when let go.
+        let ready = fingerY < openLine
+        if ready != openReady {
+            if ready { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
+            withAnimation(.snappy(duration: 0.2)) { openReady = ready }
+        }
+        let target = min(max(i + Int((moveOffset / peek).rounded()), 0), count - 1)
+        if target != moveTarget {
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { moveTarget = target }
+        }
     }
 
     /// How high a lifted card has to be pulled to open: into the title area,
@@ -633,6 +646,47 @@ private struct PullTracker: ViewModifier {
             }
         } else {
             content
+        }
+    }
+}
+
+/// Touch and hold, then drag: iOS's own long press, which reports where the
+/// finger goes after it is recognized and, unlike a SwiftUI drag, never stops
+/// the purse from scrolling. Ends (or is cancelled) always call `ended`.
+private struct HoldToMove: ViewModifier {
+    let enabled: Bool
+    let began: (CGFloat) -> Void
+    let changed: (CGFloat) -> Void
+    let ended: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), enabled {
+            content.gesture(HoldRecognizer(began: began, changed: changed, ended: ended))
+        } else {
+            content
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct HoldRecognizer: UIGestureRecognizerRepresentable {
+    let began: (CGFloat) -> Void
+    let changed: (CGFloat) -> Void
+    let ended: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let hold = UILongPressGestureRecognizer()
+        hold.minimumPressDuration = 0.35
+        return hold
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        let y = context.converter.location(in: .global).y
+        switch recognizer.state {
+        case .began: began(y)
+        case .changed: changed(y)
+        case .ended, .cancelled, .failed: ended()
+        default: break
         }
     }
 }

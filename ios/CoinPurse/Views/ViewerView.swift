@@ -166,6 +166,9 @@ struct ViewerView: View {
                     Text("\(index + 1) of \(pictures.count)").font(.caption2).foregroundStyle(.secondary)
                 }
             }
+            // Grows with larger text instead of squeezing it.
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.vertical, 4)
             .padding(.horizontal, 16)
             .frame(minHeight: 44)
             .glassCapsule()
