@@ -39,6 +39,7 @@ SUITES=(
   "testComesBackFresh:TEST_RUNNER_RETURN=1:"
   "testTapAccuracy:TEST_RUNNER_TAP=1:seed.py"
   "testStress:TEST_RUNNER_STRESS=1:seed_design.py"
+  "testDragFilm:TEST_RUNNER_DRAGFILM=1:seed_design.py"
   "testAccessibilityAudit:TEST_RUNNER_AUDIT=1:seed_design.py"
 )
 WANT=("$@")

@@ -4,6 +4,8 @@ enum APIError: LocalizedError {
     case unauthorized
     /// The coin no longer exists (deleted on another device).
     case gone
+    /// One picture is gone (removed on another device); its coin is still there.
+    case pictureGone
     case server(String)
     case network(String)
 
@@ -11,6 +13,7 @@ enum APIError: LocalizedError {
         switch self {
         case .unauthorized: return "Your sign-in expired. Please sign in again."
         case .gone: return "This coin was deleted on another device."
+        case .pictureGone: return "This picture was removed on another device."
         case .server(let message): return message
         case .network(let message): return message
         }
@@ -125,7 +128,7 @@ struct APIClient {
     // MARK: Plumbing
 
     private struct Empty: Decodable {}
-    private struct ErrorBody: Decodable { let error: String? }
+    private struct ErrorBody: Decodable { let error: String?; let code: String? }
 
     private func send<T: Decodable>(
         _ method: String, _ path: String,
@@ -154,7 +157,11 @@ struct APIClient {
         let http = response as? HTTPURLResponse
         let status = http?.statusCode ?? 0
         if status == 401 && token != nil { throw APIError.unauthorized }
-        if (status == 404 || status == 410) && path.hasPrefix("/api/coins/") { throw APIError.gone }
+        if (status == 404 || status == 410) && path.hasPrefix("/api/coins/") {
+            // The server says when only a picture is missing, not the coin.
+            let code = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.code
+            throw code == "PICTURE_GONE" ? APIError.pictureGone : APIError.gone
+        }
         if let renewed = http?.value(forHTTPHeaderField: "X-Coinpurse-Token"), !renewed.isEmpty {
             onTokenRenewed?(renewed)
         }

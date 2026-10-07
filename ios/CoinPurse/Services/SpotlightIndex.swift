@@ -21,9 +21,7 @@ enum SpotlightIndex {
             attributes.keywords = ["Coin Purse", "coin"]
             return CSSearchableItem(uniqueIdentifier: coin.id, domainIdentifier: domain, attributeSet: attributes)
         }
-        // Async calls, not completion handlers: those arrive on a background
-        // thread, which this main-thread code must never run on.
-        Task {
+        enqueue {
             let index = CSSearchableIndex.default()
             try? await index.deleteSearchableItems(withDomainIdentifiers: [domain])
             try? await index.indexSearchableItems(items)
@@ -31,6 +29,21 @@ enum SpotlightIndex {
     }
 
     static func clear() {
-        Task { try? await CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain]) }
+        enqueue { try? await CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain]) }
+    }
+
+    /// Changes to the index run one after another, in the order they were
+    /// asked for, so a clear on sign out always comes after (and wins over) an
+    /// update that was still going.
+    private static var last: Task<Void, Never>?
+
+    // Async calls, not completion handlers: those arrive on a background
+    // thread, which this main-thread code must never run on.
+    private static func enqueue(_ work: @escaping () async -> Void) {
+        let previous = last
+        last = Task {
+            await previous?.value
+            await work()
+        }
     }
 }

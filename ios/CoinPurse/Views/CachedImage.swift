@@ -31,7 +31,16 @@ struct CachedImage: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .task(id: picture?.key) { await load() }
+        // A picture that failed (no signal, or an expired link) tries again
+        // when the purse is back online or brings a fresh link for it.
+        .task(id: Attempt(key: picture?.key, retry: failed ? "\(picture?.url ?? "")|\(model.isOffline)" : "")) {
+            await load()
+        }
+    }
+
+    private struct Attempt: Hashable {
+        let key: String?
+        let retry: String
     }
 
     private func load() async {
@@ -41,7 +50,8 @@ struct CachedImage: View {
             return
         }
         image = nil
-        failed = false
+        // A retry keeps the "no picture" look until it works (resetting it here
+        // would change the task's id and restart this load over and over).
         guard let url = model.url(for: picture) else { failed = true; return }
         image = await ImageCache.shared.image(key: picture.key, url: url)
         failed = image == nil

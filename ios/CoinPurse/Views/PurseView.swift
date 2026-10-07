@@ -34,6 +34,10 @@ struct PurseView: View {
     @State private var moveStartY: CGFloat = 0
     /// A lifted card pulled up to the top of the screen opens when let go.
     @State private var openReady = false
+    /// The lifted card is raised off the stack (bigger, with a shadow).
+    @State private var raised = false
+    /// Let go: the lifted card is sliding into its place and under the cards after it.
+    @State private var settling = false
     /// How far the purse is pulled down past its top; the cards fan apart.
     @State private var pull: CGFloat = 0
     @State private var pulledToRefresh = false
@@ -239,8 +243,8 @@ struct PurseView: View {
                             // finger that moves before the hold completes just scrolls.
                             .modifier(HoldToMove(enabled: !searching,
                                                  began: { y in liftCard(coin, at: i, fingerY: y) },
-                                                 changed: { y in dragCard(at: i, count: coins.count, fingerY: y) },
-                                                 ended: finishMove))
+                                                 changed: { y in dragCard(coin.id, at: i, count: coins.count, fingerY: y) },
+                                                 ended: { finishMove(coin.id, at: i) }))
                             .opacity(moving == coin.id ? 0 : 1)
                     }
                 }
@@ -296,10 +300,23 @@ struct PurseView: View {
     /// The last card shows whole.
     private var lastCardHeight: CGFloat { CardMetrics.stackHeight + peek - CardMetrics.peek }
 
+    /// One solid card: it shows whole the moment it lifts, follows the finger,
+    /// and when let go slides into its place and under the cards after it.
+    /// It only takes the coin's place in the open-and-close animation once it
+    /// is pulled up far enough to open (sharing it earlier made a half drawn
+    /// copy grow out of the stack).
     private func liftedCard(_ coin: Coin, at i: Int) -> some View {
-        CoinCardView(coin: coin, faceShowing: true)
-            .matchedCard(id: coin.id, in: cards, enabled: !reduceMotion)
+        let last = (moveTarget ?? i) == visibleCoins.count - 1
+        // Drawn exactly like the card in the stack (trash can included), so
+        // nothing changes when one takes over from the other.
+        return CoinCardView(coin: coin, faceShowing: true) { pendingDelete = coin }
+            .matchedCard(id: openReady ? coin.id : "lift-" + coin.id, in: cards, enabled: !reduceMotion)
             .frame(height: lastCardHeight)
+            // Settling, only what shows in the stack stays drawn: its top, or
+            // all of it in the last place.
+            .mask(alignment: .top) {
+                Rectangle().frame(height: settling && !last ? peek : lastCardHeight)
+            }
             .overlay(alignment: .top) {
                 if openReady {
                     Label("Release to open", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -312,8 +329,8 @@ struct PurseView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
             }
-            .scaleEffect(1.04)
-            .shadow(color: .black.opacity(0.3), radius: 18, y: 10)
+            .scaleEffect(raised ? 1.04 : 1)
+            .shadow(color: .black.opacity(raised ? 0.3 : 0), radius: raised ? 18 : 4, y: raised ? 10 : 2)
             .offset(y: CGFloat(i) * peek + moveOffset)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -329,17 +346,26 @@ struct PurseView: View {
     }
 
     private func liftCard(_ coin: Coin, at i: Int, fingerY: CGFloat) {
+        // One card at a time (another finger, or the last one still settling).
+        guard moving == nil else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         moveStartY = fingerY
         moveOffset = 0
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        // The lifted copy replaces the card in the same frame, exactly where it
+        // was, so nothing fades or grows; then it rises off the stack.
+        var now = Transaction()
+        now.disablesAnimations = true
+        withTransaction(now) {
             moving = coin.id
             moveTarget = i
+            raised = false
+            settling = false
         }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { raised = true }
     }
 
-    private func dragCard(at i: Int, count: Int, fingerY: CGFloat) {
-        guard moving != nil else { return }
+    private func dragCard(_ id: String, at i: Int, count: Int, fingerY: CGFloat) {
+        guard moving == id, !settling else { return }
         moveOffset = fingerY - moveStartY
         // Pulled all the way up, to the title: it will open when let go.
         let ready = fingerY < openLine
@@ -367,24 +393,47 @@ struct PurseView: View {
 
     /// Puts the lifted card down where it is, and saves the new order; pulled
     /// all the way up, it opens instead.
-    private func finishMove() {
-        guard let id = moving else { return }
+    private func finishMove(_ id: String, at i: Int) {
+        guard moving == id, !settling else { return }
         if openReady {
             openReady = false
             moving = nil
             moveTarget = nil
             moveOffset = 0
+            raised = false
             openCoin(id)
             return
         }
-        let target = moveTarget
+        let target = moveTarget ?? i
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        if let target, coins(beforeMoving: id) != target { moveTip.invalidate(reason: .actionPerformed) }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            if let target { model.move(id, to: target) }
-            moving = nil
-            moveTarget = nil
-            moveOffset = 0
+        if coins(beforeMoving: id) != target { moveTip.invalidate(reason: .actionPerformed) }
+        // The card slides to its place and down onto the stack, tucking in
+        // under the cards after it.
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+            settling = true
+            raised = false
+            moveOffset = CGFloat(target - i) * peek
+        } completion: {
+            // In place: the order changes and the stack is layered again for it
+            // while the lifted card still covers its spot; a moment later the
+            // stack's own card takes over (showing it in the same frame as the
+            // new layering briefly drew it over the card after it).
+            var now = Transaction()
+            now.disablesAnimations = true
+            withTransaction(now) {
+                model.move(id, to: target)
+                moveTarget = target
+                moveOffset = 0
+                stackVersion += 1
+            }
+            Task {
+                try? await Task.sleep(for: .milliseconds(120))
+                withTransaction(now) {
+                    moving = nil
+                    moveTarget = nil
+                    settling = false
+                }
+            }
         }
     }
 

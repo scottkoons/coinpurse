@@ -24,12 +24,26 @@ final class AppModel {
     var toast: String?
 
     private var token: String?
+    /// Which sign-in this is: changes when someone signs in or out (not when
+    /// the token is renewed). A reply that comes back for an earlier sign-in
+    /// belongs to nobody here any more and is dropped, so one account's coins,
+    /// token or "signed out" can never land in the next one.
+    private var session = 0
+    /// Counts saves, deletes and moves made on this phone, so a refresh that
+    /// was already on its way when one happened knows its list is older than
+    /// what shows.
+    private var changes = 0
     private var api: APIClient {
-        APIClient(token: token) { [weak self] renewed in
+        let mine = session
+        return APIClient(token: token) { [weak self] renewed in
+            guard let self, self.session == mine else { return }
             Keychain.saveToken(renewed)
-            self?.token = renewed
+            self.token = renewed
         }
     }
+
+    /// Thrown in place of a reply that arrived after its sign-in ended.
+    private struct SessionEnded: Error {}
 
     // MARK: Session
 
@@ -71,6 +85,7 @@ final class AppModel {
         guard let newToken = result.token else {
             throw APIError.server("Please update the Coin Purse server, then try again.")
         }
+        session += 1
         Keychain.saveToken(newToken)
         token = newToken
         self.email = result.email
@@ -81,6 +96,8 @@ final class AppModel {
     }
 
     func signOut() async {
+        session += 1
+        spotlightTask?.cancel()
         Keychain.deleteToken()
         token = nil
         coins = []
@@ -93,25 +110,28 @@ final class AppModel {
     }
 
     func signOutEverywhere() async {
+        let mine = session
         do {
             let newToken = try await api.signOutEverywhere()
+            guard session == mine else { return }
             Keychain.saveToken(newToken)
             token = newToken
             show("Signed out of all other devices")
         } catch {
-            await handle(error)
+            await handle(error, from: mine)
         }
     }
 
     /// Returns true when the account is gone.
     func deleteAccount() async -> Bool {
+        let mine = session
         do {
             try await api.deleteAccount()
-            await signOut()
+            if session == mine { await signOut() }
             show("Your account was deleted")
             return true
         } catch {
-            await handle(error)
+            await handle(error, from: mine)
             return false
         }
     }
@@ -119,25 +139,34 @@ final class AppModel {
     // MARK: Coins
 
     func refresh() async {
-        guard let asked = token else { return }
+        guard token != nil else { return }
+        let mine = session
         isRefreshing = true
         defer { isRefreshing = false }
-        do {
-            let list = try await api.coins()
-            // Signed out (or into another account) while this was on its way:
-            // these coins belong to nobody here now.
-            guard token == asked else { return }
-            coins = list.coins.filter { !deleting.contains($0.id) }
-            if let e = list.email { email = e }
-            isOffline = false
-        } catch APIError.network(let message) {
-            // Keep showing the saved purse, and say so.
-            isOffline = true
-            if coins.isEmpty { show(message) }
-        } catch {
-            await handle(error)
+        for attempt in 0..<3 {
+            let changesBefore = changes
+            do {
+                let list = try await api.coins()
+                // Signed out (or into another account) while this was on its way:
+                // these coins belong to nobody here now.
+                guard session == mine else { return }
+                // A save, delete or move on this phone finished meanwhile, so this
+                // list is older than what shows: ask again rather than undo it.
+                if changes != changesBefore, attempt < 2 { continue }
+                coins = list.coins.filter { !deleting.contains($0.id) }
+                if let e = list.email { email = e }
+                isOffline = false
+            } catch APIError.network(let message) {
+                guard session == mine else { return }
+                // Keep showing the saved purse, and say so.
+                isOffline = true
+                if coins.isEmpty { show(message) }
+            } catch {
+                await handle(error, from: mine)
+            }
+            break
         }
-        coinsLoaded = true
+        if session == mine { coinsLoaded = true }
     }
 
     func coin(_ id: String) -> Coin? { coins.first { $0.id == id } }
@@ -186,24 +215,38 @@ final class AppModel {
     /// Every change to a coin goes through here: an expired sign-in signs out
     /// (instead of failing forever), and a coin deleted on another device
     /// leaves this phone too. The error still reaches the caller.
+    /// A reply for an earlier sign-in changes nothing here.
     private func guarded<T>(_ coinId: String, _ op: () async throws -> T) async throws -> T {
+        let mine = session
         do {
-            return try await op()
+            let result = try await op()
+            guard session == mine else { throw SessionEnded() }
+            return result
         } catch APIError.unauthorized {
+            guard session == mine else { throw SessionEnded() }
             await signOut()
             show("Please sign in again")
             throw APIError.unauthorized
         } catch APIError.gone {
+            guard session == mine else { throw SessionEnded() }
             coins.removeAll { $0.id == coinId }
+            changes += 1
             throw APIError.gone
+        } catch APIError.pictureGone {
+            // Only that picture is gone (removed on another device); the coin
+            // stays, and a refresh shows what it holds now.
+            guard session == mine else { throw SessionEnded() }
+            Task { await refresh() }
+            throw APIError.pictureGone
         }
     }
 
     func addPicture(to coinId: String, jpeg: Data) async {
+        let mine = session
         do {
             try await uploadExtraPicture(coinId: coinId, jpeg: jpeg)
         } catch {
-            await handle(error)
+            await handle(error, from: mine)
         }
     }
 
@@ -222,16 +265,21 @@ final class AppModel {
 
     func deletePicture(_ picture: Picture, of coinId: String) async {
         guard let attId = picture.attachmentId else { return }
+        let mine = session
         do {
-            upsert(try await api.deletePicture(coinId: coinId, attachmentId: attId))
+            upsert(try await guarded(coinId) { try await self.api.deletePicture(coinId: coinId, attachmentId: attId) })
+        } catch APIError.pictureGone {
+            // Already removed on another device: nothing more to do.
         } catch {
-            await handle(error)
+            await handle(error, from: mine)
         }
     }
 
     func deleteCoin(_ id: String) async {
         guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
+        let mine = session
         let removed = coins.remove(at: index)
+        changes += 1
         deleting.insert(id)
         defer { deleting.remove(id) }
         do {
@@ -240,43 +288,52 @@ final class AppModel {
         } catch APIError.gone {
             // Already gone from the server: nothing to put back.
         } catch {
+            guard session == mine else { return }
             // Put back only this coin, where it was; anything added meanwhile stays.
             coins.insert(removed, at: min(index, coins.count))
-            await handle(error)
+            changes += 1
+            await handle(error, from: mine)
         }
     }
 
     /// Persist a new order (front of the stack first).
     func reorder(_ ids: [String]) async {
-        let before = coins
         let byId = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
         let listed = Set(ids)
         // Coins added after the Rearrange sheet opened keep their place at the front.
-        coins = coins.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] }
-        do {
-            coins = try await api.reorder(ids: coins.map(\.id))
-        } catch {
-            coins = before
-            await handle(error)
-        }
+        saveOrder(coins.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] })
     }
 
     /// Moves a coin to a new place in the purse (dragged in the stack) and
     /// saves the order. The purse changes at once; a failure puts it back.
     func move(_ id: String, to index: Int) {
         guard let from = coins.firstIndex(where: { $0.id == id }) else { return }
-        let before = coins
         var list = coins
         let moved = list.remove(at: from)
         list.insert(moved, at: min(max(index, 0), list.count))
-        guard list.map(\.id) != before.map(\.id) else { return }
+        guard list.map(\.id) != coins.map(\.id) else { return }
+        saveOrder(list)
+    }
+
+    /// Shows a new order at once and saves it. The server's reply (or, on a
+    /// failure, the order from before) is applied only if nothing else changed
+    /// on this phone meanwhile; otherwise a refresh settles it, so an older
+    /// reply never undoes a newer move, save or delete.
+    private func saveOrder(_ list: [Coin]) {
+        let mine = session
+        let before = coins
         coins = list
+        changes += 1
+        let mark = changes
         Task {
             do {
-                coins = try await api.reorder(ids: list.map(\.id))
+                let saved = try await api.reorder(ids: list.map(\.id))
+                guard session == mine else { return }
+                if changes == mark { coins = saved } else { await refresh() }
             } catch {
-                coins = before
-                await handle(error)
+                guard session == mine else { return }
+                if changes == mark { coins = before; changes += 1 } else { await refresh() }
+                await handle(error, from: mine)
             }
         }
     }
@@ -288,7 +345,11 @@ final class AppModel {
     func nextDefaultTitle() -> String {
         let numbers = coins.compactMap { coin -> Int? in
             let t = coin.title.trimmingCharacters(in: .whitespaces)
-            guard t.hasPrefix("Coin "), let n = Int(t.dropFirst(5)) else { return nil }
+            // Up to nine digits, like the server: a title such as
+            // "Coin 9223372036854775807" is a name, not a number to count on.
+            let digits = t.dropFirst(5)
+            guard t.hasPrefix("Coin "), (1...9).contains(digits.count),
+                  digits.allSatisfy(\.isASCII), let n = Int(digits) else { return nil }
             return n
         }
         return "Coin \((numbers.max() ?? 0) + 1)"
@@ -304,6 +365,7 @@ final class AppModel {
     // MARK: Helpers
 
     private func upsert(_ coin: Coin) {
+        changes += 1
         if let i = coins.firstIndex(where: { $0.id == coin.id }) {
             coins[i] = coin
         } else {
@@ -313,7 +375,12 @@ final class AppModel {
 
     private func cacheUpload(_ data: Data, key: String?) {
         guard let key else { return }
-        Task { await ImageCache.shared.store(data, key: key) }
+        let mine = session
+        Task {
+            // Signed out meanwhile: the cache was just emptied; keep it so.
+            guard session == mine else { return }
+            await ImageCache.shared.store(data, key: key)
+        }
     }
 
     private var toastCount = 0
@@ -360,7 +427,7 @@ final class AppModel {
         spotlightTask?.cancel()
         spotlightTask = Task {
             try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled, phase == .signedIn else { return }
+            guard !Task.isCancelled, phase == .signedIn, token != nil else { return }
             SpotlightIndex.update(coins)
         }
     }
@@ -377,7 +444,10 @@ final class AppModel {
         try? FileManager.default.removeItem(at: snapshotURL)
     }
 
-    private func handle(_ error: Error) async {
+    /// Reports a failure from the sign-in `from`; one that ended meanwhile
+    /// (signed out, or into another account) is not this one's to report.
+    private func handle(_ error: Error, from mine: Int) async {
+        guard session == mine, !(error is SessionEnded) else { return }
         if case APIError.unauthorized = error {
             await signOut()
             show("Please sign in again")

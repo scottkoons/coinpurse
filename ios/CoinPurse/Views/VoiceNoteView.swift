@@ -19,7 +19,10 @@ struct VoiceNoteView: View {
     @State private var draftId = UUID().uuidString.lowercased()
     @FocusState private var editing: Bool
 
-    private var canSave: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSave: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.serverLength <= Config.maxNotes
+    }
+    @State private var confirmingDiscard = false
 
     var body: some View {
         NavigationStack {
@@ -54,10 +57,22 @@ struct VoiceNoteView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        capture.cancel()
-                        dismiss()
+                        // A finished note is not thrown away without asking.
+                        if capture.state == .finished, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            confirmingDiscard = true
+                        } else {
+                            capture.cancel()
+                            dismiss()
+                        }
                     }
                     .disabled(saving)
+                    .confirmationDialog("Discard this voice note?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                        Button("Discard Note", role: .destructive) {
+                            capture.cancel()
+                            dismiss()
+                        }
+                        Button("Keep Editing", role: .cancel) {}
+                    }
                 }
                 if capture.state == .finished {
                     ToolbarItem(placement: .confirmationAction) {
@@ -73,6 +88,11 @@ struct VoiceNoteView: View {
             }
         }
         .interactiveDismissDisabled(saving || capture.state == .finished)
+        // However listening ended (Done, a phone call, Siri, or recognition
+        // stopping by itself), the review starts with every word heard.
+        .onChange(of: capture.state) { _, state in
+            if state == .finished { text = capture.transcript }
+        }
         .task {
             guard !started else { return }
             started = true
@@ -176,6 +196,8 @@ struct VoiceNoteView: View {
             } footer: {
                 if text.isEmpty {
                     Text("Coin Purse did not catch that.  Tap Keep talking to try again.")
+                } else {
+                    TextLimitNote(length: text.serverLength, limit: Config.maxNotes)
                 }
             }
 
@@ -183,6 +205,9 @@ struct VoiceNoteView: View {
                 TextField("Title (optional)", text: $title)
                     .accessibilityIdentifier("voiceTitle")
                     .submitLabel(.done)
+                    .onChange(of: title) { _, new in
+                        if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                    }
             } footer: {
                 if title.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).  You can add a picture later with Edit.")
@@ -217,9 +242,8 @@ struct VoiceNoteView: View {
     // MARK: Actions
 
     private func finish() async {
+        // Saved just as you said it (the review picks up the words; see onChange).
         await capture.finish()
-        // Saved just as you said it.
-        text = capture.transcript
     }
 
     private func keepTalking() async {

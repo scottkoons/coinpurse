@@ -205,6 +205,11 @@ private nonisolated final class SpeechEngine: @unchecked Sendable {
                 if already { done.resume(); return }
                 DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in self?.releaseWaiter() }
             }
+        } else {
+            // Recognition gave up by itself (it marks listening over before
+            // saying so), but the microphone is still on: turn it off too.
+            audio.stop()
+            audio.inputNode.removeTap(onBus: 0)
         }
         lock.withLock { task?.cancel() }
         stopWatching()

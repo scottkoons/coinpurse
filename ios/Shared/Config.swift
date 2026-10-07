@@ -29,7 +29,31 @@ nonisolated enum Config {
     }()
 
     static let maxExtraPictures = 5
+    /// The longest title and notes the server keeps, counted the way it
+    /// counts (UTF-16 units, so most emoji count as two).
+    static let maxTitle = 200
+    static let maxNotes = 5000
     /// Same size limit the web app uses before uploading.
     static let maxImageWidth: CGFloat = 1200
     static let jpegQuality: CGFloat = 0.82
+}
+
+nonisolated extension String {
+    /// Length as the server counts it (see Config.maxNotes).
+    var serverLength: Int { utf16.count }
+
+    /// At most `limit` of the server's units, never cutting a character
+    /// (an emoji or an accented letter) in half.
+    func limited(to limit: Int) -> String {
+        guard serverLength > limit else { return self }
+        var out = ""
+        var used = 0
+        for character in self {
+            let size = String(character).utf16.count
+            if used + size > limit { break }
+            out.append(character)
+            used += size
+        }
+        return out
+    }
 }

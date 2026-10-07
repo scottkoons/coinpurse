@@ -38,6 +38,10 @@ struct EditorView: View {
     @State private var locating = false
     @State private var pinError: String?
     @State private var finder = LocationFinder()
+    /// The title, notes and color as they were when the editor opened, to tell
+    /// whether anything would be lost by closing it.
+    @State private var original: (title: String, notes: String, accent: Int) = ("", "", 0)
+    @State private var confirmingDiscard = false
     @Environment(\.openURL) private var openURL
     @FocusState private var titleFocused: Bool
 
@@ -49,9 +53,17 @@ struct EditorView: View {
     /// A quick coin needs only a picture; a title or notes alone (like a
     /// pasted gift card code) is fine too.
     private var canSave: Bool {
-        existing != nil || stagedMain != nil || pin != nil
+        guard notes.serverLength <= Config.maxNotes else { return false }
+        return existing != nil || stagedMain != nil || pin != nil
             || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Something typed, chosen or added that Save has not kept yet.
+    private var hasChanges: Bool {
+        title != original.title || notes != original.notes || accent != original.accent
+            || pinChanged || (existing == nil && pin != nil)
+            || stagedMain != nil || !stagedExtras.isEmpty
     }
 
     var body: some View {
@@ -95,7 +107,15 @@ struct EditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.disabled(saving)
+                    // Like Notes and Mail: closing with unsaved changes asks first.
+                    Button("Cancel") {
+                        if hasChanges { confirmingDiscard = true } else { dismiss() }
+                    }
+                    .disabled(saving)
+                    .confirmationDialog("Discard your changes?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                        Button("Discard Changes", role: .destructive) { dismiss() }
+                        Button("Keep Editing", role: .cancel) {}
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if saving {
@@ -135,7 +155,8 @@ struct EditorView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
-        .interactiveDismissDisabled(saving || stagedMain != nil || !stagedExtras.isEmpty)
+        // Swiping down never throws away unsaved changes; Cancel asks instead.
+        .interactiveDismissDisabled(saving || hasChanges)
         .onAppear(perform: load)
     }
 
@@ -158,11 +179,17 @@ struct EditorView: View {
                 .accessibilityIdentifier("titleField")
                 .focused($titleFocused)
                 .submitLabel(.done)
+                .onChange(of: title) { _, new in
+                    if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                }
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(2...6)
         } footer: {
-            if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
-                Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
+            VStack(alignment: .leading, spacing: 4) {
+                if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
+                }
+                TextLimitNote(length: notes.serverLength, limit: Config.maxNotes)
             }
         }
     }
@@ -352,6 +379,7 @@ struct EditorView: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
+        defer { original = (title, notes, accent) }
         if let coin = existing {
             title = coin.title
             notes = coin.notes
@@ -410,6 +438,23 @@ struct EditorView: View {
             dismiss()
         } catch {
             self.error = error.localizedDescription + " Tap Save to try again."
+        }
+    }
+}
+
+/// Shown under a note as it nears the most the server keeps: how much room is
+/// left, or (in red) how much to remove before it can be saved. Never cut off
+/// without saying so.
+struct TextLimitNote: View {
+    let length: Int
+    let limit: Int
+
+    var body: some View {
+        if length > limit {
+            Text("\((length - limit).formatted()) characters over the \(limit.formatted()) limit.  Shorten the note to save it.")
+                .foregroundStyle(.red)
+        } else if limit - length <= 200 {
+            Text("\((limit - length).formatted()) characters left.")
         }
     }
 }

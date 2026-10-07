@@ -40,6 +40,18 @@ struct ShareView: View {
     private var chosenCoin: Coin? { coins.first { $0.id == chosen } }
     private func room(in coin: Coin) -> Int { max(0, Self.maxPictures - coin.pictures.count) }
 
+    /// The shared text does not all fit in the coin's notes (the form says so).
+    private var textOverflows: Bool {
+        guard let text = input.text else { return false }
+        switch target {
+        case .new:
+            return text.serverLength > Config.maxNotes
+        case .existing:
+            guard let coin = chosenCoin, !coin.notes.contains(text) else { return false }
+            return coin.notes.serverLength + 1 + text.serverLength > Config.maxNotes
+        }
+    }
+
     private var canSave: Bool {
         guard !saving, !loading, token != nil, !input.images.isEmpty || input.text != nil else { return false }
         switch target {
@@ -129,8 +141,14 @@ struct ShareView: View {
                 }
             }
             if let text = input.text {
-                Section("Note") {
+                Section {
                     Text(text).lineLimit(5).textSelection(.enabled)
+                } header: {
+                    Text("Note")
+                } footer: {
+                    if textOverflows {
+                        Text("A coin's notes hold up to \(Config.maxNotes.formatted()) characters, so only the beginning of this text is saved.")
+                    }
                 }
             }
             Section {
@@ -147,6 +165,9 @@ struct ShareView: View {
                 Section {
                     TextField("Title (optional)", text: $title)
                         .accessibilityIdentifier("shareTitle")
+                        .onChange(of: title) { _, new in
+                            if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                        }
                 } footer: {
                     Text("Leave the title blank and it gets the next Coin number.")
                 }
@@ -200,7 +221,7 @@ struct ShareView: View {
                 _ = try await api.createCoin(
                     id: draftId,
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    notes: input.text ?? "",
+                    notes: (input.text ?? "").limited(to: Config.maxNotes),
                     accent: Int.random(in: 0..<AccentPalette.hex.count)
                 )
                 for (i, jpeg) in input.images.prefix(Self.maxPictures).enumerated() where i >= uploaded {
@@ -224,7 +245,7 @@ struct ShareView: View {
                     uploaded = i + 1
                 }
                 if let text = input.text, !coin.notes.contains(text) {
-                    let notes = coin.notes.isEmpty ? text : coin.notes + "\n" + text
+                    let notes = (coin.notes.isEmpty ? text : coin.notes + "\n" + text).limited(to: Config.maxNotes)
                     _ = try await api.updateCoin(id: coin.id, title: coin.title, notes: notes, accent: coin.accent)
                 }
             }

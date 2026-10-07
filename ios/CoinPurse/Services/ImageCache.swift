@@ -10,6 +10,9 @@ actor ImageCache {
     nonisolated(unsafe) private let memory = NSCache<NSString, UIImage>()
     private let folder: URL
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    /// Bumped by removeAll (sign out), so a download that was already on its
+    /// way cannot put a picture back afterwards.
+    private var generation = 0
 
     init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -49,18 +52,26 @@ actor ImageCache {
         if let img = cached(key) { return img }
         if let task = inFlight[key] { return await task.value }
         let target = file(for: key)
+        let mine = generation
         let task = Task<UIImage?, Never> {
             guard let (data, response) = try? await URLSession.shared.data(from: url),
                   (response as? HTTPURLResponse)?.statusCode == 200,
                   let img = UIImage(data: data) else { return nil }
-            try? data.write(to: target, options: .atomic)
+            // Saved only if the cache was not emptied meanwhile (this runs on
+            // the cache, so removeAll cannot slip in between check and write).
+            await self.keep(data, img, at: target, key: key, generation: mine)
             return img
         }
         inFlight[key] = task
         let img = await task.value
-        inFlight[key] = nil
-        if let img { memory.setObject(img, forKey: key as NSString) }
+        if generation == mine { inFlight[key] = nil }
         return img
+    }
+
+    private func keep(_ data: Data, _ img: UIImage, at target: URL, key: String, generation mine: Int) {
+        guard generation == mine else { return }
+        try? data.write(to: target, options: .atomic)
+        memory.setObject(img, forKey: key as NSString)
     }
 
     /// Store a picture we just uploaded so it shows instantly.
@@ -70,6 +81,9 @@ actor ImageCache {
     }
 
     func removeAll() {
+        generation += 1
+        inFlight.values.forEach { $0.cancel() }
+        inFlight.removeAll()
         memory.removeAllObjects()
         try? FileManager.default.removeItem(at: folder)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

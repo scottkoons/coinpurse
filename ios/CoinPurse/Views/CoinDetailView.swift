@@ -44,6 +44,8 @@ struct CoinDetailView: View {
     @State private var drag: CGFloat = 0
     /// The page showing on the card (a picture, or the map).
     @State private var page = 0
+    /// How tall the title area is (it grows with text size), so the picture keeps room below it.
+    @State private var headerHeight: CGFloat = 0
     /// True while a finger is down; if the system cancels the drag, the card springs back.
     @GestureState private var dragging = false
     @State private var closing = false
@@ -82,11 +84,18 @@ struct CoinDetailView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let pileCount = min(pile.count, geo.size.height < 700 ? 2 : 3)
+            // The smallest the card gets (the title plus room for the picture).
+            let cardFloor = max(geo.size.height < 640 ? 230 : 300, headerHeight + 170)
+            // The coins at the bottom never squeeze out the notes and buttons:
+            // with large text, fewer of them show (at least one, when it fits).
+            let roomForPile = geo.size.height - 52 - 6 - cardFloor - 180
+            let pileCount = max(0, min(pile.count, geo.size.height < 700 ? 2 : 3, Int(roomForPile / stripe)))
             let pileHeight = CGFloat(pileCount) * stripe + 6
             let reserved: CGFloat = 52 + 6 + 36 + min(actionSize, 80) + 44 + pileHeight
                 + (notesBelow == nil ? 0 : 86) + (showsThumbnails ? 72 : 0)
-            let cardHeight = max(geo.size.height < 640 ? 230 : 300, min(geo.size.height - reserved, 620))
+            // At the largest text sizes the title can fill the card: it always
+            // keeps room under the title for the picture or map.
+            let cardHeight = max(cardFloor, min(geo.size.height - reserved, 620))
             VStack(spacing: 0) {
                 topBar
                     .opacity(appeared ? 1 : 0)
@@ -183,6 +192,7 @@ struct CoinDetailView: View {
     private var card: some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin, isOpen: true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
                 // The title bar always drags the coin down, even over a long note.
                 .contentShape(Rectangle())
                 .gesture(isScrollingNote ? dragToClose : nil)
