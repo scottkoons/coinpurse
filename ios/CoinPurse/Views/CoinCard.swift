@@ -130,6 +130,36 @@ struct CoinCardHeader: View {
     }
 }
 
+/// A coin waiting in the stack under an open coin: its title along the top
+/// and its window below, ready to be pulled up for a look.
+struct PileCard: View {
+    let coin: Coin
+    /// How much of the card shows above the next one: just its title.
+    let stripe: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                CoinEmblem(size: 22)
+                Text(coin.title.isEmpty ? "Untitled" : coin.title)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(height: stripe)
+            CoinFace(coin: coin)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
+        }
+        .frame(height: height, alignment: .top)
+        .cardSurface(coin.accent)
+    }
+}
+
 /// A small silver ¢ coin, drawn crisply at any size.
 struct CoinEmblem: View {
     let size: CGFloat

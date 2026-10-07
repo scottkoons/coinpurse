@@ -300,12 +300,32 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
-        // 3. The stack at the bottom of an open coin puts it back, like Wallet.
+        // 3. The coins at the bottom of an open coin, like Wallet: pull one up a
+        // little and it drops back; tap one and it takes the open coin's place.
         tapCard("Parking spot")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(1)
-        app.buttons["allCoins"].tap()
-        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "tapping the stack did not put the coin back")
+        let nextCard = app.descendants(matching: .any).matching(identifier: "pileCard").firstMatch
+        XCTAssertTrue(nextCard.waitForExistence(timeout: 5), "no coins at the bottom of an open coin")
+        let nextTitle = nextCard.label
+        let nf = nextCard.frame
+        let grab = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: nf.midX, dy: nf.minY + 20))
+        grab.press(forDuration: 0.1, thenDragTo: grab.withOffset(CGVector(dx: 0, dy: -90)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        sleep(1)
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Parking spot", "a small pull swapped the coin")
+        nextCard.tap()
+        sleep(1)
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, nextTitle, "tapping a coin at the bottom did not bring it up")
+        // Pulled up most of the way, the next one comes up too.
+        let third = app.descendants(matching: .any).matching(identifier: "pileCard").firstMatch
+        let thirdTitle = third.label
+        let tf = third.frame
+        let grab2 = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: tf.midX, dy: tf.minY + 20))
+        grab2.press(forDuration: 0.1, thenDragTo: grab2.withOffset(CGVector(dx: 0, dy: -320)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(1)
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, thirdTitle, "pulling a coin up did not bring it up")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         XCTAssertTrue(card("Parking spot").isHittable, "stack not usable after going back")
 
         // Touch, hold and drag a card to the top, like moving passes in Wallet.
@@ -340,7 +360,7 @@ final class CoinPurseUITests: XCTestCase {
         // Opening and putting back quickly, over and over.
         for _ in 0..<4 {
             tapCard("Coffee gift card")
-            if app.buttons["allCoins"].waitForExistence(timeout: 3) { app.buttons["allCoins"].tap() }
+            if app.buttons["Done"].waitForExistence(timeout: 3) { app.buttons["Done"].tap() }
         }
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
@@ -607,9 +627,16 @@ final class CoinPurseUITests: XCTestCase {
         }
         app.activate()
         pause(1.5)
-        // Back to the whole purse: tap the stack at the bottom, like Wallet.
+        // The next coins wait at the bottom, like Wallet: pull one up to peek, tap to bring it up.
         chapter("back")
-        app.buttons["allCoins"].tap()
+        let upNext = app.descendants(matching: .any).matching(identifier: "pileCard").firstMatch
+        let uf = upNext.frame
+        let pullPoint = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: uf.midX, dy: uf.minY + 20))
+        pullPoint.press(forDuration: 0.1, thenDragTo: pullPoint.withOffset(CGVector(dx: 0, dy: -120)), withVelocity: .slow, thenHoldForDuration: 1.0)
+        pause(1.2)
+        upNext.tap()
+        pause(2.5)
+        app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         pause(2)
 
@@ -741,10 +768,13 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         sleep(3)
         snap("d03-open-pin")
-        // The stack at the bottom puts it back, like Wallet.
-        app.buttons["allCoins"].tap()
+        // The next coins wait at the bottom with their titles; tap one to bring it up.
+        snap("d04-pile")
+        app.descendants(matching: .any).matching(identifier: "pileCard").firstMatch.tap()
         sleep(2)
-        snap("d04-back")
+        snap("d04b-swapped")
+        app.buttons["Done"].tap()
+        sleep(1)
 
         app.buttons["Tailgate tickets"].tap()
         XCTAssertTrue(open.waitForExistence(timeout: 5))

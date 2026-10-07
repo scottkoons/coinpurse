@@ -28,10 +28,18 @@ struct CoinDetailView: View {
     @ScaledMetric(relativeTo: .caption) private var actionSize: CGFloat = 56
     let coin: Coin
     let namespace: Namespace.ID
-    /// The other coins, collapsed into a stack at the bottom like in Wallet.
+    /// The other coins (the next ones first), stacked at the bottom like in Wallet.
     let pile: [Coin]
     let onClose: () -> Void
     let onDelete: () -> Void
+    /// Brings another coin up from the stack at the bottom.
+    let onSelect: (String) -> Void
+
+    /// How much of each card in the bottom stack shows: its title.
+    @ScaledMetric(relativeTo: .headline) private var stripe: CGFloat = 48
+    /// A card in the bottom stack being pulled up for a look, and how far.
+    @State private var peeking: String?
+    @State private var peekLift: CGFloat = 0
 
     @State private var drag: CGFloat = 0
     /// True while a finger is down; if the system cancels the drag, the card springs back.
@@ -72,7 +80,9 @@ struct CoinDetailView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let reserved: CGFloat = 52 + 6 + 36 + min(actionSize, 80) + 44 + 76
+            let pileCount = min(pile.count, geo.size.height < 700 ? 2 : 3)
+            let pileHeight = CGFloat(pileCount) * stripe + 6
+            let reserved: CGFloat = 52 + 6 + 36 + min(actionSize, 80) + 44 + pileHeight
                 + (notesBelow == nil ? 0 : 86) + (showsThumbnails ? 72 : 0)
             let cardHeight = max(geo.size.height < 640 ? 230 : 300, min(geo.size.height - reserved, 620))
             VStack(spacing: 0) {
@@ -97,10 +107,8 @@ struct CoinDetailView: View {
                 .scrollBounceBehavior(.basedOnSize)
                 .opacity(appeared ? max(0, 1 - drag / 140) : 0)
                 .offset(y: appeared || reduceMotion ? 0 : 28)
-                // The rest of the purse, below everything else (never on top of a button).
-                pileView
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 80)
+                // The next coins, below everything else (never on top of a button).
+                pileView(count: pileCount, cardHeight: cardHeight)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -346,35 +354,70 @@ struct CoinDetailView: View {
         .accessibilityLabel(title)
     }
 
-    /// The rest of the purse, collapsed into a stack at the bottom like in
-    /// Wallet. A tap puts this coin back and the whole purse rises again.
-    @ViewBuilder private var pileView: some View {
-        let edges = Array(pile.prefix(5))
-        if !edges.isEmpty {
+    /// The next coins, stacked at the bottom like passes in Wallet, each
+    /// showing its title. Pull one up to see what is on it (let go and it drops
+    /// back); pull it most of the way, or tap it, and it takes this coin's place.
+    @ViewBuilder private func pileView(count: Int, cardHeight: CGFloat) -> some View {
+        let cards = Array(pile.prefix(count))
+        if !cards.isEmpty {
             ZStack(alignment: .top) {
-                ForEach(Array(edges.enumerated()), id: \.element.id) { i, c in
-                    // Plain card edges, as Wallet shows the other passes.
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .frame(height: CardMetrics.header)
-                        .cardSurface(c.accent)
-                        .offset(y: CGFloat(i) * 11)
-                        .zIndex(Double(i))
+                ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
+                    let lifted = peeking == c.id
+                    PileCard(coin: c, stripe: stripe, height: cardHeight)
+                        // The same card as in the purse: it rises into place when chosen.
+                        .matchedCard(id: c.id, in: namespace, enabled: !reduceMotion)
+                        // Touch areas before the card moves into its place, so they move with it.
+                        .contentShape(Rectangle())
+                        .onTapGesture { onSelect(c.id) }
+                        .gesture(pullUp(c))
+                        // To VoiceOver, each is one button the size of its title strip.
+                        .accessibilityHidden(true)
+                        .overlay(alignment: .top) {
+                            Color.clear
+                                .frame(height: stripe)
+                                .accessibilityElement()
+                                .accessibilityLabel(c.title)
+                                .accessibilityHint("Opens this coin instead")
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityAction { onSelect(c.id) }
+                                .accessibilityIdentifier("pileCard")
+                        }
+                        .offset(y: CGFloat(i) * stripe + (lifted ? peekLift : 0))
+                        .shadow(color: .black.opacity(lifted ? 0.35 : 0), radius: 16, y: -4)
+                        .zIndex(lifted ? 100 : Double(i))
                 }
             }
             .padding(.horizontal, 16)
-            // Only the tops show; the cards run on past the bottom of the screen.
-            .frame(height: 58, alignment: .top)
+            // Only the titles take room; the cards run on past the bottom of the screen.
+            .frame(height: CGFloat(cards.count) * stripe + 6, alignment: .top)
             .frame(maxWidth: .infinity)
-            .clipped()
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onClose)
-            .accessibilityElement()
-            .accessibilityLabel("All coins")
-            .accessibilityHint("Puts this coin back in the purse")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityIdentifier("allCoins")
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 80)
         }
+    }
+
+    private func pullUp(_ c: Coin) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                if peeking != c.id { peeking = c.id }
+                // Up follows the finger; down barely moves.
+                let dy = value.translation.height
+                peekLift = dy < 0 ? dy : dy * 0.15
+            }
+            .onEnded { value in
+                let far = value.translation.height < -170 || value.predictedEndTranslation.height < -320
+                if far {
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                    peeking = nil
+                    peekLift = 0
+                    onSelect(c.id)
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        peeking = nil
+                        peekLift = 0
+                    }
+                }
+            }
     }
 
     private var dragToClose: some Gesture {

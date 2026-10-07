@@ -67,9 +67,13 @@ struct PurseView: View {
                     CoinDetailView(
                         coin: coin,
                         namespace: cards,
-                        pile: visibleCoins.filter { $0.id != id },
+                        pile: pile(after: id),
                         onClose: closeCoin,
-                        onDelete: { deleteOpenCoin(id) }
+                        onDelete: { deleteOpenCoin(id) },
+                        onSelect: { other in
+                            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                            withAnimation(cardAnimation) { openId = other }
+                        }
                     )
                     .transition(reduceMotion ? .opacity : .identity)
                     .zIndex(10)
@@ -201,7 +205,10 @@ struct PurseView: View {
                     } else {
                         CoinCardView(coin: coin, faceShowing: isLast) { pendingDelete = coin }
                             // While it is lifted, the lifted copy above the stack is the card.
-                            .matchedCard(id: moving == coin.id ? "held-" + coin.id : coin.id, in: cards, enabled: !reduceMotion)
+                            // While a coin is open, the cards under it at the bottom are these
+                            // coins; the purse's own copies step aside until it closes.
+                            .matchedCard(id: moving == coin.id ? "held-" + coin.id : openId == nil ? coin.id : "purse-" + coin.id,
+                                         in: cards, enabled: !reduceMotion)
                             .contentShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
                             .onTapGesture { openCoin(coin.id) }
                             // Touch and hold to lift it, then drag to move it, as in Wallet.
@@ -348,6 +355,14 @@ struct PurseView: View {
         }
     }
 
+
+    /// The coins after the open one (then around to the top), for the stack
+    /// at the bottom of an open coin.
+    private func pile(after id: String) -> [Coin] {
+        let list = visibleCoins
+        guard let i = list.firstIndex(where: { $0.id == id }) else { return list }
+        return Array(list[(i + 1)...] + list[..<i])
+    }
 
     private func openCoin(_ id: String) {
         searchFocused = false
