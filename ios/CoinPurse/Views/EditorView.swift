@@ -248,7 +248,8 @@ struct EditorView: View {
                         Text("No picture yet")
                             .font(.subheadline)
                     }
-                    .foregroundStyle(.tertiary)
+                    // Secondary, not tertiary: readable in dark mode too.
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 90)
                 }
             }
