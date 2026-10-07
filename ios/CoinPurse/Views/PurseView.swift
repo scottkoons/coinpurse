@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Identifies which coin a sheet or full-screen view is showing.
 struct CoinRef: Identifiable, Hashable { let id: String }
@@ -25,6 +26,8 @@ struct PurseView: View {
     /// The card being moved (touch and hold, then drag), how far it has
     /// gone, and the place it would land.
     @State private var moving: String?
+    @State private var showReorder = false
+    private let moveTip = MoveCardsTip()
     @State private var moveOffset: CGFloat = 0
     @State private var moveTarget: Int?
     /// Where the finger was when the card lifted, on the screen.
@@ -109,6 +112,8 @@ struct PurseView: View {
         .sheet(isPresented: $recordingVoice) { VoiceNoteView() }
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
+        .sheet(isPresented: $showReorder) { ReorderView() }
+        .task(id: model.coins.count) { MoveCardsTip.coinCount = model.coins.count }
         #if DEBUG
         // UI tests open the Share to Coin Purse screen with two sample pictures.
         .sheet(isPresented: $testShare) {
@@ -136,7 +141,9 @@ struct PurseView: View {
 
     private func stackLayer(screenHeight: CGFloat) -> some View {
         let isOpen = openId != nil
-        return ScrollView {
+        return ScrollViewReader { scroller in
+        ScrollView {
+            Color.clear.frame(height: 0).id("purseTop")
             if model.coins.isEmpty && !model.coinsLoaded {
                 ProgressView()
                     .controlSize(.large)
@@ -148,6 +155,15 @@ struct PurseView: View {
                 ContentUnavailableView.search(text: trimmedQuery)
                     .padding(.top, 60)
             } else {
+                // Once, when the purse has a few coins: how to move them.
+                if !searching {
+                    TipView(moveTip) { action in
+                        if action.id == "rearrange" { showReorder = true }
+                    }
+                    .tipBackground(Color(.secondarySystemBackground))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                }
                 stack(screenHeight: screenHeight)
             }
         }
@@ -171,6 +187,11 @@ struct PurseView: View {
             }
         }
         .scrollDisabled(isOpen || moving != nil)
+        // A new coin goes on top of the purse: bring the top into view so it shows.
+        .onChange(of: model.coins.first?.id) { old, new in
+            guard let new, new != old, openId == nil, moving == nil else { return }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { scroller.scrollTo("purseTop", anchor: .top) }
+        }
         .allowsHitTesting(!isOpen)
         .accessibilityHidden(isOpen)
         .scrollDismissesKeyboard(.immediately)
@@ -188,6 +209,7 @@ struct PurseView: View {
                     .offset(y: isOpen ? 110 : 0)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
         }
     }
 
@@ -329,6 +351,9 @@ struct PurseView: View {
         }
     }
 
+    /// Where a coin sits in the purse right now.
+    private func coins(beforeMoving id: String) -> Int? { model.coins.firstIndex { $0.id == id } }
+
     /// How high a lifted card has to be pulled to open: into the title area,
     /// above the first card (dropping it on the first card just moves it there).
     private var openLine: CGFloat { headerBottom - 14 }
@@ -347,6 +372,7 @@ struct PurseView: View {
         }
         let target = moveTarget
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        if let target, coins(beforeMoving: id) != target { moveTip.invalidate(reason: .actionPerformed) }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
             if let target { model.move(id, to: target) }
             moving = nil

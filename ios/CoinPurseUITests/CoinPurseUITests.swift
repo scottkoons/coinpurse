@@ -394,6 +394,24 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Cancel"].firstMatch.tap()
         XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 5), "stack did not come back after search")
 
+        // The Rearrange list, from Account: Garage code to the top.
+        app.buttons["Account"].tap()
+        XCTAssertTrue(app.buttons["Rearrange Coins"].waitForExistence(timeout: 5))
+        app.buttons["Rearrange Coins"].tap()
+        let row = app.cells.containing(.staticText, identifier: "Garage code").firstMatch
+        XCTAssertTrue(reveal(row), "Garage code is not in the Rearrange list")
+        let toTop = app.buttons["Move Garage code to the top"]
+        XCTAssertTrue(toTop.waitForExistence(timeout: 5), "no Move to Top button")
+        toTop.tap()
+        sleep(1)
+        snap("s02b-rearrange")
+        // Done on the Rearrange list, then Done on Account.
+        app.navigationBars["Rearrange"].buttons["Done"].tap()
+        sleep(1)
+        app.navigationBars["Account"].buttons["Done"].firstMatch.tap()
+        sleep(2)
+        XCTAssertEqual(serverFirstTitle(), "Garage code", "Rearrange did not save the new order")
+
         // Still alive, nothing lost.
         XCTAssertEqual(app.state, .runningForeground, "app is no longer running")
         XCTAssertEqual(serverCoinCount(), before, "stress changed the number of coins")

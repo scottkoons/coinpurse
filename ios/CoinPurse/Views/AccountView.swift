@@ -7,6 +7,7 @@ struct AccountView: View {
     @State private var confirmSignOutAll = false
     @State private var confirmDelete = false
     @State private var deleting = false
+    @State private var rearranging = false
 
     var body: some View {
         @Bindable var lock = lock
@@ -19,6 +20,12 @@ struct AccountView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.4)
                         .truncationMode(.middle)
+                }
+                Section {
+                    Button("Rearrange Coins") { rearranging = true }
+                        .disabled(model.coins.count < 2)
+                } footer: {
+                    Text("Or touch and hold a card in the purse and drag it.")
                 }
                 if AppLock.canLock {
                     Section {
@@ -50,6 +57,7 @@ struct AccountView: View {
                 }
             }
             .navigationTitle("Account")
+            .sheet(isPresented: $rearranging) { ReorderView() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }

@@ -397,7 +397,9 @@ struct CoinDetailView: View {
     }
 
     private func pullUp(_ c: Coin) -> some Gesture {
-        DragGesture(minimumDistance: 6)
+        // Measured on the screen, not on the card that is itself moving (that
+        // made it jitter as each step undid the last).
+        DragGesture(minimumDistance: 6, coordinateSpace: .global)
             .onChanged { value in
                 if peeking != c.id { peeking = c.id }
                 // Up follows the finger; down barely moves.
@@ -421,7 +423,7 @@ struct CoinDetailView: View {
     }
 
     private var dragToClose: some Gesture {
-        DragGesture(minimumDistance: 14)
+        DragGesture(minimumDistance: 14, coordinateSpace: .global)
             .updating($dragging) { _, active, _ in active = true }
             .onChanged { value in
                 let dy = value.translation.height

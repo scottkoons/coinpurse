@@ -1,5 +1,6 @@
 import CoreSpotlight
 import SwiftUI
+import TipKit
 
 @main
 struct CoinPurseApp: App {
@@ -8,6 +9,16 @@ struct CoinPurseApp: App {
     @State private var quick = QuickActions.shared
     @State private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        #if DEBUG
+        // UI tests run without tips covering the screen.
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-uiTest") }) {
+            Tips.hideAllTipsForTesting()
+        }
+        #endif
+        try? Tips.configure()
+    }
 
     var body: some Scene {
         WindowGroup {

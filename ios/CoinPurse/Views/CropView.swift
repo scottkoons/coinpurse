@@ -104,7 +104,7 @@ struct CropView: View {
     }
 
     private func moveGesture(frame: CGRect) -> some Gesture {
-        DragGesture()
+        DragGesture(coordinateSpace: .global)
             .onChanged { v in
                 let start = dragStart ?? box
                 dragStart = start
@@ -118,7 +118,7 @@ struct CropView: View {
     }
 
     private func resizeGesture(_ corner: Corner, frame: CGRect) -> some Gesture {
-        DragGesture()
+        DragGesture(coordinateSpace: .global)
             .onChanged { v in
                 let s = dragStart ?? box
                 dragStart = s
