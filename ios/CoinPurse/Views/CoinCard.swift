@@ -145,6 +145,7 @@ struct PileCard: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
                     .lineLimit(1)
+                    .accessibilityIdentifier("pileTitle")
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.white)

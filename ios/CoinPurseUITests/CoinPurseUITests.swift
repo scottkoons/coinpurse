@@ -1388,6 +1388,9 @@ final class CoinPurseUITests: XCTestCase {
         if issue.auditType == .dynamicType, screen == "Purse" {
             return "cards far down a lazy stack are not built while the audit enlarges text"
         }
+        if issue.auditType == .textClipped, screen.hasPrefix("Open coin"), element?.identifier == "pileTitle" {
+            return "coins waiting at the bottom show one line of title, like Wallet; full title in the VoiceOver label and when brought up"
+        }
         if issue.auditType == .textClipped, screen == "Purse" {
             return "tucked cards show only their top, like Wallet; full text when opened and in the VoiceOver label"
         }
