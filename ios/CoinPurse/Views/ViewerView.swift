@@ -163,7 +163,7 @@ struct ViewerView: View {
                 Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(2)
                     .multilineTextAlignment(.center)
                 if pictures.count > 1 {
-                    Text("\(index + 1) of \(pictures.count)").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(index + 1) of \(pictures.count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 }
             }
             // Grows with larger text instead of squeezing it.
