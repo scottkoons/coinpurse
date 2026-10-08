@@ -144,11 +144,11 @@ struct PurseView: View {
             presenting: pendingDelete
         ) { coin in
             Button("Delete", role: .destructive) {
-                Task { await model.deleteCoin(coin.id) }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.deleteWithUndo(coin.id) }
             }
             Button("Cancel", role: .cancel) {}
         } message: { coin in
-            Text("“\(coin.title)” and everything in it will be deleted. This cannot be undone.")
+            Text("“\(coin.title)” and everything in it will be deleted.")
         }
     }
 
@@ -616,7 +616,7 @@ struct PurseView: View {
         closeCoin()
         Task {
             try? await Task.sleep(for: .milliseconds(450))
-            await model.deleteCoin(id)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.deleteWithUndo(id) }
         }
     }
 

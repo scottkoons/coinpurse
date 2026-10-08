@@ -256,7 +256,9 @@ final class CoinPurseUITests: XCTestCase {
             app.alerts.buttons["Delete"].tap()
             XCTAssertTrue(card(name).waitForNonExistence(timeout: 10), "\(name) was not deleted")
         }
-        // 30 + 1 added - 5 deleted, and still 26 after a refresh.
+        // 30 + 1 added - 5 deleted, and still 26 after a refresh (the last
+        // delete reaches the server once its Undo moment has passed).
+        sleep(6)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
         sleep(3)
@@ -324,6 +326,18 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertFalse(undo.exists, "the Undo bar did not go away")
         XCTAssertEqual(serverCoinCount(), start - 1, "the server still has the swiped coin")
         XCTAssertFalse((serverCoins() ?? []).contains { $0["title"] as? String == "Grocery list" })
+
+        // The trash can (it asks first) also offers Undo.
+        let email = card("Email Jim back").frame
+        origin.withOffset(CGVector(dx: email.maxX - 28, dy: email.midY)).tap()
+        XCTAssertTrue(app.alerts.buttons["Delete"].waitForExistence(timeout: 5), "the trash can did not ask first")
+        app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(card("Email Jim back").waitForNonExistence(timeout: 5))
+        XCTAssertTrue(undo.waitForExistence(timeout: 3), "no Undo after the trash can")
+        undo.tap()
+        XCTAssertTrue(card("Email Jim back").waitForExistence(timeout: 5), "Undo did not bring back the trashed coin")
+        sleep(7)
+        XCTAssertEqual(serverCoinCount(), start - 1, "Undo after the trash can still deleted the coin")
 
         // Scrolling still works with swiping on the cards.
         XCTAssertTrue(card("Parking spot").isHittable)
@@ -1026,7 +1040,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the trash can did not ask first")
         confirm.tap()
         XCTAssertTrue(card(victimName).waitForNonExistence(timeout: 10), "\(victimName) is still in the purse")
-        sleep(1)
+        // Deleted on the server once the Undo moment passes.
+        sleep(7)
         XCTAssertEqual(titles().count, 149, "the server still has the tossed coin")
         XCTAssertFalse(titles().contains(victimName))
 

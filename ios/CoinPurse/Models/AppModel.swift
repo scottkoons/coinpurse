@@ -22,7 +22,7 @@ final class AppModel {
     private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
     var toast: String?
-    /// A coin just swiped away: gone from the purse, with an Undo bar for a
+    /// A coin just deleted: gone from the purse, with an Undo bar for a
     /// few seconds before it is deleted on the server.
     private(set) var undoable: Coin?
     private var undoIndex = 0
@@ -283,28 +283,8 @@ final class AppModel {
         }
     }
 
-    func deleteCoin(_ id: String) async {
-        guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
-        let mine = session
-        let removed = coins.remove(at: index)
-        changes += 1
-        deleting.insert(id)
-        defer { deleting.remove(id) }
-        do {
-            try await api.deleteCoin(id: id)
-            show("Deleted")
-        } catch APIError.gone {
-            // Already gone from the server: nothing to put back.
-        } catch {
-            guard session == mine else { return }
-            // Put back only this coin, where it was; anything added meanwhile stays.
-            coins.insert(removed, at: min(index, coins.count))
-            changes += 1
-            await handle(error, from: mine)
-        }
-    }
-
-    /// Swiped away: off the purse at once, with an Undo bar. The server
+    /// Every way of deleting a coin (swipe, trash can, Delete in an open coin
+    /// or full screen): off the purse at once, with an Undo bar. The server
     /// delete waits until the Undo moment passes (or the app leaves the
     /// screen), so Undo puts back the whole coin, pictures and all.
     func deleteWithUndo(_ id: String) {

@@ -131,11 +131,11 @@ struct ViewerView: View {
         .alert("Are you sure you want to delete?", isPresented: $confirmDeleteCoin) {
             Button("Delete", role: .destructive) {
                 dismiss()
-                Task { await model.deleteCoin(coinId) }
+                model.deleteWithUndo(coinId)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This coin and all of its pictures will be deleted. This cannot be undone.")
+            Text("This coin and all of its pictures will be deleted.")
         }
         .alert("Remove this picture?", isPresented: $confirmRemovePicture) {
             Button("Remove", role: .destructive) {

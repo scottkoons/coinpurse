@@ -150,7 +150,7 @@ struct CoinDetailView: View {
             Button("Delete", role: .destructive, action: onDelete)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("“\(coin.title)” and everything in it will be deleted. This cannot be undone.")
+            Text("“\(coin.title)” and everything in it will be deleted.")
         }
         .alert("Location is off", isPresented: $locationOff) {
             Button("Open Settings") {
