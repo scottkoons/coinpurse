@@ -339,6 +339,36 @@ final class CoinPurseUITests: XCTestCase {
         sleep(7)
         XCTAssertEqual(serverCoinCount(), start - 1, "Undo after the trash can still deleted the coin")
 
+        // Pulled down, a spinner shows the purse is refreshing.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)),
+                   withVelocity: .slow, thenHoldForDuration: 0.2)
+        // (The spinner itself is checked on film in testDragFilm: the test
+        // runner waits for the screen to stop moving before it looks.)
+        sleep(2)
+
+        // Swipe to Delete can be turned off in Account, and back on.
+        app.buttons["Account"].tap()
+        let setting = app.switches["Swipe to Delete"]
+        XCTAssertTrue(setting.waitForExistence(timeout: 5), "no Swipe to Delete setting")
+        XCTAssertEqual(setting.value as? String, "1", "Swipe to Delete should start on")
+        setting.switches.firstMatch.tap()
+        XCTAssertEqual(setting.value as? String, "0")
+        app.navigationBars["Account"].buttons["Done"].firstMatch.tap()
+        sleep(1)
+        swipe("Parking spot", by: -120)
+        XCTAssertFalse(delete.exists, "swiping still worked with Swipe to Delete off")
+        XCTAssertTrue(card("Parking spot").exists)
+        app.buttons["Account"].tap()
+        XCTAssertTrue(setting.waitForExistence(timeout: 5))
+        setting.switches.firstMatch.tap()
+        app.navigationBars["Account"].buttons["Done"].firstMatch.tap()
+        sleep(1)
+        swipe("Parking spot", by: -120)
+        XCTAssertTrue(delete.waitForExistence(timeout: 3), "swiping did not come back with Swipe to Delete on")
+        tapCard("Tailgate tickets")
+        sleep(1)
+
         // Scrolling still works with swiping on the cards.
         XCTAssertTrue(card("Parking spot").isHittable)
         snap("w03-after")
@@ -386,6 +416,13 @@ final class CoinPurseUITests: XCTestCase {
         let grab2 = origin.withOffset(CGVector(dx: next2.midX, dy: next2.minY + 20))
         grab2.press(forDuration: 0.1, thenDragTo: grab2.withOffset(CGVector(dx: 0, dy: -360)), withVelocity: 160, thenHoldForDuration: 0.3)
         sleep(2)
+        // Back to the purse, then pull down to refresh: the spinner shows at the top.
+        app.buttons["Done"].tap()
+        sleep(2)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)),
+                   withVelocity: 400, thenHoldForDuration: 1.0)
+        sleep(3)
     }
 
     /// Hammering the purse: opening and closing faster than the animations,
@@ -707,7 +744,7 @@ final class CoinPurseUITests: XCTestCase {
         func chapter(_ name: String) { print("CHAPTER \(name) \(Date().timeIntervalSince1970)") }
         func pause(_ s: Double) { Thread.sleep(forTimeInterval: s) }
         app = XCUIApplication()
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestPin", "38.83395,-104.82135,0938",
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestLockNow", "-uiTestPin", "38.83395,-104.82135,0938",
                                 "-uiTestVoiceText", "Pick up the dry cleaning before 6 tonight"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
         app.launch()
@@ -868,18 +905,62 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("DevSummit badge").waitForExistence(timeout: 15))
         pause(2.5)
 
-        // Toss it.
+        // Toss it: swipe it away, as in Mail.  Changed your mind?  Undo.
         chapter("toss")
-        // The trash can on the card, where a finger would tap it.
         let f = card("Garage code").frame
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.maxX - 28, dy: f.minY + 31)).tap()
+        let from = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.maxX - 70, dy: f.midY))
+        from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: -120, dy: 0)), withVelocity: 300, thenHoldForDuration: 0.1)
         pause(1.2)
-        let confirm = app.alerts.buttons["Delete"].exists ? app.alerts.buttons["Delete"] : app.buttons.matching(identifier: "Delete").firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "no delete confirmation")
-        confirm.tap()
+        let red = app.buttons["swipeDelete"].frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: red.maxX - 44, dy: red.minY + 31)).tap()
         XCTAssertTrue(card("Garage code").waitForNonExistence(timeout: 10))
-        pause(3)
+        pause(2)
+        app.buttons["undoDelete"].tap()
+        XCTAssertTrue(card("Garage code").waitForExistence(timeout: 5))
+        pause(2.5)
         chapter("end")
+
+        // Extra scenes, cut only for the website's story clips.
+        // Links in a note are ready to tap.
+        chapter("x-taptext")
+        tapCard("Email Jim back")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        pause(3)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        pause(1)
+        // The list on the fridge, full size.
+        chapter("x-grocery")
+        tapCard("Grocery list")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        pause(1.5)
+        openCoin.buttons["Picture 1"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 5))
+        pause(2.5)
+        app.buttons["Back"].tap()
+        pause(1)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        pause(1)
+        // Lock with Face ID: turn it on, leave, come back, a glance opens it.
+        chapter("x-faceid")
+        app.buttons["Account"].tap()
+        let lockSwitch = app.switches.matching(NSPredicate(format: "label BEGINSWITH 'Lock with'")).firstMatch
+        if lockSwitch.waitForExistence(timeout: 5) {
+            pause(1)
+            lockSwitch.switches.firstMatch.tap()
+            pause(1.5)
+            app.navigationBars["Account"].buttons["Done"].firstMatch.tap()
+            pause(1)
+            XCUIDevice.shared.press(.home)
+            pause(1.5)
+            app.activate()
+            pause(1.5)
+            // The film script answers the Face ID prompt with a match when it sees this.
+            print("FACEID_MATCH_NOW")
+            pause(4)
+        }
+        chapter("x-end")
     }
 
     /// Every touch on a big purse (150 coins, most with pictures), each result
@@ -1309,6 +1390,20 @@ final class CoinPurseUITests: XCTestCase {
         tapCard("Six pictures")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Picture 6"].waitForExistence(timeout: 5), "six pictures should show six thumbnails")
+        // Removing a picture in the editor waits for Save: Cancel keeps it.
+        app.buttons["Edit"].tap()
+        let remove6 = app.buttons["Remove picture 6"]
+        XCTAssertTrue(reveal(remove6), "no way to remove a picture in the editor")
+        remove6.tap()
+        XCTAssertTrue(remove6.waitForNonExistence(timeout: 3), "the removed picture still shows in the editor")
+        cancelSheet()
+        XCTAssertTrue(app.buttons["Picture 6"].waitForExistence(timeout: 5), "Cancel did not keep the removed picture")
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(reveal(remove6))
+        remove6.tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.buttons["Picture 6"].waitForNonExistence(timeout: 15), "Save did not remove the picture")
+        XCTAssertTrue(app.buttons["Picture 5"].exists, "Save removed more than one picture")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 

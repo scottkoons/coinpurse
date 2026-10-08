@@ -29,7 +29,9 @@ struct EditorView: View {
     /// The add sheet is open to replace the first picture rather than add one.
     @State private var replacingMain = false
     @State private var cropping: StagedCrop?
-    @State private var removing: Picture?
+    /// Pictures already on the coin that were removed here; they are deleted
+    /// when Save is tapped (Cancel keeps them), like every other change.
+    @State private var removedExtras: Set<String> = []
     @State private var saving = false
     @State private var error: String?
     @State private var loaded = false
@@ -47,7 +49,9 @@ struct EditorView: View {
 
     private var id: String { coinId ?? draftId }
     private var existing: Coin? { model.coin(id) }
-    private var existingExtras: [Picture] { existing?.pictures.filter { !$0.isPrimary } ?? [] }
+    private var existingExtras: [Picture] {
+        existing?.pictures.filter { !$0.isPrimary && !removedExtras.contains($0.id) } ?? []
+    }
     private var extrasCount: Int { existingExtras.count + stagedExtras.count }
     private var hasMain: Bool { stagedMain != nil || existing?.imageUrl != nil }
     /// A quick coin needs only a picture; a title or notes alone (like a
@@ -63,7 +67,7 @@ struct EditorView: View {
     private var hasChanges: Bool {
         title != original.title || notes != original.notes || accent != original.accent
             || pinChanged || (existing == nil && pin != nil)
-            || stagedMain != nil || !stagedExtras.isEmpty
+            || stagedMain != nil || !stagedExtras.isEmpty || !removedExtras.isEmpty
     }
 
     var body: some View {
@@ -147,12 +151,6 @@ struct EditorView: View {
                         stagedExtras[i] = edited
                     }
                 }
-            }
-            .alert("Remove this picture?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
-                Button("Remove", role: .destructive) {
-                    if let picture = removing { Task { await model.deletePicture(picture, of: id) } }
-                }
-                Button("Cancel", role: .cancel) {}
             }
         }
         // Swiping down never throws away unsaved changes; Cancel asks instead.
@@ -332,7 +330,9 @@ struct EditorView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(Array(existingExtras.enumerated()), id: \.element.id) { i, picture in
-                    thumb(number: i + 2) { CachedImage(picture: picture, contentMode: .fill) } onRemove: { removing = picture }
+                    thumb(number: i + 2) { CachedImage(picture: picture, contentMode: .fill) } onRemove: {
+                        withAnimation(.snappy) { _ = removedExtras.insert(picture.id) }
+                    }
                 }
                 ForEach(Array(stagedExtras.enumerated()), id: \.element.id) { i, staged in
                     thumb(number: existingExtras.count + i + 2) {
@@ -427,6 +427,13 @@ struct EditorView: View {
                 try await model.setPin(pin, on: id)
             }
             pinChanged = false
+            // Removed first, so there is room for pictures added in their place.
+            for pictureId in removedExtras {
+                if let picture = existing?.pictures.first(where: { $0.id == pictureId }) {
+                    try await model.removePicture(picture, of: id)
+                }
+                removedExtras.remove(pictureId)
+            }
             if let main = stagedMain {
                 try await model.uploadMainPicture(coinId: id, jpeg: main.data)
                 stagedMain = nil

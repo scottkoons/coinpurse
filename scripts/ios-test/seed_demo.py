@@ -14,7 +14,7 @@ coins=[
  ("Garage code","4471",[],None,0),
  ("Tailgate tickets","Lot opens 9 AM",['ticket-1.jpg','ticket-2.jpg'],None,2),
  ("Coffee gift card","Good Day Coffee, $25",['gift-card-coffee.jpg'],None,5),
- ("Email Jim back","Remind me to email Jim back about the patio quote.",[],None,0),
+ ("Email Jim back","Remind me to email jim@example.com about the patio quote, or call 719-555-0142.",[],None,0),
  ("Grocery list","",['grocery-note.jpg'],None,3),
 ]
 for t,n,ps,pin,acc in reversed(coins):

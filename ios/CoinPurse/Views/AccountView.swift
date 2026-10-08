@@ -8,6 +8,7 @@ struct AccountView: View {
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var rearranging = false
+    @AppStorage("swipeToDelete") private var swipeToDelete = true
 
     var body: some View {
         @Bindable var lock = lock
@@ -26,6 +27,11 @@ struct AccountView: View {
                         .disabled(model.coins.count < 2)
                 } footer: {
                     Text("Or touch and hold a card in the purse and drag it.")
+                }
+                Section {
+                    Toggle("Swipe to Delete", isOn: $swipeToDelete)
+                } footer: {
+                    Text("Swipe a coin's bar to the left to delete it, as in Mail.  Undo shows for a few seconds after.")
                 }
                 if AppLock.canLock {
                     Section {

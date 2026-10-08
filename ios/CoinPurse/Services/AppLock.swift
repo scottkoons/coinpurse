@@ -11,7 +11,13 @@ final class AppLock {
     }
 
     private static let key = "appLockEnabled"
-    private static let grace: TimeInterval = 60
+    private static var grace: TimeInterval {
+        #if DEBUG
+        // The website film shows the lock without waiting a minute.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestLockNow") { return 0 }
+        #endif
+        return 60
+    }
     private var backgroundedAt: Date?
     private var authenticating = false
 

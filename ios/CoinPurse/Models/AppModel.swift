@@ -271,6 +271,16 @@ final class AppModel {
         upsert(coin)
     }
 
+    /// Removes one extra picture, for the editor's Save (errors go to the editor).
+    func removePicture(_ picture: Picture, of coinId: String) async throws {
+        guard let attId = picture.attachmentId else { return }
+        do {
+            upsert(try await guarded(coinId) { try await self.api.deletePicture(coinId: coinId, attachmentId: attId) })
+        } catch APIError.pictureGone {
+            // Already removed on another device: that is what Save wanted.
+        }
+    }
+
     func deletePicture(_ picture: Picture, of coinId: String) async {
         guard let attId = picture.attachmentId else { return }
         let mine = session

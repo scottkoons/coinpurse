@@ -46,6 +46,10 @@ struct PurseView: View {
     @State private var swipeStart: CGFloat = 0
     @State private var swipeArmed = false
     @State private var stackWidth: CGFloat = 360
+    /// Swipe to Delete can be turned off in Account (it is on to start).
+    @AppStorage("swipeToDelete") private var swipeToDelete = true
+    /// Pulled down to refresh: the spinner at the top shows until it is done.
+    @State private var refreshingFromPull = false
     /// How far a swiped card stays open to show its Delete button.
     private let revealWidth: CGFloat = 88
     /// How far the purse is pulled down past its top; the cards fan apart.
@@ -159,6 +163,13 @@ struct PurseView: View {
         return ScrollViewReader { scroller in
         ScrollView {
             Color.clear.frame(height: 0).id("purseTop")
+            // Like Mail: pulled down, a spinner shows the purse is being brought up to date.
+            if refreshingFromPull {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityLabel("Refreshing")
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             if model.coins.isEmpty && !model.coinsLoaded {
                 ProgressView()
                     .controlSize(.large)
@@ -187,10 +198,21 @@ struct PurseView: View {
         .modifier(ScrollStarted { if swipeId != nil { closeSwipe() } })
         // Pulled down far enough, the purse also refreshes (once per pull).
         .onChange(of: pull) { _, amount in
-            if amount > 90, !pulledToRefresh {
+            if amount > 90, !pulledToRefresh, !refreshingFromPull {
                 pulledToRefresh = true
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                Task { await model.refresh() }
+                Task {
+                    withAnimation(.snappy) { refreshingFromPull = true }
+                    let started = Date()
+                    await model.refresh()
+                    // Long enough to see, even when the refresh is instant, and still
+                    // there after the finger lets go (as in Mail).
+                    let shown = Date().timeIntervalSince(started)
+                    if shown < 0.8 { try? await Task.sleep(for: .seconds(0.8 - shown)) }
+                    for _ in 0..<100 where pull > 4 { try? await Task.sleep(for: .milliseconds(100)) }
+                    try? await Task.sleep(for: .milliseconds(600))
+                    withAnimation(.snappy) { refreshingFromPull = false }
+                }
             } else if amount < 4 {
                 pulledToRefresh = false
             }
@@ -271,10 +293,10 @@ struct PurseView: View {
                             // Touch and hold to lift it, then drag to move it, as in Wallet.
                             // iOS's own touch-and-hold works alongside the purse's scrolling: a
                             // finger that moves before the hold completes just scrolls.
-                            // Swipe the bar to the left to delete it, as in Mail. Always attached
-                            // (switching it off when a card lifts rebuilt the card and cancelled
-                            // the lift); a lifted card simply ignores it (see beginSwipe).
-                            .modifier(SwipeToDelete(enabled: !searching,
+                            // Swipe the bar to the left to delete it, as in Mail (search results
+                            // too). Not switched off when a card lifts: that rebuilt the card and
+                            // cancelled the lift; a lifted card simply ignores it (see beginSwipe).
+                            .modifier(SwipeToDelete(enabled: swipeToDelete,
                                                     began: { beginSwipe(coin.id) },
                                                     changed: { dx in dragSwipe(coin.id, by: dx) },
                                                     ended: { velocity in endSwipe(coin.id, velocity: velocity) }))
@@ -882,20 +904,15 @@ private struct OfflineLabelStyle: LabelStyle {
     }
 }
 
-/// How far the purse is pulled down past its top (iOS 18 and later; on
-/// iOS 17 the cards simply do not fan).
+/// How far the purse is pulled down past its top.
 private struct PullTracker: ViewModifier {
     @Binding var pull: CGFloat
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geo in
-                -(geo.contentOffset.y + geo.contentInsets.top)
-            } action: { _, past in
-                pull = max(0, past)
-            }
-        } else {
-            content
+        content.onScrollGeometryChange(for: CGFloat.self) { geo in
+            -(geo.contentOffset.y + geo.contentInsets.top)
+        } action: { _, past in
+            pull = max(0, past)
         }
     }
 }
@@ -910,7 +927,7 @@ private struct HoldToMove: ViewModifier {
     let ended: () -> Void
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *), enabled {
+        if enabled {
             content.gesture(HoldRecognizer(began: began, changed: changed, ended: ended))
         } else {
             content
@@ -928,7 +945,7 @@ private struct SwipeToDelete: ViewModifier {
     let ended: (CGFloat) -> Void
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *), enabled {
+        if enabled {
             content.gesture(SwipeRecognizer(began: began, changed: changed, ended: ended))
         } else {
             content
@@ -936,7 +953,6 @@ private struct SwipeToDelete: ViewModifier {
     }
 }
 
-@available(iOS 18.0, *)
 private struct SwipeRecognizer: UIGestureRecognizerRepresentable {
     let began: () -> Void
     let changed: (CGFloat) -> Void
@@ -974,17 +990,12 @@ private struct ScrollStarted: ViewModifier {
     let action: () -> Void
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollPhaseChange { _, phase in
-                if phase == .interacting { action() }
-            }
-        } else {
-            content
+        content.onScrollPhaseChange { _, phase in
+            if phase == .interacting { action() }
         }
     }
 }
 
-@available(iOS 18.0, *)
 private struct HoldRecognizer: UIGestureRecognizerRepresentable {
     let began: (CGFloat) -> Void
     let changed: (CGFloat) -> Void

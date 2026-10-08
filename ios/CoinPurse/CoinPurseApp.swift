@@ -95,7 +95,7 @@ struct RootView: View {
         }
         .onChange(of: model.toast, initial: true) { _, message in
             if let message {
-                toastWindow.show(ToastView(message: message))
+                toastWindow.show(ToastView(message: message).environment(model))
             } else {
                 toastWindow.hide()
             }
@@ -106,6 +106,7 @@ struct RootView: View {
 /// A short message at the bottom of the screen, above anything that is open.
 struct ToastView: View {
     let message: String
+    @Environment(AppModel.self) private var model
     @State private var shown = false
 
     var body: some View {
@@ -118,8 +119,9 @@ struct ToastView: View {
                 .padding(.vertical, 10)
                 .background(.thinMaterial, in: Capsule())
                 .padding(.horizontal, 24)
-                // Clear of the Picture, Voice and Pin buttons.
-                .padding(.bottom, 96)
+                // Clear of the New Coin button, and above the Undo bar when it shows.
+                .padding(.bottom, model.undoable == nil ? 96 : 156)
+                .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.undoable == nil)
                 .offset(y: shown ? 0 : 30)
                 .opacity(shown ? 1 : 0)
                 .accessibilityAddTraits(.isStaticText)
