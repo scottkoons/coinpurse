@@ -41,6 +41,8 @@ Made to be quick:
 • Press and hold to copy any text in a picture, like a gift card code
 • Flip through your coins like cards in Apple Wallet
 • Swipe a coin to the left to delete it, like Mail, with Undo if you change your mind
+• Archive coins you need once a year, like a gate code, and find them again with search
+• Hide any coin with Face ID: its notes and pictures stay blurred until you look
 • Share a single picture with anyone
 • Keep throwaway photos out of your photo library
 
@@ -49,7 +51,7 @@ Private by design:
 • Your coins are private to your account
 • No ads and no tracking
 
-Coin Purse is for everyday things.  Please do not store credit cards, IDs or passwords in it.
+Coin Purse is for everyday things, not secrets.  Like a note on your phone, a coin is private to your account but not built for security.  Credit cards, IDs and important passwords belong in Apple Wallet or Passwords.
 
 ## Keywords (100 max, comma separated)
 
