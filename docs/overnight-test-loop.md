@@ -40,7 +40,7 @@ Fix a problem only when you are confident of the cause and the fix is small and 
 
 - **Test problems** (timing, scrolling, a tap aimed at the wrong spot, a stale identifier): fix the test in `ios/CoinPurseUITests/CoinPurseUITests.swift`.  Never weaken a check just to make it pass.  A check exists to catch a real problem; keep that purpose.
 - **Clear app bugs** with an obvious, small fix (a crash with a clear stack, text cut off, a button covered by something): fix the app code.  Keep the existing style: plain comments explaining why, SwiftUI, no new libraries.
-- **Do not change** the design or how things behave on purpose.  This includes the Wallet-style purse (tap the stack at the bottom to go back, touch and hold to lift and peek, drag to move, pull to the title to open, pull down to fan), the Picture, Voice and Pin bar, colors, wording, and the website.  If one of these looks wrong, log it with a screenshot path for Scott to decide.
+- **Do not change** the design or how things behave on purpose.  This includes the Wallet-style purse (the next coins waiting at the bottom to peek and bring up, touch and hold to lift and peek, drag to move, pull to the title to open, pull down to fan), the New Coin button and its menu, swipe a coin to the left to delete it with Undo, colors, wording, and the website.  If one of these looks wrong, log it with a screenshot path for Scott to decide.
 - After any fix: build, rerun the suites that touch that code on two simulators, then commit with a clear message ending in `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.  If the fix makes anything else fail, revert it and log the problem instead.
 
 ## Never do these
