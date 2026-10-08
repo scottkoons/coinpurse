@@ -18,12 +18,14 @@ struct CoinCardView: View {
     var faceShowing = true
     /// Set to draw only the top of the card (its bar), as a card of its own.
     var height: CGFloat?
+    /// Hidden with Face ID and not shown yet: the note line and window are covered.
+    var veiled = false
     var onDelete: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
-            CoinCardHeader(coin: coin, onDelete: onDelete)
-            CoinFace(coin: coin)
+            CoinCardHeader(coin: coin, onDelete: onDelete, veiled: veiled)
+            CoinFace(coin: coin, veiled: veiled)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -40,6 +42,9 @@ struct CoinCardView: View {
 struct CoinCardHeader: View {
     let coin: Coin
     var onDelete: (() -> Void)?
+    /// Hidden with Face ID and not shown yet: the second line says so instead
+    /// of showing the start of the note.
+    var veiled = false
     /// Open, the note shows in full below, so the second line gives details
     /// (pin time, pictures, date) instead of repeating it.
     var isOpen = false
@@ -61,7 +66,7 @@ struct CoinCardHeader: View {
                     .lineLimit(isOpen ? (typeSize.isAccessibilitySize ? 2 : 3) : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
-                Text(subtitle)
+                (veiled ? Text("\(Image(systemName: "lock.fill")) Hidden") : Text(subtitle))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.white)
                     .lineLimit(isOpen ? nil : 1)
@@ -140,6 +145,7 @@ struct PileCard: View {
     /// How much of the card shows above the next one: just its title.
     let stripe: CGFloat
     let height: CGFloat
+    var veiled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -150,11 +156,16 @@ struct PileCard: View {
                     .lineLimit(1)
                     .accessibilityIdentifier("pileTitle")
                 Spacer(minLength: 0)
+                if veiled {
+                    Image(systemName: "lock.fill")
+                        .font(.caption.weight(.bold))
+                        .accessibilityLabel("Hidden")
+                }
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .frame(height: stripe)
-            CoinFace(coin: coin)
+            CoinFace(coin: coin, veiled: veiled)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -193,11 +204,36 @@ struct CoinEmblem: View {
 /// The window in a card: the map pin, else the first picture, else the note.
 struct CoinFace: View {
     let coin: Coin
+    /// Hidden with Face ID and not shown yet: blurred, so you can tell
+    /// something is there but not read it.
+    var veiled = false
 
     var body: some View {
         // Always exactly the room it is given (a tucked-in card gives it very
         // little), so what is inside can never push the card out of shape.
-        Color.clear.overlay(alignment: .top) { face }.clipped()
+        Color.clear.overlay(alignment: .top) {
+            if veiled {
+                face
+                    // Blurred enough that no word or code can be read, not so much that
+                    // you cannot tell a picture or a note is there.
+                    .blur(radius: 14, opaque: true)
+                    // A live map does not take the blur: it is frosted instead.
+                    .overlay { if coin.pictures.isEmpty && coin.pin != nil { Rectangle().fill(.regularMaterial) } }
+                    .overlay {
+                        Image(systemName: "lock.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 46, height: 46)
+                            .background(.black.opacity(0.4), in: Circle())
+                            .padding(.top, 30)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                    .accessibilityHidden(true)
+            } else {
+                face
+            }
+        }
+        .clipped()
     }
 
     private var face: some View {

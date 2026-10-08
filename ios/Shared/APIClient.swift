@@ -64,8 +64,8 @@ struct APIClient {
         try await send("GET", "/api/coins", timeout: 15)
     }
 
-    func createCoin(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
-        var body: [String: Any] = ["id": id, "title": title, "notes": notes, "accent": accent]
+    func createCoin(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil, hidden: Bool = false) async throws -> Coin {
+        var body: [String: Any] = ["id": id, "title": title, "notes": notes, "accent": accent, "hidden": hidden]
         if let pin { body["pin"] = pin.json }
         let r: CoinResult = try await send("POST", "/api/coins", json: body)
         return r.coin
@@ -79,10 +79,16 @@ struct APIClient {
         return r.coin
     }
 
-    func updateCoin(id: String, title: String, notes: String, accent: Int) async throws -> Coin {
-        let r: CoinResult = try await send("PUT", "/api/coins/\(id.urlPathSafe)", json: [
-            "title": title, "notes": notes, "accent": accent,
-        ])
+    func updateCoin(id: String, title: String, notes: String, accent: Int, hidden: Bool? = nil) async throws -> Coin {
+        var body: [String: Any] = ["title": title, "notes": notes, "accent": accent]
+        if let hidden { body["hidden"] = hidden }
+        let r: CoinResult = try await send("PUT", "/api/coins/\(id.urlPathSafe)", json: body)
+        return r.coin
+    }
+
+    /// Puts a coin away in the archive, or back in the purse.
+    func setArchived(id: String, _ archived: Bool) async throws -> Coin {
+        let r: CoinResult = try await send("PUT", "/api/coins/\(id.urlPathSafe)", json: ["archived": archived])
         return r.coin
     }
 

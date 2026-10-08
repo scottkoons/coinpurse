@@ -24,7 +24,7 @@ struct AccountView: View {
                 }
                 Section {
                     Button("Rearrange Coins") { rearranging = true }
-                        .disabled(model.coins.count < 2)
+                        .disabled(model.purse.count < 2)
                 } footer: {
                     Text("Or touch and hold a card in the purse and drag it.")
                 }

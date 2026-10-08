@@ -19,9 +19,13 @@ struct Coin: Codable, Hashable, Identifiable {
     var sortOrder: Double?
     var createdAt: Double?
     var updatedAt: Double?
+    /// Put away: kept, but out of the purse until it is unarchived.
+    var archived = false
+    /// Hidden with Face ID: its notes and pictures show only after Face ID.
+    var hidden = false
 
     enum CodingKeys: String, CodingKey {
-        case id, title, notes, accent, imageUrl, imagePath, attachments, pin, sortOrder, createdAt, updatedAt
+        case id, title, notes, accent, imageUrl, imagePath, attachments, pin, sortOrder, createdAt, updatedAt, archived, hidden
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +41,8 @@ struct Coin: Codable, Hashable, Identifiable {
         sortOrder = try? c.decode(Double.self, forKey: .sortOrder)
         createdAt = try? c.decode(Double.self, forKey: .createdAt)
         updatedAt = try? c.decode(Double.self, forKey: .updatedAt)
+        archived = (try? c.decode(Bool.self, forKey: .archived)) ?? false
+        hidden = (try? c.decode(Bool.self, forKey: .hidden)) ?? false
     }
 
     /// Main picture first, then the extras, as the viewer shows them.
@@ -53,6 +59,12 @@ struct Coin: Codable, Hashable, Identifiable {
 
     /// What the coin shows, in order: its pictures, then its map pin.
     var hasContent: Bool { !pictures.isEmpty || pin != nil }
+
+    /// A search match: its title, or its notes unless it is hidden with Face ID
+    /// (a hidden coin's notes are never searched, so a search cannot reveal them).
+    func matches(_ query: String) -> Bool {
+        title.localizedStandardContains(query) || (!hidden && notes.localizedStandardContains(query))
+    }
 }
 
 /// A spot on the map. `acc` is how sure the iPhone was, in meters.

@@ -42,7 +42,9 @@ struct EditorView: View {
     @State private var finder = LocationFinder()
     /// The title, notes and color as they were when the editor opened, to tell
     /// whether anything would be lost by closing it.
-    @State private var original: (title: String, notes: String, accent: Int) = ("", "", 0)
+    @State private var original: (title: String, notes: String, accent: Int, hidden: Bool) = ("", "", 0, false)
+    /// Hide with Face ID: the coin's notes and pictures show only after Face ID.
+    @State private var hidden = false
     @State private var confirmingDiscard = false
     @Environment(\.openURL) private var openURL
     @FocusState private var titleFocused: Bool
@@ -65,7 +67,7 @@ struct EditorView: View {
 
     /// Something typed, chosen or added that Save has not kept yet.
     private var hasChanges: Bool {
-        title != original.title || notes != original.notes || accent != original.accent
+        title != original.title || notes != original.notes || accent != original.accent || hidden != original.hidden
             || pinChanged || (existing == nil && pin != nil)
             || stagedMain != nil || !stagedExtras.isEmpty || !removedExtras.isEmpty
     }
@@ -98,6 +100,7 @@ struct EditorView: View {
                     AccentPicker(accent: $accent)
                 }
                 if !startsWithPin { pinSection }
+                hideSection
             }
             .onChange(of: error) { _, message in
                 guard let message else { return }
@@ -167,7 +170,7 @@ struct EditorView: View {
         } header: {
             Text(startsWithPin ? "Photo of the spot (optional)" : startsWithText && !hasMain ? "Picture (optional)" : hasMain ? "Pictures (\(pictureCount) of \(Config.maxExtraPictures + 1))" : "Picture")
         } footer: {
-            Text("Copy a picture in any app and Paste lights up. Not for credit cards, IDs or passwords.")
+            Text("Copy a picture in any app and Paste lights up.  For everyday things, not credit cards, IDs or important passwords.")
         }
     }
 
@@ -188,6 +191,29 @@ struct EditorView: View {
                     Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
                 }
                 TextLimitNote(length: notes.serverLength, limit: Config.maxNotes)
+            }
+        }
+    }
+
+    /// Hiding needs something to check with: Face ID, Touch ID or a passcode.
+    private var canHide: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") { return true }
+        #endif
+        return AppLock.canLock
+    }
+
+    /// For a code you would rather not have on show (a gate or a lockbox).
+    private var hideSection: some View {
+        Section {
+            Toggle("Hide with Face ID", isOn: $hidden)
+                .disabled(!canHide)
+                .accessibilityIdentifier("hideToggle")
+        } footer: {
+            if canHide {
+                Text("Covers this coin's notes and pictures until you look with \(AppLock.biometryName).  It keeps them from someone holding your unlocked iPhone; it is not encryption.")
+            } else {
+                Text("Set a passcode on this iPhone to hide coins with Face ID.")
             }
         }
     }
@@ -379,11 +405,12 @@ struct EditorView: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
-        defer { original = (title, notes, accent) }
+        defer { original = (title, notes, accent, hidden) }
         if let coin = existing {
             title = coin.title
             notes = coin.notes
             accent = coin.accent
+            hidden = coin.hidden
             pin = coin.pin
         } else {
             // No keyboard yet: the Paste button is the first thing to see.
@@ -422,7 +449,8 @@ struct EditorView: View {
         defer { saving = false }
         do {
             let isNew = existing == nil
-            try await model.saveCoinDetails(id: id, title: name, notes: notes, accent: accent, pin: isNew ? pin : nil)
+            try await model.saveCoinDetails(id: id, title: name, notes: notes, accent: accent, pin: isNew ? pin : nil,
+                                            hidden: hidden)
             if !isNew && pinChanged {
                 try await model.setPin(pin, on: id)
             }

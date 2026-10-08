@@ -374,6 +374,144 @@ final class CoinPurseUITests: XCTestCase {
         snap("w03-after")
     }
 
+    /// The archive and Hide with Face ID: archive by swipe and from an open
+    /// coin, Undo, the archive list, Unarchive, search under In Archive, and a
+    /// hidden coin covered until Face ID, each checked on the server
+    /// (TEST_RUNNER_ARCHIVE=1, seed_design.py).
+    @MainActor
+    func testArchiveAndHide() throws {
+        guard ProcessInfo.processInfo.environment["ARCHIVE"] == "1" else { throw XCTSkip("Set ARCHIVE=1 to run") }
+        app = XCUIApplication()
+        // Face ID always says yes here (the simulator has none to check).
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestRevealOK"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        func server(_ title: String) -> [String: Any]? { serverCoins()?.first { $0["title"] as? String == title } }
+        XCTAssertFalse(app.buttons["archive"].exists, "the Archive button shows with nothing archived")
+
+        // 1. Swipe, then Archive: the coin leaves the purse, with Undo.
+        let f = showCard("Coffee gift card").frame
+        let from = origin.withOffset(CGVector(dx: f.maxX - 70, dy: f.midY))
+        from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: -190, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(1)
+        let archiveSwipe = app.buttons["swipeArchive"]
+        XCTAssertTrue(archiveSwipe.waitForExistence(timeout: 3), "a swipe did not show Archive")
+        // Archive sits just left of Delete, in the strip the card uncovered.
+        let red = app.buttons["swipeDelete"].frame
+        origin.withOffset(CGVector(dx: red.maxX - 88 - 44, dy: red.minY + 31)).tap()
+        XCTAssertTrue(card("Coffee gift card").waitForNonExistence(timeout: 5), "Archive did not take the coin out of the purse")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Archived'")).firstMatch.waitForExistence(timeout: 3),
+                      "no Archived note with Undo")
+        snap("a01-archived")
+        sleep(3)
+        XCTAssertEqual(server("Coffee gift card")?["archived"] as? Bool, true, "the server did not keep it archived")
+        XCTAssertNotNil(server("Coffee gift card"), "archiving deleted the coin")
+
+        // 2. From an open coin, Archive; then Undo puts it back.
+        tapCard("Email Jim back")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        // The open coin's Archive (not the Archive button beside New Coin).
+        app.buttons.matching(NSPredicate(format: "label == 'Archive' AND identifier != 'archive'")).firstMatch.tap()
+        XCTAssertTrue(card("Email Jim back").waitForNonExistence(timeout: 5))
+        app.buttons["undoDelete"].tap()
+        XCTAssertTrue(card("Email Jim back").waitForExistence(timeout: 5), "Undo did not bring the coin back")
+        sleep(3)
+        XCTAssertEqual(server("Email Jim back")?["archived"] as? Bool, false, "Undo left it archived on the server")
+
+        // 3. Search finds archived coins too, under In Archive.
+        let search = app.buttons["Search"]
+        if search.exists {
+            search.tap()
+            app.textFields["searchField"].typeText("coffee")
+            XCTAssertTrue(app.buttons["archiveMatch"].waitForExistence(timeout: 5), "search did not find the archived coin")
+            snap("a02-in-archive")
+            app.buttons["Cancel"].firstMatch.tap()
+            sleep(1)
+        }
+
+        // 4. The archive: view it (it stays archived), then Unarchive it to the top.
+        let archiveButton = app.buttons["archive"]
+        XCTAssertTrue(archiveButton.waitForExistence(timeout: 5), "no Archive button")
+        archiveButton.tap()
+        let row = app.buttons["archivedCoin"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "the archive is empty")
+        snap("a03-archive")
+        row.tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "an archived coin did not open")
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coffee gift card")
+        snap("a04-archived-open")
+        let unarchive = app.buttons["Unarchive"]
+        XCTAssertTrue(unarchive.waitForExistence(timeout: 5))
+        sleep(1)
+        // At the largest text sizes it is below the screen: scroll the buttons
+        // under the card (a drag on the card itself would close it).
+        for _ in 0..<5 where !unarchive.isHittable {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)))
+        }
+        unarchive.tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5), "Unarchive did not close the coin")
+        sleep(1)
+        app.navigationBars["Archive"].buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(card("Coffee gift card").waitForExistence(timeout: 5), "Unarchive did not put it back in the purse")
+        sleep(3)
+        XCTAssertEqual(server("Coffee gift card")?["archived"] as? Bool, false)
+        XCTAssertEqual(serverFirstTitle(), "Coffee gift card", "an unarchived coin should come back on top")
+        XCTAssertFalse(app.buttons["archive"].exists, "the Archive button stayed with nothing archived")
+
+        // 5. Hide with Face ID: covered in the purse, open after Face ID, covered
+        // again after leaving the app.
+        tapCard("Tailgate tickets")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Edit"].tap()
+        let toggle = app.switches["hideToggle"]
+        XCTAssertTrue(reveal(toggle), "no Hide with Face ID switch")
+        toggle.switches.firstMatch.tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(toggle.waitForNonExistence(timeout: 10))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        sleep(2)
+        XCTAssertEqual(server("Tailgate tickets")?["hidden"] as? Bool, true, "the server did not keep it hidden")
+        // Just saved by the person looking at it: shown until the app is left.
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.activate()
+        XCTAssertTrue(card("Tailgate tickets").waitForExistence(timeout: 10))
+        sleep(1)
+        XCTAssertEqual(card("Tailgate tickets").value as? String, "Hidden", "a hidden coin was not covered after leaving the app")
+        snap("a05-hidden")
+        tapCard("Tailgate tickets")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "a hidden coin did not open after Face ID")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        sleep(1)
+        XCTAssertEqual(card("Tailgate tickets").value as? String, "", "after Face ID the coin should stay shown")
+
+        // The card at the bottom shows its window: hidden, the picture is blurred.
+        // (At the largest text sizes the bottom card is not built until scrolled to.)
+        guard card("Return label").waitForExistence(timeout: 3) else { return }
+        tapCard("Return label")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(reveal(toggle))
+        toggle.switches.firstMatch.tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(toggle.waitForNonExistence(timeout: 10))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.activate()
+        XCTAssertTrue(card("Return label").waitForExistence(timeout: 10))
+        sleep(2)
+        snap("a06-hidden-window")
+    }
+
     /// Slow card moves to film and check frame by frame (TEST_RUNNER_DRAGFILM=1, seed_design.py).
     @MainActor
     func testDragFilm() throws {
@@ -1831,6 +1969,13 @@ final class CoinPurseUITests: XCTestCase {
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             sleep(1)
         }
+        // Back to the top of the form, as it opens (text scrolled under the
+        // see-through bar is faded on purpose, and the audit would measure it).
+        for _ in 0..<3 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+        }
+        sleep(1)
         snap("a-new-note-pin")
         audit("New note with a pin")
         cancelSheet()

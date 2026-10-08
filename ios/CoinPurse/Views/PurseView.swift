@@ -27,6 +27,9 @@ struct PurseView: View {
     /// gone, and the place it would land.
     @State private var moving: String?
     @State private var showReorder = false
+    /// The archive: open, and (from a search) the coin to open in it.
+    @State private var showArchive = false
+    @State private var archiveStart: String?
     private let moveTip = MoveCardsTip()
     @State private var moveOffset: CGFloat = 0
     @State private var moveTarget: Int?
@@ -50,8 +53,8 @@ struct PurseView: View {
     @AppStorage("swipeToDelete") private var swipeToDelete = true
     /// Pulled down to refresh: the spinner at the top shows until it is done.
     @State private var refreshingFromPull = false
-    /// How far a swiped card stays open to show its Delete button.
-    private let revealWidth: CGFloat = 88
+    /// How far a swiped card stays open to show its Archive and Delete buttons.
+    private let revealWidth: CGFloat = 176
     /// How far the purse is pulled down past its top; the cards fan apart.
     @State private var pull: CGFloat = 0
     @State private var pulledToRefresh = false
@@ -73,8 +76,15 @@ struct PurseView: View {
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
     private var visibleCoins: [Coin] {
         let q = trimmedQuery
-        guard searching, !q.isEmpty else { return model.coins }
-        return model.coins.filter { $0.title.localizedStandardContains(q) || $0.notes.localizedStandardContains(q) }
+        guard searching, !q.isEmpty else { return model.purse }
+        return model.purse.filter { $0.matches(q) }
+    }
+
+    /// Archived coins that match the search, shown under the purse's own.
+    private var archiveMatches: [Coin] {
+        let q = trimmedQuery
+        guard searching, !q.isEmpty else { return [] }
+        return model.archive.filter { $0.matches(q) }
     }
 
     var body: some View {
@@ -92,21 +102,31 @@ struct PurseView: View {
                         onClose: closeCoin,
                         onDelete: { deleteOpenCoin(id) },
                         onSelect: { other in
-                            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                            withAnimation(cardAnimation) { openId = other }
-                        }
+                            guard let next = model.coin(other) else { return }
+                            Task {
+                                // A hidden coin asks for Face ID before it comes up.
+                                guard await model.reveal(next) else { return }
+                                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                                withAnimation(cardAnimation) { openId = other }
+                            }
+                        },
+                        onArchive: { archiveOpenCoin(id) }
                     )
                     .transition(reduceMotion ? .opacity : .identity)
                     .zIndex(10)
                 }
             }
         }
-        .onChange(of: model.coins.map(\.id)) { _, ids in
+        // Leaving the app covers hidden coins again, including one left open.
+        .onChange(of: model.revealed) { _, _ in
+            if let id = openId, let coin = model.coin(id), model.isVeiled(coin) { openId = nil }
+        }
+        .onChange(of: model.purse.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
             // Once the cards have slid into their new places, layer them again.
             Task {
                 try? await Task.sleep(for: .milliseconds(500))
-                if moving == nil && model.coins.map(\.id) == ids { stackVersion += 1 }
+                if moving == nil && model.purse.map(\.id) == ids { stackVersion += 1 }
             }
             runQuickAction()
         }
@@ -132,7 +152,8 @@ struct PurseView: View {
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
-        .task(id: model.coins.count) { MoveCardsTip.coinCount = model.coins.count }
+        .sheet(isPresented: $showArchive, onDismiss: { archiveStart = nil }) { ArchiveView(startWith: archiveStart) }
+        .task(id: model.purse.count) { MoveCardsTip.coinCount = model.purse.count }
         #if DEBUG
         // UI tests open the Share to Coin Purse screen with two sample pictures.
         .sheet(isPresented: $testShare) {
@@ -170,16 +191,18 @@ struct PurseView: View {
                     .accessibilityLabel("Refreshing")
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            if model.coins.isEmpty && !model.coinsLoaded {
+            if model.purse.isEmpty && !model.coinsLoaded {
                 ProgressView()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, minHeight: screenHeight - 220)
-            } else if model.coins.isEmpty {
+            } else if model.purse.isEmpty {
                 emptyState
                     .frame(minHeight: screenHeight - 220)
             } else if visibleCoins.isEmpty {
-                ContentUnavailableView.search(text: trimmedQuery)
-                    .padding(.top, 60)
+                if archiveMatches.isEmpty {
+                    ContentUnavailableView.search(text: trimmedQuery)
+                        .padding(.top, 60)
+                }
             } else {
                 // Once, when the purse has a few coins: how to move them.
                 if !searching {
@@ -191,6 +214,9 @@ struct PurseView: View {
                     .padding(.top, 8)
                 }
                 stack(screenHeight: screenHeight)
+            }
+            if !archiveMatches.isEmpty {
+                inArchive
             }
         }
         .modifier(PullTracker(pull: $pull))
@@ -227,7 +253,7 @@ struct PurseView: View {
         }
         .scrollDisabled(isOpen || moving != nil)
         // A new coin goes on top of the purse: bring the top into view so it shows.
-        .onChange(of: model.coins.first?.id) { old, new in
+        .onChange(of: model.purse.first?.id) { old, new in
             guard let new, new != old, openId == nil, moving == nil else { return }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { scroller.scrollTo("purseTop", anchor: .top) }
         }
@@ -279,7 +305,8 @@ struct PurseView: View {
                         // Swiped sideways, a tucked card is only its bar (a rounded strip),
                         // so none of the rest of it peeks out beside the card after it.
                         CoinCardView(coin: coin, faceShowing: isLast,
-                                     height: swipeId == coin.id && !isLast ? peek : nil) { pendingDelete = coin }
+                                     height: swipeId == coin.id && !isLast ? peek : nil,
+                                     veiled: model.isVeiled(coin)) { pendingDelete = coin }
                             // While it is lifted, the lifted copy above the stack is the card.
                             // While a coin is open, the cards under it at the bottom are these
                             // coins; the purse's own copies step aside until it closes.
@@ -290,16 +317,16 @@ struct PurseView: View {
                             .onTapGesture {
                                 if swipeId != nil { closeSwipe() } else { openCoin(coin.id) }
                             }
-                            // Touch and hold to lift it, then drag to move it, as in Wallet.
-                            // iOS's own touch-and-hold works alongside the purse's scrolling: a
-                            // finger that moves before the hold completes just scrolls.
-                            // Swipe the bar to the left to delete it, as in Mail (search results
-                            // too). Not switched off when a card lifts: that rebuilt the card and
-                            // cancelled the lift; a lifted card simply ignores it (see beginSwipe).
+                            // Swipe the bar to the left to archive or delete it, as in Mail (search
+                            // results too). Not switched off when a card lifts: that rebuilt the card
+                            // and cancelled the lift; a lifted card simply ignores it (see beginSwipe).
                             .modifier(SwipeToDelete(enabled: swipeToDelete,
                                                     began: { beginSwipe(coin.id) },
                                                     changed: { dx in dragSwipe(coin.id, by: dx) },
                                                     ended: { velocity in endSwipe(coin.id, velocity: velocity) }))
+                            // Touch and hold to lift it, then drag to move it, as in Wallet.
+                            // iOS's own touch-and-hold works alongside the purse's scrolling: a
+                            // finger that moves before the hold completes just scrolls.
                             .modifier(HoldToMove(enabled: !searching,
                                                  began: { y in liftCard(coin, at: i, fingerY: y) },
                                                  changed: { y in dragCard(coin.id, at: i, count: coins.count, fingerY: y) },
@@ -321,19 +348,7 @@ struct PurseView: View {
                 // To VoiceOver, each card is one button exactly the size of what
                 // you can see (the card itself reaches down behind the next one).
                 .accessibilityHidden(true)
-                .overlay(alignment: .top) {
-                    Color.clear
-                        .frame(height: isLast ? lastCardHeight : peek)
-                        .accessibilityElement()
-                        .accessibilityLabel(coin.title)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityIdentifier("stackCard")
-                        .accessibilityAction { openCoin(coin.id) }
-                        .accessibilityAction(named: "Move to top") { model.move(coin.id, to: 0) }
-                        .accessibilityAction(named: "Move up") { model.move(coin.id, to: max(0, i - 1)) }
-                        .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
-                        .accessibilityAction(named: "Delete") { pendingDelete = coin }
-                }
+                .overlay(alignment: .top) { cardForVoiceOver(coin, at: i, height: isLast ? lastCardHeight : peek) }
                 .zIndex(Double(i))
                 // Moving a card: the others make room for it.
                 .offset(y: moving == coin.id ? 0 : makeRoom(at: i, in: coins))
@@ -358,6 +373,26 @@ struct PurseView: View {
         .padding(.bottom, 20 + lastCardHeight - peek)
     }
 
+    /// To VoiceOver, one button per card, exactly the size of what shows, with
+    /// actions for everything a finger can do to it.
+    private func cardForVoiceOver(_ coin: Coin, at i: Int, height: CGFloat) -> some View {
+        Color.clear
+            .frame(height: height)
+            .accessibilityElement()
+            .accessibilityLabel(coin.title)
+            .accessibilityValue(model.isVeiled(coin) ? "Hidden" : "")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("stackCard")
+            .accessibilityAction { openCoin(coin.id) }
+            .accessibilityAction(named: "Move to top") { model.move(coin.id, to: 0) }
+            .accessibilityAction(named: "Move up") { model.move(coin.id, to: max(0, i - 1)) }
+            .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
+            .accessibilityAction(named: "Archive") {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.archive(coin.id) }
+            }
+            .accessibilityAction(named: "Delete") { pendingDelete = coin }
+    }
+
     /// The last card shows whole.
     private var lastCardHeight: CGFloat { CardMetrics.stackHeight + peek - CardMetrics.peek }
 
@@ -370,7 +405,7 @@ struct PurseView: View {
         let last = (moveTarget ?? i) == visibleCoins.count - 1
         // Drawn exactly like the card in the stack (trash can included), so
         // nothing changes when one takes over from the other.
-        return CoinCardView(coin: coin, faceShowing: true) { pendingDelete = coin }
+        return CoinCardView(coin: coin, faceShowing: true, veiled: model.isVeiled(coin)) { pendingDelete = coin }
             .matchedCard(id: openReady ? coin.id : "lift-" + coin.id, in: cards, enabled: !reduceMotion)
             .frame(height: lastCardHeight)
             // Settling, only what shows in the stack stays drawn: its top, or
@@ -399,31 +434,44 @@ struct PurseView: View {
 
     // MARK: Swipe to delete
 
-    /// Red, behind the card: Delete shows in the part the card has uncovered.
-    /// Pulled far enough to delete on letting go, the word follows the card.
+    /// Behind the card, as in Mail: Archive and Delete show in the part the
+    /// card has uncovered. Pulled far enough to delete on letting go, Delete
+    /// takes it all and follows the card.
     private func swipeAction(_ coin: Coin, height: CGFloat) -> some View {
         let uncovered = max(-swipeX, 0)
-        return RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous)
-            .fill(Color.red)
-            .frame(height: height)
-            .overlay(alignment: .trailing) {
-                Button { swipeDelete(coin.id) } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: "trash.fill").font(.title3)
-                        Text("Delete").font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 18)
-                    .frame(width: max(uncovered, revealWidth), height: min(height, peek),
-                           alignment: swipeArmed ? .leading : .center)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .accessibilityIdentifier("swipeDelete")
+        let each = max(uncovered, revealWidth) / 2
+        return HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            swipeButton("Archive", "archivebox.fill", color: Color(.systemGray), width: swipeArmed ? 0 : each,
+                        height: height, id: "swipeArchive") { swipeArchive(coin.id) }
+            swipeButton("Delete", "trash.fill", color: .red, width: swipeArmed ? max(uncovered, revealWidth) : each,
+                        height: height, id: "swipeDelete", leading: swipeArmed) { swipeDelete(coin.id) }
+        }
+        .frame(height: height)
+        .background(Color.red)
+        .clipShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
+        // VoiceOver archives and deletes with the card's own actions.
+        .accessibilityHidden(true)
+    }
+
+    private func swipeButton(_ title: String, _ icon: String, color: Color, width: CGFloat, height: CGFloat,
+                             id: String, leading: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: icon).font(.title3)
+                Text(title).font(.caption.weight(.semibold))
             }
-            // VoiceOver deletes with the card's own Delete action.
-            .accessibilityHidden(true)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .frame(width: width, height: min(height, peek), alignment: leading ? .leading : .center)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(color)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: width)
+        .clipped()
+        .accessibilityIdentifier(id)
     }
 
     /// Past this far across, letting go deletes it (Mail's full swipe).
@@ -488,27 +536,52 @@ struct PurseView: View {
         }
     }
 
-    /// For a few seconds after a swipe delete: what went, and Undo.
-    @ViewBuilder private var undoBar: some View {
-        if let coin = model.undoable {
-            HStack(spacing: 12) {
-                Text("Deleted “\(coin.title)”")
-                    .font(.subheadline)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                Button("Undo") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.undoDelete() }
-                }
-                .font(.subheadline.weight(.semibold))
-                .accessibilityIdentifier("undoDelete")
+    /// The card slides off to the left into the archive; the Undo bar comes up.
+    private func swipeArchive(_ id: String) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        withAnimation(.easeIn(duration: 0.18)) { swipeX = -(stackWidth + 40) } completion: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.archive(id) }
+            var now = Transaction()
+            now.disablesAnimations = true
+            withTransaction(now) {
+                swipeId = nil
+                swipeX = 0
+                swipeArmed = false
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(.thinMaterial, in: Capsule())
-            .padding(.horizontal, 16)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
+
+    /// Archived coins that match a search, under the purse's own results:
+    /// tap one to see it in the archive.
+    private var inArchive: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("In Archive")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 4)
+            ForEach(archiveMatches) { coin in
+                Button {
+                    archiveStart = coin.id
+                    showArchive = true
+                } label: {
+                    ArchiveRow(coin: coin, veiled: model.isVeiled(coin))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("archiveMatch")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, visibleCoins.isEmpty ? 24 : 0)
+        .padding(.bottom, 24)
+    }
+
+    /// For a few seconds after a delete or an archive: what went, and Undo.
+    private var undoBar: some View { UndoBar() }
 
     /// How far a card shifts to make room for the one being moved.
     private func makeRoom(at i: Int, in coins: [Coin]) -> CGFloat {
@@ -560,7 +633,7 @@ struct PurseView: View {
     private var fanStep: CGFloat { min(pull * 0.35, lastCardHeight - peek - 30) }
 
     /// Where a coin sits in the purse right now.
-    private func coins(beforeMoving id: String) -> Int? { model.coins.firstIndex { $0.id == id } }
+    private func coins(beforeMoving id: String) -> Int? { model.purse.firstIndex { $0.id == id } }
 
     /// How high a lifted card has to be pulled to open: into the title area,
     /// above the first card (dropping it on the first card just moves it there).
@@ -622,6 +695,12 @@ struct PurseView: View {
     }
 
     private func openCoin(_ id: String) {
+        guard let coin = model.coin(id) else { return }
+        // A hidden coin opens only after Face ID.
+        if model.isVeiled(coin) {
+            Task { if await model.reveal(coin) { openCoin(id) } }
+            return
+        }
         searchFocused = false
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         withAnimation(cardAnimation) { openId = id }
@@ -634,6 +713,15 @@ struct PurseView: View {
     private var cardAnimation: Animation { reduceMotion ? .easeInOut(duration: 0.25) : Self.cardSpring }
 
     /// The card goes back into the stack first, then leaves it.
+    /// The card goes back into the stack first, then into the archive.
+    private func archiveOpenCoin(_ id: String) {
+        closeCoin()
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.archive(id) }
+        }
+    }
+
     private func deleteOpenCoin(_ id: String) {
         closeCoin()
         Task {
@@ -710,13 +798,14 @@ struct PurseView: View {
                         .accessibilityLabel("Offline. Showing coins saved on this iPhone.")
                 }
                 Spacer()
+                // Counting the archive too, so archived coins can be found.
                 if model.coins.count >= searchThreshold {
                     circleButton("magnifyingglass", label: "Search") {
                         withAnimation(.snappy) { searching = true }
                         searchFocused = true
                     }
                 }
-                if model.coins.count >= 2 {
+                if model.purse.count >= 2 {
                     circleButton("arrow.up.arrow.down", label: "Rearrange") { showReorder = true }
                 }
                 circleButton("person.fill", label: "Account") { showAccount = true }
@@ -759,6 +848,51 @@ struct PurseView: View {
     /// One clear way to add a coin, where your thumb is: New Coin, then how
     /// to start it (a picture, your voice, or typing).
     private var addBar: some View {
+        Group {
+            if model.archive.isEmpty {
+                newCoinMenu
+            } else {
+                // The archive, beside New Coin (which stays in the middle); at the
+                // largest text sizes, where the row does not fit, just above it.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) {
+                        archiveButton
+                        newCoinMenu
+                        Color.clear.frame(width: 54, height: 1)
+                    }
+                    VStack(spacing: 8) {
+                        newCoinMenu
+                        archiveButton
+                    }
+                }
+            }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity)
+        .background {
+            LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground).opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        }
+    }
+
+    /// Opens the archive: coins put away until they are needed.
+    private var archiveButton: some View {
+        Button { showArchive = true } label: {
+            Image(systemName: "archivebox")
+                .font(.system(size: 19, weight: .semibold))
+                .frame(width: 54, height: 54)
+                .glassCircle()
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressableStyle())
+        .foregroundStyle(.primary)
+        .accessibilityLabel("Archive")
+        .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
+        .accessibilityIdentifier("archive")
+    }
+
+    private var newCoinMenu: some View {
         Menu {
             Section("New Coin") {
                 Button { addingPicture = true } label: {
@@ -788,13 +922,6 @@ struct PurseView: View {
         .menuOrder(.fixed)
         .accessibilityIdentifier("newCoin")
         .accessibilityHint("Choose a picture, a voice note or a typed note")
-        .padding(.top, 10)
-        .padding(.bottom, 4)
-        .frame(maxWidth: .infinity)
-        .background {
-            LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground).opacity(0.85)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-        }
     }
 
     // MARK: Empty

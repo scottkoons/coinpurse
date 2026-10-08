@@ -56,7 +56,7 @@ struct ReorderView: View {
                     Button("Done") {
                         let newOrder = ids
                         dismiss()
-                        if newOrder != model.coins.map(\.id) {
+                        if newOrder != model.purse.map(\.id) {
                             MoveCardsTip().invalidate(reason: .actionPerformed)
                             Task { await model.reorder(newOrder) }
                         }
@@ -65,7 +65,7 @@ struct ReorderView: View {
                 }
             }
         }
-        .onAppear { ids = model.coins.map(\.id) }
+        .onAppear { ids = model.purse.map(\.id) }
     }
 
     private func moveToTop(_ id: String) {

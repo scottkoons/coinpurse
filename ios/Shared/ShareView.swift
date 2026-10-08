@@ -105,7 +105,8 @@ struct ShareView: View {
             input = await load()
             loading = false
             if token != nil, let list = try? await api.coins() {
-                coins = list.coins
+                // Archived coins are put away; sharing adds to the purse.
+                coins = list.coins.filter { !$0.archived }
             }
         }
     }

@@ -34,6 +34,8 @@ struct CoinDetailView: View {
     let onDelete: () -> Void
     /// Brings another coin up from the stack at the bottom.
     let onSelect: (String) -> Void
+    /// Puts the coin away in the archive, or (when it is archived) back in the purse.
+    let onArchive: () -> Void
 
     /// How much of each card in the bottom stack shows: its title.
     @ScaledMetric(relativeTo: .headline) private var stripe: CGFloat = 48
@@ -346,7 +348,7 @@ struct CoinDetailView: View {
     }
 
     private var actions: some View {
-        // Four across; at the largest text sizes, one full-width row each.
+        // Five across; at the largest text sizes, one full-width row each.
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 0))
         return layout {
@@ -355,6 +357,11 @@ struct CoinDetailView: View {
                 if coin.pin == nil { Task { await dropPin() } } else { confirmMovePin = true }
             }
             actionButton("Edit", "pencil") { editing = true }
+            if coin.archived {
+                actionButton("Unarchive", "tray.and.arrow.up", action: onArchive)
+            } else {
+                actionButton("Archive", "archivebox", action: onArchive)
+            }
             actionButton("Delete", "trash", tint: .red) { confirmDelete = true }
         }
         .padding(.horizontal, typeSize.isAccessibilitySize ? 16 : 20)
@@ -395,6 +402,9 @@ struct CoinDetailView: View {
                     Text(title)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.primary)
+                        // Five across on a small iPhone: "Unarchive" shrinks a little rather than wrap.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 // The whole column takes the tap, not just the symbol.
@@ -415,7 +425,7 @@ struct CoinDetailView: View {
             ZStack(alignment: .top) {
                 ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
                     let lifted = peeking == c.id
-                    PileCard(coin: c, stripe: stripe, height: cardHeight)
+                    PileCard(coin: c, stripe: stripe, height: cardHeight, veiled: model.isVeiled(c))
                         // The same card as in the purse: it rises into place when chosen.
                         .matchedCard(id: c.id, in: namespace, enabled: !reduceMotion)
                         // Touch areas before the card moves into its place, so they move with it.

@@ -40,6 +40,7 @@ SUITES=(
   "testTapAccuracy:TEST_RUNNER_TAP=1:seed.py"
   "testStress:TEST_RUNNER_STRESS=1:seed_design.py"
   "testSwipeToDelete:TEST_RUNNER_SWIPE=1:seed_design.py"
+  "testArchiveAndHide:TEST_RUNNER_ARCHIVE=1:seed_design.py"
   "testDragFilm:TEST_RUNNER_DRAGFILM=1:seed_design.py"
   "testAccessibilityAudit:TEST_RUNNER_AUDIT=1:seed_design.py"
 )

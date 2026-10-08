@@ -1,3 +1,4 @@
+import LocalAuthentication
 import SwiftUI
 import UIKit
 
@@ -22,11 +23,22 @@ final class AppModel {
     private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
     var toast: String?
-    /// A coin just deleted: gone from the purse, with an Undo bar for a
-    /// few seconds before it is deleted on the server.
+    /// A coin just deleted or archived, with an Undo bar for a few seconds
+    /// (a deleted one is deleted on the server only after that).
     private(set) var undoable: Coin?
+    /// What Undo would undo, and where a deleted coin was.
+    private(set) var undoArchives = false
     private var undoIndex = 0
     private var undoTask: Task<Void, Never>?
+    /// Hidden coins shown with Face ID since the app last came to the front.
+    private(set) var revealed: Set<String> = []
+
+    /// The coins in the purse, in order (archived ones are kept out of it).
+    var purse: [Coin] { coins.filter { !$0.archived } }
+    /// Archived coins, by title.
+    var archive: [Coin] {
+        coins.filter(\.archived).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
 
     private var token: String?
     /// Which sign-in this is: changes when someone signs in or out (not when
@@ -104,6 +116,7 @@ final class AppModel {
         // A coin waiting on Undo stays (nobody is here to delete it for).
         undoTask?.cancel()
         undoable = nil
+        revealed = []
         session += 1
         spotlightTask?.cancel()
         Keychain.deleteToken()
@@ -182,22 +195,28 @@ final class AppModel {
     /// Create the coin if it does not exist yet, otherwise update its text and color.
     /// Safe to repeat: the server treats a second create with the same id as a no-op.
     @discardableResult
-    func saveCoinDetails(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil) async throws -> Coin {
-        try await guarded(id) { try await self.saveDetails(id: id, title: title, notes: notes, accent: accent, pin: pin) }
+    func saveCoinDetails(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil,
+                         hidden: Bool = false) async throws -> Coin {
+        try await guarded(id) {
+            try await self.saveDetails(id: id, title: title, notes: notes, accent: accent, pin: pin, hidden: hidden)
+        }
     }
 
-    private func saveDetails(id: String, title: String, notes: String, accent: Int, pin: Pin?) async throws -> Coin {
+    private func saveDetails(id: String, title: String, notes: String, accent: Int, pin: Pin?, hidden: Bool) async throws -> Coin {
         let coin: Coin
         if self.coin(id) == nil {
-            let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent, pin: pin)
+            let created = try await api.createCoin(id: id, title: title, notes: notes, accent: accent, pin: pin, hidden: hidden)
             // If the create was a retry, make sure the text is current.
             // (A blank title means the server picked a name like "Coin 3".)
-            coin = ((title.isEmpty || created.title == title) && created.notes == notes && created.accent == accent)
+            coin = ((title.isEmpty || created.title == title) && created.notes == notes
+                    && created.accent == accent && created.hidden == hidden)
                 ? created
-                : try await api.updateCoin(id: id, title: title, notes: notes, accent: accent)
+                : try await api.updateCoin(id: id, title: title, notes: notes, accent: accent, hidden: hidden)
         } else {
-            coin = try await api.updateCoin(id: id, title: title, notes: notes, accent: accent)
+            coin = try await api.updateCoin(id: id, title: title, notes: notes, accent: accent, hidden: hidden)
         }
+        // Just saved by someone looking at it: it stays shown until the app is left.
+        if hidden { revealed.insert(id) }
         upsert(coin)
         return coin
     }
@@ -298,15 +317,63 @@ final class AppModel {
     /// delete waits until the Undo moment passes (or the app leaves the
     /// screen), so Undo puts back the whole coin, pictures and all.
     func deleteWithUndo(_ id: String) {
-        // One Undo at a time: an earlier swiped coin is deleted now.
-        if let earlier = takeUndoable() { Task { await deleteOnServer(earlier.coin, putBackAt: earlier.index) } }
+        // One Undo at a time: an earlier deleted coin is deleted now.
+        finishEarlierUndo()
         guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
         let removed = coins.remove(at: index)
         changes += 1
         // A refresh meanwhile must not bring it back.
         deleting.insert(id)
         undoable = removed
+        undoArchives = false
         undoIndex = index
+        startUndoTimer()
+    }
+
+    /// Puts a coin away in the archive, with an Undo bar for a few seconds.
+    func archive(_ id: String) {
+        finishEarlierUndo()
+        guard let coin = coin(id), !coin.archived else { return }
+        setArchived(id, true)
+        undoable = coin
+        undoArchives = true
+        startUndoTimer()
+    }
+
+    /// Back from the archive: it goes on top of the purse, where it shows.
+    func unarchive(_ id: String) {
+        guard coin(id)?.archived == true else { return }
+        if undoArchives, undoable?.id == id {
+            undoTask?.cancel()
+            undoable = nil
+        }
+        setArchived(id, false)
+        move(id, to: 0)
+    }
+
+    /// Changes the archived mark at once and saves it; a failure puts it back.
+    private func setArchived(_ id: String, _ archived: Bool) {
+        guard let i = coins.firstIndex(where: { $0.id == id }) else { return }
+        coins[i].archived = archived
+        changes += 1
+        let mine = session
+        Task {
+            do {
+                let saved = try await guarded(id) { try await self.api.setArchived(id: id, archived) }
+                guard session == mine, coin(id)?.archived == archived else { return }
+                upsert(saved)
+            } catch {
+                guard session == mine else { return }
+                if let j = coins.firstIndex(where: { $0.id == id }), coins[j].archived == archived {
+                    coins[j].archived = !archived
+                    changes += 1
+                }
+                await handle(error, from: mine)
+            }
+        }
+    }
+
+    private func startUndoTimer() {
         let mine = session
         undoTask = Task {
             try? await Task.sleep(for: .seconds(5))
@@ -318,29 +385,69 @@ final class AppModel {
         }
     }
 
-    /// Puts the swiped coin back where it was.
-    func undoDelete() {
+    /// Puts the deleted coin back where it was, or the archived one back in the purse.
+    func undoLast() {
         undoTask?.cancel()
         guard let coin = undoable else { return }
         undoable = nil
-        deleting.remove(coin.id)
-        coins.insert(coin, at: min(undoIndex, coins.count))
-        changes += 1
+        if undoArchives {
+            // Its place in the purse never changed.
+            setArchived(coin.id, false)
+        } else {
+            deleting.remove(coin.id)
+            coins.insert(coin, at: min(undoIndex, coins.count))
+            changes += 1
+        }
     }
 
-    /// Deletes the coin waiting on Undo now (its moment passed, another coin
-    /// was swiped, or the app is leaving the screen).
+    /// Ends the Undo moment now (it passed, another coin was deleted or
+    /// archived, or the app is leaving the screen): a deleted coin is deleted
+    /// on the server.
     func finishUndoable() async {
         guard let pending = takeUndoable() else { return }
-        await deleteOnServer(pending.coin, putBackAt: pending.index)
+        if !pending.archived { await deleteOnServer(pending.coin, putBackAt: pending.index) }
     }
 
-    private func takeUndoable() -> (coin: Coin, index: Int)? {
+    private func finishEarlierUndo() {
+        guard let earlier = takeUndoable(), !earlier.archived else { return }
+        Task { await deleteOnServer(earlier.coin, putBackAt: earlier.index) }
+    }
+
+    private func takeUndoable() -> (coin: Coin, index: Int, archived: Bool)? {
         undoTask?.cancel()
         guard let coin = undoable else { return nil }
         undoable = nil
-        return (coin, undoIndex)
+        return (coin, undoIndex, undoArchives)
     }
+
+    // MARK: Hidden with Face ID
+
+    /// Hidden and not yet shown with Face ID: its notes and pictures are covered.
+    func isVeiled(_ coin: Coin) -> Bool { coin.hidden && !revealed.contains(coin.id) }
+
+    /// Asks for Face ID (or the passcode) to show a hidden coin; true when it may show.
+    func reveal(_ coin: Coin) async -> Bool {
+        guard isVeiled(coin) else { return true }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") {
+            revealed.insert(coin.id)
+            return true
+        }
+        #endif
+        let context = LAContext()
+        // No passcode on this iPhone: there is nothing to check with.
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else {
+            revealed.insert(coin.id)
+            return true
+        }
+        let title = coin.title.isEmpty ? "this coin" : "“\(coin.title)”"
+        let ok = (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Show \(title)")) ?? false
+        if ok { revealed.insert(coin.id) }
+        return ok
+    }
+
+    /// Leaving the app covers every hidden coin again.
+    func hideRevealed() { revealed = [] }
 
     private func deleteOnServer(_ coin: Coin, putBackAt index: Int) async {
         let mine = session
@@ -362,19 +469,23 @@ final class AppModel {
     func reorder(_ ids: [String]) async {
         let byId = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
         let listed = Set(ids)
-        // Coins added after the Rearrange sheet opened keep their place at the front.
-        saveOrder(coins.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] })
+        // Coins added after the Rearrange sheet opened keep their place at the
+        // front; archived coins stay after the purse.
+        saveOrder(purse.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] }.filter { !$0.archived }
+                  + coins.filter(\.archived))
     }
 
     /// Moves a coin to a new place in the purse (dragged in the stack) and
     /// saves the order. The purse changes at once; a failure puts it back.
     func move(_ id: String, to index: Int) {
-        guard let from = coins.firstIndex(where: { $0.id == id }) else { return }
-        var list = coins
+        // Places in the purse (archived coins are not in it; they stay after it).
+        let current = purse
+        guard let from = current.firstIndex(where: { $0.id == id }) else { return }
+        var list = current
         let moved = list.remove(at: from)
         list.insert(moved, at: min(max(index, 0), list.count))
-        guard list.map(\.id) != coins.map(\.id) else { return }
-        saveOrder(list)
+        guard list.map(\.id) != current.map(\.id) else { return }
+        saveOrder(list + coins.filter(\.archived))
     }
 
     /// Shows a new order at once and saves it. The server's reply (or, on a
@@ -420,7 +531,7 @@ final class AppModel {
     /// The six accent colors, least-used first, like the web app.
     func suggestedAccent() -> Int {
         var counts = Array(repeating: 0, count: AccentPalette.hex.count)
-        for c in coins where counts.indices.contains(c.accent) { counts[c.accent] += 1 }
+        for c in purse where counts.indices.contains(c.accent) { counts[c.accent] += 1 }
         return counts.enumerated().min { $0.element < $1.element }?.offset ?? 0
     }
 
