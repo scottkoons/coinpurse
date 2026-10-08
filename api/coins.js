@@ -60,6 +60,9 @@ module.exports = async function handler(req, res) {
           imagePath: null,
           attachments: [],
           pin: pin.value,
+          // Hidden with Face ID in the apps (set in the editor, off unless asked for).
+          hidden: data.hidden === true,
+          archived: false,
           // JSON such as 1e309 parses to Infinity, which would be saved as null.
           sortOrder: Number.isFinite(data.sortOrder) ? data.sortOrder : nextFrontSortOrder(doc.coins),
           createdAt: now,

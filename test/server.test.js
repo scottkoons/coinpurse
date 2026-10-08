@@ -816,3 +816,40 @@ test('a failed email keeps the code already sent and does not use up the limit',
   const code = sentCodes.filter((c) => c.to === other).pop().code;
   assert.equal((await call('auth/verify-code.js', { method: 'POST', body: { email: other, code } })).status, 200);
 });
+
+test('coins can be archived and hidden, and keep everything else', async () => {
+  reset();
+  const t = await signIn('archive@example.com');
+  const made = await call('coins.js', { method: 'POST', token: t, body: { title: 'Lockbox', notes: '1234', hidden: true } });
+  assert.equal(made.status, 201);
+  assert.equal(made.data.coin.hidden, true, 'hidden can be set when the coin is made');
+  assert.equal(made.data.coin.archived, false);
+  const id = made.data.coin.id;
+  const plain = await call('coins.js', { method: 'POST', token: t, body: { title: 'Plain' } });
+  assert.equal(plain.data.coin.hidden, false, 'coins are not hidden unless asked');
+
+  // Archive: only that flag changes; title, notes and hidden stay.
+  const a = await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { archived: true } });
+  assert.equal(a.status, 200);
+  assert.equal(a.data.coin.archived, true);
+  assert.equal(a.data.coin.title, 'Lockbox');
+  assert.equal(a.data.coin.notes, '1234');
+  assert.equal(a.data.coin.hidden, true);
+  // An ordinary edit (no archived or hidden sent) leaves both alone.
+  const e = await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { title: 'Lockbox', notes: '1234', accent: 2 } });
+  assert.equal(e.data.coin.archived, true);
+  assert.equal(e.data.coin.hidden, true);
+  // Anything that is not true or false is ignored.
+  const junk = await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { archived: 'no', hidden: 0 } });
+  assert.equal(junk.data.coin.archived, true);
+  assert.equal(junk.data.coin.hidden, true);
+  // Unarchive and unhide.
+  const u = await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { archived: false, hidden: false } });
+  assert.equal(u.data.coin.archived, false);
+  assert.equal(u.data.coin.hidden, false);
+  // The purse lists archived coins too (the apps sort them out).
+  await call('coins/[id].js', { method: 'PUT', token: t, query: { id }, body: { archived: true } });
+  const list = await call('coins.js', { token: t });
+  assert.equal(list.data.coins.length, 2);
+  assert.equal(list.data.coins.find((c) => c.id === id).archived, true);
+});

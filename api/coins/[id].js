@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
       // Applied to the latest copy of the coin, so pictures arriving at the
       // same moment are kept.
       const { coin } = await updateCoin(user.id, id, (existing) => ({
-        // Only text, color, pin and order can change here. Picture fields sent
+        // Only text, color, pin, order, archived and hidden can change here. Picture fields sent
         // by a client are ignored; pictures change only through the upload endpoints.
         ...existing,
         // Clearing the title keeps the old one (every coin has a name).
@@ -28,6 +28,10 @@ module.exports = async function handler(req, res) {
         notes: data.notes != null ? cleanNotes(data.notes) : existing.notes,
         accent: validAccent(data.accent) ? data.accent : existing.accent,
         pin: pin ? pin.value : existing.pin || null,
+        // Archived coins stay in the purse data but out of the stack; hidden
+        // ones ask for Face ID in the apps. Changed only when a client says so.
+        archived: typeof data.archived === 'boolean' ? data.archived : existing.archived === true,
+        hidden: typeof data.hidden === 'boolean' ? data.hidden : existing.hidden === true,
         // JSON such as 1e309 parses to Infinity, which would be saved as null.
         sortOrder: Number.isFinite(data.sortOrder) ? data.sortOrder : existing.sortOrder,
         updatedAt: Date.now(),
