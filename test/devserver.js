@@ -8,13 +8,11 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { installMockBlob } = require('./mockblob');
+const { installMockBlob, MOCK_TOKEN } = require('./mockblob');
 
 installMockBlob();
 process.env.AUTH_SECRET = process.env.AUTH_SECRET || 'local-dev-secret-not-for-production';
-process.env.BLOB_READ_WRITE_TOKEN = 'public-token';
-process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN = 'private-token';
-process.env.COINPURSE_STORE = process.env.COINPURSE_STORE || 'private';
+process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN = MOCK_TOKEN;
 process.env.RESEND_API_KEY = 're_local';
 process.env.REVIEW_EMAIL = process.env.REVIEW_EMAIL || 'review@example.com';
 process.env.REVIEW_CODE = process.env.REVIEW_CODE || '123456';
@@ -99,6 +97,6 @@ http.createServer(async (req, res) => {
   res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
   fs.createReadStream(f).pipe(res);
 }).listen(Number(process.env.PORT) || 3000, () => {
-  console.log(`CoinPurse local server on http://localhost:${Number(process.env.PORT) || 3000} (store: ${process.env.COINPURSE_STORE})`);
+  console.log(`CoinPurse local server on http://localhost:${Number(process.env.PORT) || 3000} (private store, in memory)`);
   console.log(`Reviewer sign-in: ${process.env.REVIEW_EMAIL} / ${process.env.REVIEW_CODE}`);
 });

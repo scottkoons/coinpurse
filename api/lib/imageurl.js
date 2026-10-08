@@ -1,12 +1,12 @@
 const { hmac, safeEqual } = require('./crypto');
-const { storeMode } = require('./blob');
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
 /**
- * In the private store a picture can only be read through /api/img with a
- * link the server signed. Links expire at the end of the next day, so a link
- * stays the same all day (the phone can cache it) and a leaked link dies soon.
+ * The Blob store is private, so a picture can only be read through /api/img
+ * with a link the server signed. Links expire at the end of the next day, so
+ * a link stays the same all day (the phone can cache it) and a leaked link
+ * dies soon.
  */
 function signImagePath(pathname, now = Date.now()) {
   const exp = (Math.floor(now / DAY_MS) + 2) * DAY_MS;
@@ -20,7 +20,10 @@ function verifyImageLink(pathname, exp, sig, now = Date.now()) {
   return safeEqual(String(sig || ''), hmac('img:' + pathname + ':' + e));
 }
 
-/** Blob pathname for a stored picture (older coins may only have a URL). */
+/**
+ * Blob pathname for a stored picture. Older coins may only have a URL from the
+ * retired public store; its path is the same in the private store.
+ */
 function pathOfImage(item) {
   if (!item) return null;
   if (typeof item.imagePath === 'string' && item.imagePath) return item.imagePath;
@@ -30,8 +33,8 @@ function pathOfImage(item) {
   return null;
 }
 
+/** A signed /api/img link, or null when there is no picture of this user's. */
 function presentImage(item, uid) {
-  if (storeMode() !== 'private') return item.imageUrl || null;
   const p = pathOfImage(item);
   return p && ownsPath(uid, p) ? signImagePath(p) : null;
 }

@@ -1,4 +1,4 @@
-const { getBlob, streamToResponse, storeMode } = require('./lib/blob');
+const { getBlob, streamToResponse } = require('./lib/blob');
 const { verifyImageLink } = require('./lib/imageurl');
 
 const SAFE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
     return;
   }
   const { p, e, s } = req.query || {};
-  if (storeMode() !== 'private' || !verifyImageLink(p, e, s)) {
+  if (!verifyImageLink(p, e, s)) {
     res.statusCode = 404;
     res.end();
     return;

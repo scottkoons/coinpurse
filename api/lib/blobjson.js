@@ -4,11 +4,13 @@ const { listBlobs, readBlobText, putBlob, deleteBlobs } = require('./blob');
 /**
  * Read-your-writes JSON documents on Vercel Blob.
  *
- * Public blob URLs sit behind a CDN that keeps serving the old body for a
- * while after an overwrite, and the CDN cache cannot be bypassed for public
- * blobs (a ?t= query does not help). Reading an overwritten index right after
- * a write therefore returned stale data: a coin created a moment earlier was
- * "not found" when its image uploaded, so Save failed after Paste.
+ * Blob reads can be served from a cache that keeps the old body for a while
+ * after an overwrite. In the original public store that cache could not be
+ * bypassed at all (a ?t= query did not help), so reading an overwritten index
+ * right after a write returned stale data: a coin created a moment earlier was
+ * "not found" when its image uploaded, so Save failed after Paste. The
+ * private store keeps the same scheme, which also makes the compare-and-swap
+ * below possible.
  *
  * Fix: every write goes to a brand new, never-overwritten pathname inside a
  * versions folder. Readers list that folder (the list API is not CDN cached)

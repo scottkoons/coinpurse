@@ -1,16 +1,20 @@
 /**
  * In-memory stand-in for @vercel/blob, used by the tests and the local dev
- * server. Two stores: 'public-token' and 'private-token'.
+ * server. One private store, keyed by MOCK_TOKEN: set
+ * COINPURSE_PRIVATE_READ_WRITE_TOKEN to it. Any other token (or none, which is
+ * what a call would carry if the server fell back to the SDK's default
+ * BLOB_READ_WRITE_TOKEN) is refused, like a store that does not exist.
  *
  * Like the real list(), listed blobs carry uploadedAt (a Date). Tests can set
  * hooks.beforePut to an async function (pathname, opts) to hold a put back,
  * for example to pause one writer while others finish.
  */
+const MOCK_TOKEN = 'mock-private-token';
+
 function createMockBlob() {
   const hooks = { beforePut: null };
   const stores = {
-    'public-token': { access: 'public', files: new Map() },
-    'private-token': { access: 'private', files: new Map() },
+    [MOCK_TOKEN]: { access: 'private', files: new Map() },
   };
   function storeFor(opts) {
     const s = stores[opts && opts.token];
@@ -83,4 +87,4 @@ function installMockBlob() {
   return mock;
 }
 
-module.exports = { createMockBlob, installMockBlob };
+module.exports = { MOCK_TOKEN, createMockBlob, installMockBlob };

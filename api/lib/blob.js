@@ -4,44 +4,42 @@ const sdk = require('@vercel/blob');
 /**
  * One place that talks to Vercel Blob.
  *
- * Two stores can exist while we move data:
- *   - 'public'  : the original store (BLOB_READ_WRITE_TOKEN). Every file has a
- *                 permanent public URL.
- *   - 'private' : the new store (COINPURSE_PRIVATE_READ_WRITE_TOKEN). Files can
- *                 only be read with the server's token; pictures reach the apps
- *                 through short-lived signed links (see ./imageurl.js).
- * COINPURSE_STORE=private switches all reads and writes to the private store.
+ * Everything lives in one private store, reached with
+ * COINPURSE_PRIVATE_READ_WRITE_TOKEN. Files can only be read with that token;
+ * pictures reach the apps through short-lived signed links (see ./imageurl.js).
+ *
+ * The original public store (BLOB_READ_WRITE_TOKEN) was retired after the
+ * move to private on 2026-10-05. The token is always passed explicitly: the
+ * SDK would otherwise fall back to BLOB_READ_WRITE_TOKEN on its own, so
+ * without the private token every call fails instead of reaching any other
+ * store.
  */
 
-function storeMode() {
-  return process.env.COINPURSE_STORE === 'private' ? 'private' : 'public';
+function token() {
+  const t = process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN;
+  if (!t) {
+    const err = new Error('COINPURSE_PRIVATE_READ_WRITE_TOKEN is not set; the private Blob store is not connected');
+    err.code = 'STORE_NOT_CONFIGURED';
+    throw err;
+  }
+  return t;
 }
 
-function tokenFor(mode) {
-  return mode === 'private'
-    ? process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN
-    : process.env.BLOB_READ_WRITE_TOKEN;
-}
-
-function withToken(options, mode) {
-  const token = tokenFor(mode);
-  return token ? { ...options, token } : options;
-}
-
-async function putBlob(pathname, body, { contentType, allowOverwrite = false, mode = storeMode() } = {}) {
-  return sdk.put(pathname, body, withToken({
-    access: mode,
+async function putBlob(pathname, body, { contentType, allowOverwrite = false } = {}) {
+  return sdk.put(pathname, body, {
+    access: 'private',
     addRandomSuffix: false,
     allowOverwrite,
     contentType,
-  }, mode));
+    token: token(),
+  });
 }
 
-async function listBlobs(prefix, { mode = storeMode() } = {}) {
+async function listBlobs(prefix) {
   const blobs = [];
   let cursor;
   do {
-    const page = await sdk.list(withToken({ prefix, limit: 1000, cursor }, mode));
+    const page = await sdk.list({ prefix, limit: 1000, cursor, token: token() });
     blobs.push(...(page.blobs || []));
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
@@ -49,13 +47,13 @@ async function listBlobs(prefix, { mode = storeMode() } = {}) {
 }
 
 /** One page of a listing, for long jobs that must stop and resume. */
-async function listPage(prefix, cursor, { limit = 200, folded = false, mode = storeMode() } = {}) {
-  return sdk.list(withToken({ prefix, limit, cursor, ...(folded ? { mode: 'folded' } : {}) }, mode));
+async function listPage(prefix, cursor, { limit = 200, folded = false } = {}) {
+  return sdk.list({ prefix, limit, cursor, ...(folded ? { mode: 'folded' } : {}), token: token() });
 }
 
 /** Returns the get() result, or null when the blob does not exist. */
-async function getBlob(pathname, { fresh = false, mode = storeMode() } = {}) {
-  const result = await sdk.get(pathname, withToken({ access: mode, useCache: !fresh }, mode));
+async function getBlob(pathname, { fresh = false } = {}) {
+  const result = await sdk.get(pathname, { access: 'private', useCache: !fresh, token: token() });
   if (!result || result.statusCode !== 200) return null;
   return result;
 }
@@ -84,24 +82,23 @@ function streamToResponse(result, res) {
   stream.pipe(res);
 }
 
-async function deleteBlobs(pathnames, { mode = storeMode() } = {}) {
+async function deleteBlobs(pathnames) {
   const list = (Array.isArray(pathnames) ? pathnames : [pathnames]).filter(Boolean);
   // del() accepts many at once; keep batches modest.
   for (let i = 0; i < list.length; i += 500) {
-    await sdk.del(list.slice(i, i + 500), withToken({}, mode));
+    await sdk.del(list.slice(i, i + 500), { token: token() });
   }
 }
 
-async function deleteBlobsQuiet(pathnames, opts) {
+async function deleteBlobsQuiet(pathnames) {
   try {
-    await deleteBlobs(pathnames, opts);
+    await deleteBlobs(pathnames);
   } catch (e) {
     console.warn('deleteBlobsQuiet', e);
   }
 }
 
 module.exports = {
-  storeMode,
   putBlob,
   listBlobs,
   listPage,
