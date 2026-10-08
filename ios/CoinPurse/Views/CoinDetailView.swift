@@ -173,8 +173,22 @@ struct CoinDetailView: View {
     // MARK: Pieces
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             Spacer()
+            // Hide with Face ID, one tap away: closed lock when it is hidden.
+            Button { model.setHidden(coin.id, !coin.hidden) } label: {
+                Image(systemName: coin.hidden ? "lock.fill" : "lock.open")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .glassCircle()
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(coin.hidden ? Color.accentColor : .primary)
+            .accessibilityLabel("Hide with Face ID")
+            .accessibilityValue(coin.hidden ? "On" : "Off")
+            .accessibilityAddTraits(coin.hidden ? .isSelected : [])
+            .accessibilityIdentifier("hideLock")
             Button(action: onClose) {
                 Text("Done")
                     .font(.headline)

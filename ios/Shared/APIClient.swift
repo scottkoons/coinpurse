@@ -92,6 +92,12 @@ struct APIClient {
         return r.coin
     }
 
+    /// Hides a coin with Face ID, or shows it normally again.
+    func setHidden(id: String, _ hidden: Bool) async throws -> Coin {
+        let r: CoinResult = try await send("PUT", "/api/coins/\(id.urlPathSafe)", json: ["hidden": hidden])
+        return r.coin
+    }
+
     func deleteCoin(id: String) async throws {
         _ = try await send("DELETE", "/api/coins/\(id.urlPathSafe)") as Empty
     }

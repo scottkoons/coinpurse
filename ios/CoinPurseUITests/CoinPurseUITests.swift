@@ -465,14 +465,16 @@ final class CoinPurseUITests: XCTestCase {
 
         // 5. Hide with Face ID: covered in the purse, open after Face ID, covered
         // again after leaving the app.
+        // One tap on the lock next to Done.
         tapCard("Tailgate tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
-        app.buttons["Edit"].tap()
-        let toggle = app.switches["hideToggle"]
-        XCTAssertTrue(reveal(toggle), "no Hide with Face ID switch")
-        toggle.switches.firstMatch.tap()
-        app.buttons["Save"].tap()
-        XCTAssertTrue(toggle.waitForNonExistence(timeout: 10))
+        let lock = app.buttons["hideLock"]
+        XCTAssertTrue(lock.waitForExistence(timeout: 3), "no lock on the open coin")
+        XCTAssertEqual(lock.value as? String, "Off")
+        lock.tap()
+        XCTAssertEqual(lock.value as? String, "On", "the lock did not hide the coin")
+        snap("a04b-lock-on")
+        XCTAssertTrue(openCoin.exists, "hiding the coin you are looking at should not close it")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         sleep(2)
@@ -492,13 +494,15 @@ final class CoinPurseUITests: XCTestCase {
         sleep(1)
         XCTAssertEqual(card("Tailgate tickets").value as? String, "", "after Face ID the coin should stay shown")
 
-        // The card at the bottom shows its window: hidden, the picture is blurred.
+        // The card at the bottom shows its window: hidden (this time with the
+        // editor's switch), the picture is blurred.
         // (At the largest text sizes the bottom card is not built until scrolled to.)
         guard card("Return label").waitForExistence(timeout: 3) else { return }
         tapCard("Return label")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         app.buttons["Edit"].tap()
-        XCTAssertTrue(reveal(toggle))
+        let toggle = app.switches["hideToggle"]
+        XCTAssertTrue(reveal(toggle), "no Hide with Face ID switch in the editor")
         toggle.switches.firstMatch.tap()
         app.buttons["Save"].tap()
         XCTAssertTrue(toggle.waitForNonExistence(timeout: 10))

@@ -195,22 +195,14 @@ struct EditorView: View {
         }
     }
 
-    /// Hiding needs something to check with: Face ID, Touch ID or a passcode.
-    private var canHide: Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") { return true }
-        #endif
-        return AppLock.canLock
-    }
-
     /// For a code you would rather not have on show (a gate or a lockbox).
     private var hideSection: some View {
         Section {
             Toggle("Hide with Face ID", isOn: $hidden)
-                .disabled(!canHide)
+                .disabled(!model.canHide)
                 .accessibilityIdentifier("hideToggle")
         } footer: {
-            if canHide {
+            if model.canHide {
                 Text("Covers this coin's notes and pictures until you look with \(AppLock.biometryName).  It keeps them from someone holding your unlocked iPhone; it is not encryption.")
             } else {
                 Text("Set a passcode on this iPhone to hide coins with Face ID.")

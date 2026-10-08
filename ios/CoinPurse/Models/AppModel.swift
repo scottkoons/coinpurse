@@ -449,6 +449,45 @@ final class AppModel {
     /// Leaving the app covers every hidden coin again.
     func hideRevealed() { revealed = [] }
 
+    /// Hiding needs something to check with: Face ID, Touch ID or a passcode.
+    var canHide: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") { return true }
+        #endif
+        return AppLock.canLock
+    }
+
+    /// The lock on an open coin: hides it with Face ID, or shows it normally
+    /// again. The change shows at once and is saved; a failure puts it back.
+    func setHidden(_ id: String, _ hidden: Bool) {
+        guard let i = coins.firstIndex(where: { $0.id == id }) else { return }
+        guard !hidden || canHide else {
+            show("Set a passcode on this iPhone to hide coins with Face ID")
+            return
+        }
+        // Whoever hid it is looking at it: it stays shown until they leave the app.
+        revealed.insert(id)
+        coins[i].hidden = hidden
+        changes += 1
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        show(hidden ? "Hidden with Face ID" : "No longer hidden")
+        let mine = session
+        Task {
+            do {
+                let saved = try await guarded(id) { try await self.api.setHidden(id: id, hidden) }
+                guard session == mine, coin(id)?.hidden == hidden else { return }
+                upsert(saved)
+            } catch {
+                guard session == mine else { return }
+                if let j = coins.firstIndex(where: { $0.id == id }), coins[j].hidden == hidden {
+                    coins[j].hidden = !hidden
+                    changes += 1
+                }
+                await handle(error, from: mine)
+            }
+        }
+    }
+
     private func deleteOnServer(_ coin: Coin, putBackAt index: Int) async {
         let mine = session
         defer { deleting.remove(coin.id) }
@@ -502,7 +541,17 @@ final class AppModel {
             do {
                 let saved = try await api.reorder(ids: list.map(\.id))
                 guard session == mine else { return }
-                if changes == mark { coins = saved } else { await refresh() }
+                if changes == mark {
+                    // Only the order comes from this reply.  Each coin stays as this
+                    // phone knows it: a reply that raced a change sent at the same
+                    // moment (Unarchive is a change and a move) could carry the old
+                    // value and quietly undo it.
+                    let known = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
+                    let listed = Set(saved.map(\.id))
+                    coins = saved.map { known[$0.id] ?? $0 } + coins.filter { !listed.contains($0.id) }
+                } else {
+                    await refresh()
+                }
             } catch {
                 guard session == mine else { return }
                 if changes == mark { coins = before; changes += 1 } else { await refresh() }
