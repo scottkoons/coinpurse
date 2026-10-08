@@ -294,7 +294,9 @@
     .tile.big { grid-column: span 2; grid-row: span 2; }
     .tile.wide { grid-column: span 2; }
     .tile.pic { background: var(--img) center / cover; }
-    .tile.pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(8, 8, 12, 0.88)); }
+    /* Dark enough under the words that a busy photo (a QR code, an email) never shows through them. */
+    .tile.pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(8, 8, 12, 0) 15%, rgba(8, 8, 12, 0.6) 42%, rgba(8, 8, 12, 0.95) 72%); }
+    .tile.pic b, .tile.pic .d { text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7); }
     .tile .cap { position: relative; z-index: 1; display: block; }
     .tile b { display: block; font-size: 1.1rem; }
     .tile .d { display: block; color: #c9c9d4; font-size: 0.92rem; }
@@ -595,7 +597,7 @@
     <div class="wrap reveal">
       <img src="/img/coin.png?v=2" alt="" />
       <h2>A simple app for simple things.</h2>
-      <p class="lead">Snap it.  Find it.  Toss it.  Coin Purse is coming soon to the App Store for iPhone.</p>
+      <p class="lead">Snap it.  Find it.  Toss it.  Coin Purse is coming soon to the App Store for iPhone, with iOS 18 or later.</p>
       <span class="badge">Coming soon to the App Store</span>
       <p class="note">Coin Purse is for everyday things.  Please do not store credit cards, IDs or passwords in it.</p>
       <a href="#top" class="to-top" id="to-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Back to top</a>
