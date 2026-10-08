@@ -284,7 +284,7 @@ final class CoinPurseUITests: XCTestCase {
         let origin = app.coordinate(withNormalizedOffset: .zero)
         let delete = app.buttons["swipeDelete"]
         func swipe(_ name: String, by dx: CGFloat, fast: Bool = false) {
-            let f = card(name).frame
+            let f = showCard(name).frame
             let from = origin.withOffset(CGVector(dx: f.maxX - 70, dy: f.midY))
             from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: dx, dy: 0)),
                        withVelocity: fast ? .fast : .slow, thenHoldForDuration: fast ? 0 : 0.1)
@@ -328,7 +328,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertFalse((serverCoins() ?? []).contains { $0["title"] as? String == "Grocery list" })
 
         // The trash can (it asks first) also offers Undo.
-        let email = card("Email Jim back").frame
+        let email = showCard("Email Jim back").frame
         origin.withOffset(CGVector(dx: email.maxX - 28, dy: email.midY)).tap()
         XCTAssertTrue(app.alerts.buttons["Delete"].waitForExistence(timeout: 5), "the trash can did not ask first")
         app.alerts.buttons["Delete"].tap()
@@ -1938,6 +1938,13 @@ final class CoinPurseUITests: XCTestCase {
     /// Taps a card, first scrolling it clear of the bottom bar if it is under it.
     @MainActor
     private func tapCard(_ name: String) {
+        showCard(name).tap()
+    }
+
+    /// Scrolls the purse until the card is on screen, clear of the New Coin
+    /// button and the title, and returns it.
+    @MainActor @discardableResult
+    private func showCard(_ name: String) -> XCUIElement {
         let c = card(name)
         XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
         let bar = app.buttons["newCoin"]
@@ -1951,7 +1958,7 @@ final class CoinPurseUITests: XCTestCase {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)))
         }
-        c.tap()
+        return c
     }
 
     /// Taps Cancel; when it asks whether to throw away what was typed (an
@@ -2011,8 +2018,9 @@ final class CoinPurseUITests: XCTestCase {
     private func reveal(_ element: XCUIElement) -> Bool {
         if element.waitForExistence(timeout: 5) && element.isHittable { return true }
         // Down the form first, then back up (the element may be above).
-        for step in 0..<12 {
-            let down = step < 5
+        // Far enough for the longest form (Account at the largest text size).
+        for step in 0..<18 {
+            let down = step < 9
             // High on the screen, clear of the keyboard.
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.5 : 0.25))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.25 : 0.5)))
