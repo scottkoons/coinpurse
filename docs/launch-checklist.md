@@ -37,11 +37,7 @@ The variables Coin Purse needs are `COINPURSE_PRIVATE_READ_WRITE_TOKEN`, `AUTH_S
 
 Production has used the private Blob store (`coinpurse-private`) since 2026-10-05.  Pictures are only reachable through links the server signs, which expire within two days.  The server no longer has a public mode or any move jobs.
 
-What is left for you, in Vercel:
-
-1. Open **Storage**, find the old public Blob store, and delete it.  If Vercel asks, disconnect it from the qr-locker project first, then delete it.  Do this before the App Store submission; the privacy policy depends on it.
-2. In **Settings**, then **Environment Variables**, remove `ADMIN_EMAILS` and `COINPURSE_STORE`.  `BLOB_READ_WRITE_TOKEN` belonged to the old store and goes away with it; if it is still listed after the store is deleted, remove it too.
-3. Redeploy once, so the live server runs without them.
+On 2026-10-08 the old public Blob store was emptied and deleted, and `ADMIN_EMAILS` and `COINPURSE_STORE` were removed from Vercel.  Nothing is left to do here.
 
 ## 3b. Extra protection for sign-in (recommended)
 
