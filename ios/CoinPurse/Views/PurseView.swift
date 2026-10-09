@@ -117,7 +117,11 @@ struct PurseView: View {
                         },
                         onArchive: { archiveOpenCoin(id) }
                     )
-                    .transition(reduceMotion ? .opacity : .identity)
+                    // Closing, it stays just long enough for the card in the stack to
+                    // take over from it and shrink back into place (removed at once,
+                    // that card had nothing to grow from and simply faded in).
+                    .transition(reduceMotion ? .opacity
+                                : .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
                     .zIndex(10)
                 }
             }
@@ -359,6 +363,9 @@ struct PurseView: View {
                                                  ended: { finishMove(coin.id, at: i) }))
                             .offset(x: swipeId == coin.id ? swipeX : 0)
                             .opacity(moving == coin.id ? 0 : 1)
+                            // Back from an open coin: solid the whole way into its place
+                            // (opening, it fades as the open coin grows from it).
+                            .transition(.asymmetric(insertion: .identity, removal: .opacity))
                     }
                 }
                 // A tucked-in card is drawn only as far as you can see it (its top,

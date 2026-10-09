@@ -623,6 +623,28 @@ final class CoinPurseUITests: XCTestCase {
         snap("q02-after")
     }
 
+    /// A plain open and close, twice, to film and check frame by frame
+    /// (TEST_RUNNER_OPENCLOSE=1, seed_design.py).
+    @MainActor
+    func testOpenCloseFilm() throws {
+        guard ProcessInfo.processInfo.environment["OPENCLOSE"] == "1" else { throw XCTSkip("Set OPENCLOSE=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(2)
+        for title in ["Parking spot", "Email Jim back"] {
+            tapCard(title)
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+            sleep(2)
+            app.buttons["Done"].tap()
+            XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+            sleep(2)
+        }
+    }
+
     /// Slow card moves to film and check frame by frame (TEST_RUNNER_DRAGFILM=1, seed_design.py).
     @MainActor
     func testDragFilm() throws {

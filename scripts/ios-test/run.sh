@@ -43,6 +43,7 @@ SUITES=(
   "testArchiveAndHide:TEST_RUNNER_ARCHIVE=1:seed_design.py"
   "testQuickCapture:TEST_RUNNER_QUICK2=1:seed_design.py"
   "testDragFilm:TEST_RUNNER_DRAGFILM=1:seed_design.py"
+  "testOpenCloseFilm:TEST_RUNNER_OPENCLOSE=1:seed_design.py"
   "testAccessibilityAudit:TEST_RUNNER_AUDIT=1:seed_design.py"
 )
 WANT=("$@")
