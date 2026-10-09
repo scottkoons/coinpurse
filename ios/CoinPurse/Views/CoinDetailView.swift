@@ -57,6 +57,7 @@ struct CoinDetailView: View {
     @State private var settled = false
     @State private var fullScreen: FullScreenPicture?
     @State private var editing = false
+    @State private var renaming = false
     @State private var sharing: ShareItems?
     @State private var confirmDelete = false
     @State private var confirmMovePin = false
@@ -113,7 +114,6 @@ struct CoinDetailView: View {
                         if showsThumbnails { thumbnails }
                         if let notesBelow { notesPanel(notesBelow) }
                         actions
-                        archiveRow
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -146,6 +146,7 @@ struct CoinDetailView: View {
             ViewerView(coinId: coin.id, startIndex: ref.index)
         }
         .sheet(isPresented: $editing) { EditorView(coinId: coin.id) }
+        .renameCoin(coin, isPresented: $renaming)
         .sheet(item: $sharing) { item in
             ActivitySheet(items: item.items).presentationDetents([.medium, .large])
         }
@@ -196,6 +197,9 @@ struct CoinDetailView: View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin, isOpen: true)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                // Tap the name to change it, without opening the whole coin.
+                .onTapGesture { renaming = true }
+                .accessibilityAction(named: "Rename") { renaming = true }
                 // The title bar always drags the coin down, even over a long note.
                 .contentShape(Rectangle())
                 .gesture(isScrollingNote ? dragToClose : nil)
@@ -235,6 +239,7 @@ struct CoinDetailView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { MapsLink.openDirections(to: pin, name: coin.title) }
                 .accessibilityAddTraits(.isButton)
+                .overlay(alignment: .topTrailing) { sharePinButton(pin) }
         case .note(let text):
             let words = Text(LinkedText.make(text))
                 .font(.system(.title2, design: .rounded).weight(.semibold))
@@ -294,6 +299,8 @@ struct CoinDetailView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .strokeBorder(i == page ? Color.accentColor : Color.primary.opacity(0.12),
                                                   lineWidth: i == page ? 3 : 1))
+                                // The whole tile takes the tap (the map in it does not take touches).
+                                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
                         .buttonStyle(PressableStyle())
                         .id(i)
@@ -353,14 +360,17 @@ struct CoinDetailView: View {
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 0))
         return layout {
-            actionButton("Share", "square.and.arrow.up") { Task { await share() } }
             actionButton(coin.pin == nil ? "Add Pin" : "Move Pin", "mappin.and.ellipse", busy: locating) {
                 if coin.pin == nil { Task { await dropPin() } } else { confirmMovePin = true }
             }
-            actionButton("Edit", "pencil") { editing = true }
-            // Hide with Face ID, one tap away (closed lock when it is hidden).
-            actionButton(coin.hidden ? "Unhide" : "Hide", coin.hidden ? "lock.fill" : "lock.open",
-                         tint: coin.hidden ? .accentColor : .primary) {
+            actionButton("Open", "arrow.up.forward.square") { editing = true }
+                .accessibilityIdentifier("openEditor")
+            actionButton(coin.archived ? "Unarchive" : "Archive", coin.archived ? "tray.and.arrow.up" : "archivebox",
+                         action: onArchive)
+                .accessibilityIdentifier("archiveCoin")
+            // Hide with Face ID, one tap away: slashed while anyone can see it,
+            // colored once it is hidden.
+            actionButton("Face ID", "faceid", tint: coin.hidden ? .accentColor : .primary, slashed: !coin.hidden) {
                 model.setHidden(coin.id, !coin.hidden)
             }
             .accessibilityLabel("Hide with Face ID")
@@ -371,28 +381,13 @@ struct CoinDetailView: View {
         .padding(.horizontal, typeSize.isAccessibilitySize ? 16 : 20)
     }
 
-    /// Below the buttons: put the coin away in the archive, or back in the purse.
-    private var archiveRow: some View {
-        Button(action: onArchive) {
-            Label(coin.archived ? "Unarchive" : "Archive", systemImage: coin.archived ? "tray.and.arrow.up" : "archivebox")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .glassPanel()
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        .padding(.horizontal, 20)
-        .padding(.top, 4)
-    }
-
     private func actionButton(_ title: String, _ icon: String, tint: Color = .primary, busy: Bool = false,
-                              action: @escaping () -> Void) -> some View {
+                              slashed: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             if typeSize.isAccessibilitySize {
                 HStack(spacing: 14) {
                     Group {
-                        if busy { ProgressView() } else { Image(systemName: icon).foregroundStyle(tint) }
+                        if busy { ProgressView() } else { SlashableIcon(name: icon, slashed: slashed, tint: tint) }
                     }
                     .font(.title3.weight(.semibold))
                     Text(title)
@@ -411,9 +406,8 @@ struct CoinDetailView: View {
                         if busy {
                             ProgressView()
                         } else {
-                            Image(systemName: icon)
+                            SlashableIcon(name: icon, slashed: slashed, tint: tint)
                                 .font(.title3.weight(.semibold))
-                                .foregroundStyle(tint)
                         }
                     }
                     .frame(width: actionSize, height: actionSize)
@@ -524,27 +518,26 @@ struct CoinDetailView: View {
 
     // MARK: Actions
 
-    private func share() async {
-        let c = coin
-        let pages = c.pages
-        switch pages.indices.contains(page) ? pages[page] : pages[0] {
-        case .map(let pin):
-            var items: [Any] = [c.title]
-            if let link = MapsLink.shareURL(for: pin, name: c.title) { items.append(link) }
+    /// Sends just the pin, as an Apple Maps link anyone can open (pictures
+    /// are shared one at a time from full size).
+    private func sharePinButton(_ pin: Pin) -> some View {
+        Button {
+            var items: [Any] = [coin.title]
+            if let link = MapsLink.shareURL(for: pin, name: coin.title) { items.append(link) }
             sharing = ShareItems(items: items)
-        case .picture:
-            var images: [Any] = []
-            for picture in c.pictures {
-                if let url = model.url(for: picture),
-                   let image = await ImageCache.shared.image(key: picture.key, url: url) {
-                    images.append(image)
-                }
-            }
-            guard !images.isEmpty else { return }
-            sharing = ShareItems(items: images)
-        case .note(let text):
-            sharing = ShareItems(items: [text])
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(.black.opacity(0.55), in: Circle())
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(PressableStyle())
+        .padding(6)
+        .accessibilityLabel("Share pin")
+        .accessibilityIdentifier("sharePin")
     }
 
     private func dropPin() async {
@@ -607,4 +600,68 @@ struct ActivitySheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
+}
+
+/// An SF Symbol, optionally struck through (Face ID while a coin is not hidden).
+struct SlashableIcon: View {
+    let name: String
+    var slashed = false
+    var tint: Color = .primary
+
+    var body: some View {
+        Image(systemName: name)
+            .foregroundStyle(tint)
+            .overlay {
+                if slashed {
+                    // A thin slash corner to corner, with a narrow gap in the
+                    // background color, like the system's slashed icons.
+                    GeometryReader { g in
+                        let line = Path { p in
+                            p.move(to: CGPoint(x: 1, y: 1))
+                            p.addLine(to: CGPoint(x: g.size.width - 1, y: g.size.height - 1))
+                        }
+                        ZStack {
+                            line.stroke(Color(.systemBackground), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                            line.stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+/// Tap a coin's name to change it: a box with Save, nothing else.
+private struct RenameCoin: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let coin: Coin?
+    @Binding var isPresented: Bool
+    @State private var name = ""
+
+    /// Names the app gave it (like "Coin 3") start blank, ready to type over.
+    private var automaticName: Bool {
+        (coin?.title ?? "").range(of: #"^Coin \d{1,9}$"#, options: .regularExpression) != nil
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: isPresented) { _, shown in
+                if shown { name = automaticName ? "" : coin?.title ?? "" }
+            }
+            .alert("Name", isPresented: $isPresented) {
+                TextField(coin?.title ?? "Name", text: $name)
+                    .textInputAutocapitalization(.sentences)
+                    .accessibilityIdentifier("renameField")
+                Button("Save") {
+                    if let coin { model.rename(coin.id, to: name.limited(to: Config.maxTitle)) }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+    }
+}
+
+extension View {
+    func renameCoin(_ coin: Coin?, isPresented: Binding<Bool>) -> some View {
+        modifier(RenameCoin(coin: coin, isPresented: isPresented))
+    }
 }

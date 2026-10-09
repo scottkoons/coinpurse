@@ -410,8 +410,8 @@ final class CoinPurseUITests: XCTestCase {
         // 2. From an open coin, Archive; then Undo puts it back.
         tapCard("Email Jim back")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
-        // The open coin's Archive (not the Archive button beside New Coin).
-        app.buttons.matching(NSPredicate(format: "label == 'Archive' AND identifier != 'archive'")).firstMatch.tap()
+        // The open coin's Archive, in its row of buttons.
+        app.buttons["archiveCoin"].tap()
         XCTAssertTrue(card("Email Jim back").waitForNonExistence(timeout: 5))
         app.buttons["undoDelete"].tap()
         XCTAssertTrue(card("Email Jim back").waitForExistence(timeout: 5), "Undo did not bring the coin back")
@@ -461,11 +461,11 @@ final class CoinPurseUITests: XCTestCase {
 
         // 5. Hide with Face ID: covered in the purse, open after Face ID, covered
         // again after leaving the app.
-        // One tap on the lock next to Done.
+        // One tap on Face ID in the open coin's row.
         tapCard("Tailgate tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         let lock = app.buttons["hideLock"]
-        XCTAssertTrue(lock.waitForExistence(timeout: 3), "no lock on the open coin")
+        XCTAssertTrue(lock.waitForExistence(timeout: 3), "no Face ID button on the open coin")
         XCTAssertEqual(lock.value as? String, "Off")
         lock.tap()
         XCTAssertEqual(lock.value as? String, "On", "the lock did not hide the coin")
@@ -496,7 +496,7 @@ final class CoinPurseUITests: XCTestCase {
         guard card("Return label").waitForExistence(timeout: 3) else { return }
         tapCard("Return label")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
-        app.buttons["Edit"].tap()
+        app.buttons["openEditor"].tap()
         let toggle = app.switches["hideToggle"]
         XCTAssertTrue(reveal(toggle), "no Hide with Face ID switch in the editor")
         toggle.switches.firstMatch.tap()
@@ -530,25 +530,68 @@ final class CoinPurseUITests: XCTestCase {
         sleep(1)
         let start = serverCoinCount()
 
-        // 1. One tap on the camera: the picture is a coin, with no more taps.
+        // 1. One tap on the camera: the picture is a coin, opened to look at.
         app.buttons["newPhoto"].tap()
-        XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15), "no Saved bar after the camera")
-        snap("q01-saved")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 15), "the new picture coin did not open")
+        snap("q01-opened")
         XCTAssertEqual(serverCoinCount(), start + 1, "the picture was not saved as a coin")
         XCTAssertNotNil(serverCoins()?.first?["imagePath"] as? String, "the new coin has no picture")
-        // Add details: name it.
-        nameJustSaved("Dog food")
-        XCTAssertTrue(card("Dog food").waitForExistence(timeout: 15), "Add details did not rename the coin")
+        // Full size: tap the name (Coin 3) to change it.
+        openCoin.buttons["Picture 1"].firstMatch.tap()
+        let viewerTitle = app.buttons["viewerTitle"]
+        XCTAssertTrue(viewerTitle.waitForExistence(timeout: 5), "no name to tap in full size")
+        viewerTitle.tap()
+        rename(to: "Dog food")
+        XCTAssertTrue(app.staticTexts["Dog food"].waitForExistence(timeout: 5), "full size still shows the old name")
+        app.buttons["Back"].tap()
+        sleep(2)
         XCTAssertEqual(serverFirstTitle(), "Dog food")
+        // On the open coin too: tap the name.
+        openCoin.staticTexts["coinTitle"].tap()
+        rename(to: "Dog food bag")
+        XCTAssertTrue(openCoin.staticTexts.matching(NSPredicate(format: "label == 'Dog food bag'")).firstMatch
+            .waitForExistence(timeout: 5), "the open coin kept the old name")
+        sleep(2)
+        XCTAssertEqual(serverFirstTitle(), "Dog food bag")
+        // No Share for the whole coin; Archive and Face ID are in the row.
+        XCTAssertFalse(openCoin.buttons["Share"].exists || app.buttons["Share"].exists, "Share for a whole coin is gone")
+        XCTAssertTrue(app.buttons["archiveCoin"].exists && app.buttons["hideLock"].exists)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
-        // 2. A bad shot: Undo takes it away again, on the server too.
+        // 2. A bad shot: Delete in the open coin takes it away again.
         app.buttons["newPhoto"].tap()
-        let undo = app.buttons["undoSaved"]
-        XCTAssertTrue(undo.waitForExistence(timeout: 15))
-        undo.tap()
-        sleep(3)
-        XCTAssertEqual(serverCoinCount(), start + 1, "Undo did not remove the new coin")
-        XCTAssertEqual(serverFirstTitle(), "Dog food")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 15))
+        sleep(1)
+        app.buttons["Delete"].tap()
+        app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        sleep(8)
+        XCTAssertEqual(serverCoinCount(), start + 1, "Delete did not remove the new coin")
+        XCTAssertEqual(serverFirstTitle(), "Dog food bag")
+
+        // A pin shares on its own, from the map.
+        tapCard("Parking spot")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(1)
+        // Swipe the card over to the map (the last page).
+        let thumbs = app.buttons.matching(identifier: "thumbnail").firstMatch.frame
+        let onPicture = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: thumbs.minX + 260, dy: thumbs.minY - 50))
+        onPicture.press(forDuration: 0.05, thenDragTo: onPicture.withOffset(CGVector(dx: -220, dy: 0)), withVelocity: .fast, thenHoldForDuration: 0)
+        sleep(1)
+        XCTAssertTrue(app.buttons["sharePin"].waitForExistence(timeout: 5), "no Share on the pin")
+        snap("q03-map")
+        // A thumbnail goes back to the picture.
+        let thumb1 = app.buttons.matching(identifier: "thumbnail").matching(NSPredicate(format: "label == 'Picture 1'")).firstMatch
+        thumb1.tap()
+        sleep(1)
+        XCTAssertTrue(thumb1.isSelected, "tapping a thumbnail did not show that page")
+        let mapThumb = app.buttons.matching(identifier: "thumbnail").matching(NSPredicate(format: "label == 'Map pin'")).firstMatch
+        mapThumb.tap()
+        sleep(1)
+        XCTAssertTrue(mapThumb.isSelected, "tapping the map thumbnail did not show the map")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
 
         // 3. One tap on the microphone, talk, Done: saved as said.
         app.buttons["newVoice"].tap()
@@ -1591,14 +1634,14 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Picture 6"].waitForExistence(timeout: 5), "six pictures should show six thumbnails")
         // Removing a picture in the editor waits for Save: Cancel keeps it.
-        app.buttons["Edit"].tap()
+        app.buttons["openEditor"].tap()
         let remove6 = app.buttons["Remove picture 6"]
         XCTAssertTrue(reveal(remove6), "no way to remove a picture in the editor")
         remove6.tap()
         XCTAssertTrue(remove6.waitForNonExistence(timeout: 3), "the removed picture still shows in the editor")
         cancelSheet()
         XCTAssertTrue(app.buttons["Picture 6"].waitForExistence(timeout: 5), "Cancel did not keep the removed picture")
-        app.buttons["Edit"].tap()
+        app.buttons["openEditor"].tap()
         XCTAssertTrue(reveal(remove6))
         remove6.tap()
         app.buttons["Save"].tap()
@@ -2215,7 +2258,21 @@ final class CoinPurseUITests: XCTestCase {
         }
     }
 
-    /// After a coin is made in one go (camera or voice): Add details, a title, Save.
+    /// The name box from tapping a coin's name: type, Save.
+    @MainActor
+    private func rename(to title: String) {
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "tapping the name did not offer to change it")
+        field.tap()
+        // A name you gave it starts in the box: clear it first (an empty box
+        // reports its hint as the value; deleting there does nothing).
+        let old = field.value as? String ?? ""
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count))
+        field.typeText(title)
+        app.alerts.buttons["Save"].tap()
+    }
+
+    /// After a voice note is saved in one go: Add details, a title, Save.
     @MainActor
     private func nameJustSaved(_ title: String) {
         let details = app.buttons["addDetails"]

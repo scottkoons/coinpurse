@@ -31,9 +31,10 @@ Good for:
 
 Made to be quick:
 • Three buttons at the bottom: the microphone, New Coin and the camera
-• Camera: take a picture and it is saved as a coin right away
+• Camera: take a picture and it is saved as a coin right away, then opens so you can rename it or add to it
 • Microphone: say a quick note or reminder, tap Done, and it is saved as text right away
-• Saved, with Add details to name it and Undo, right after the camera or microphone saves a coin
+• Saved, with Add details to name it and Undo, right after the microphone saves a coin
+• Tap a coin's name to rename it
 • New Coin: type a code, a list or a reminder, or tap Add a voice note to say it instead
 • One-tap Paste, with no "Allow Paste" prompt
 • In New Coin, choose a photo, take one, or paste a screenshot
@@ -45,7 +46,7 @@ Made to be quick:
 • Swipe a coin to the left to delete it, like Mail, with Undo if you change your mind
 • Archive coins you need once a year, like a gate code, and find them again with search
 • Hide any coin with Face ID in one tap: its notes and pictures stay blurred until you look
-• Share a single picture with anyone
+• Share a single picture with anyone, or a pin as an Apple Maps link they can open without Coin Purse
 • Keep throwaway photos out of your photo library
 
 Private by design:

@@ -16,6 +16,7 @@ struct ViewerView: View {
     @State private var images: [String: UIImage] = [:]
     @State private var share: ShareImage?
     @State private var editing = false
+    @State private var renaming = false
     @State private var adding = false
     @State private var cropping: CropRequest?
     @State private var confirmDeleteCoin = false
@@ -144,6 +145,7 @@ struct ViewerView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+        .renameCoin(coin, isPresented: $renaming)
         .preferredColorScheme(.dark)
     }
 
@@ -159,19 +161,26 @@ struct ViewerView: View {
             }
             .accessibilityLabel("Back")
             Spacer(minLength: 0)
-            VStack(spacing: 1) {
-                Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(2)
-                    .multilineTextAlignment(.center)
-                if pictures.count > 1 {
-                    Text("\(index + 1) of \(pictures.count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            // Tap the name to change it (a new picture is named like Coin 3).
+            Button { renaming = true } label: {
+                VStack(spacing: 1) {
+                    Text(coin?.title ?? "").font(.subheadline.weight(.semibold)).lineLimit(2)
+                        .multilineTextAlignment(.center)
+                    if pictures.count > 1 {
+                        Text("\(index + 1) of \(pictures.count)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    }
                 }
+                // Grows with larger text instead of squeezing it.
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .glassCapsule()
+                .contentShape(Capsule())
             }
-            // Grows with larger text instead of squeezing it.
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
-            .glassCapsule()
+            .buttonStyle(.plain)
+            .accessibilityHint("Changes the name")
+            .accessibilityIdentifier("viewerTitle")
             Spacer(minLength: 0)
             Menu {
                 Button { editing = true } label: { Label("Edit", systemImage: "pencil") }

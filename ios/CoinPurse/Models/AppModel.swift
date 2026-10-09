@@ -429,12 +429,35 @@ final class AppModel {
     // MARK: Made in one go
 
     /// A picture straight from the camera button becomes a coin at once (named
-    /// like Coin 3), with the Saved bar. Throws when it could not be saved (the
-    /// caller keeps the picture so nothing is lost).
+    /// like Coin 3); the purse then opens it. Throws when it could not be saved
+    /// (the caller keeps the picture so nothing is lost).
     func quickSave(picture jpeg: Data, id: String) async throws {
         _ = try await saveCoinDetails(id: id, title: "", notes: "", accent: suggestedAccent())
         try await uploadMainPicture(coinId: id, jpeg: jpeg)
-        announceSaved(id)
+    }
+
+    /// A new name from tapping the title. It shows at once and is saved; a
+    /// failure puts the old name back. A blank name keeps the old one.
+    func rename(_ id: String, to title: String) {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let i = coins.firstIndex(where: { $0.id == id }), !name.isEmpty, coins[i].title != name else { return }
+        let before = coins[i]
+        coins[i].title = name
+        changes += 1
+        let mine = session
+        Task {
+            do {
+                try await saveCoinDetails(id: id, title: name, notes: before.notes, accent: before.accent,
+                                          hidden: before.hidden)
+            } catch {
+                guard session == mine else { return }
+                if let j = coins.firstIndex(where: { $0.id == id }), coins[j].title == name {
+                    coins[j].title = before.title
+                    changes += 1
+                }
+                await handle(error, from: mine)
+            }
+        }
     }
 
     /// Shows the Saved bar for a coin just made in one go.

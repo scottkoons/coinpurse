@@ -124,7 +124,7 @@ struct ArchiveRow: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.body.weight(.semibold))
                     .lineLimit(2)
-                Text(veiled ? "\(Image(systemName: "lock.fill")) Hidden" : preview)
+                Text(veiled ? "\(Image(systemName: "faceid")) Hidden" : preview)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

@@ -972,6 +972,8 @@ struct PurseView: View {
         let id = UUID().uuidString.lowercased()
         do {
             try await model.quickSave(picture: jpeg, id: id)
+            // Opened right away, to name it, add to it, or leave it as it is.
+            openCoin(id)
         } catch {
             snappedFallback = SnappedPicture(id: id, data: jpeg, existing: model.coin(id) != nil)
         }

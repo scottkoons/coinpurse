@@ -66,7 +66,7 @@ struct CoinCardHeader: View {
                     .lineLimit(isOpen ? (typeSize.isAccessibilitySize ? 2 : 3) : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
-                (veiled ? Text("\(Image(systemName: "lock.fill")) Hidden") : Text(subtitle))
+                (veiled ? Text("\(Image(systemName: "faceid")) Hidden") : Text(subtitle))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.white)
                     .lineLimit(isOpen ? nil : 1)
@@ -157,7 +157,7 @@ struct PileCard: View {
                     .accessibilityIdentifier("pileTitle")
                 Spacer(minLength: 0)
                 if veiled {
-                    Image(systemName: "lock.fill")
+                    Image(systemName: "faceid")
                         .font(.caption.weight(.bold))
                         .accessibilityLabel("Hidden")
                 }
@@ -220,7 +220,7 @@ struct CoinFace: View {
                     // A live map does not take the blur: it is frosted instead.
                     .overlay { if coin.pictures.isEmpty && coin.pin != nil { Rectangle().fill(.regularMaterial) } }
                     .overlay {
-                        Image(systemName: "lock.fill")
+                        Image(systemName: "faceid")
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(.white)
                             .frame(width: 46, height: 46)
