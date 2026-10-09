@@ -159,10 +159,12 @@ struct UndoBar: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.undoLast() }
                 }
                 .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("undoDelete")
             }
             .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+            .padding(.vertical, 2)
             .background(.thinMaterial, in: Capsule())
             .padding(.horizontal, 16)
             .transition(.move(edge: .bottom).combined(with: .opacity))

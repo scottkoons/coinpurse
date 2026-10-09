@@ -18,6 +18,9 @@ struct EditorView: View {
     var startsWithPin = false
     /// New Coin, Typed Note: the title and notes first, ready to type; a picture is optional.
     var startsWithText = false
+    /// A picture to start with (from the camera button, when saving it straight
+    /// away did not work), so it is never lost.
+    var startingPicture: Data?
 
     @State private var draftId = UUID().uuidString.lowercased()
     @State private var title = ""
@@ -46,6 +49,11 @@ struct EditorView: View {
     /// Hide with Face ID: the coin's notes and pictures show only after Face ID.
     @State private var hidden = false
     @State private var confirmingDiscard = false
+    /// Saying the notes instead of typing them.
+    @State private var dictating = false
+    /// The automatic name it has now (like Coin 3): the title box starts empty
+    /// with this as its hint, ready to type a real name; left empty, it stays.
+    @State private var automaticTitle: String?
     @Environment(\.openURL) private var openURL
     @FocusState private var titleFocused: Bool
 
@@ -159,6 +167,12 @@ struct EditorView: View {
         // Swiping down never throws away unsaved changes; Cancel asks instead.
         .interactiveDismissDisabled(saving || hasChanges)
         .onAppear(perform: load)
+        .sheet(isPresented: $dictating) {
+            VoiceNoteView(onText: { words in
+                guard !words.isEmpty else { return }
+                notes = notes.isEmpty ? words : notes + "\n" + words
+            })
+        }
     }
 
     // MARK: Sections
@@ -176,7 +190,7 @@ struct EditorView: View {
 
     private var detailsSection: some View {
         Section {
-            TextField("Title (optional)", text: $title)
+            TextField(automaticTitle ?? "Title (optional)", text: $title)
                 .accessibilityIdentifier("titleField")
                 .focused($titleFocused)
                 .submitLabel(.done)
@@ -185,10 +199,24 @@ struct EditorView: View {
                 }
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(2...6)
+            // Say it instead: the words go into the notes.
+            Button { dictating = true } label: {
+                // Laid out by hand: in a Label the text takes the mic's height,
+                // which is shorter than a line of text, and reads as clipped.
+                HStack(spacing: 16) {
+                    Image(systemName: "mic")
+                        .frame(minWidth: 20)
+                        .accessibilityHidden(true)
+                    Text("Add a voice note")
+                }
+            }
+            .accessibilityIdentifier("dictate")
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
                 if coinId == nil && title.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).")
+                } else if let automaticTitle, title.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("Leave the title blank to keep the name \(automaticTitle).")
                 }
                 TextLimitNote(length: notes.serverLength, limit: Config.maxNotes)
             }
@@ -399,7 +427,17 @@ struct EditorView: View {
         loaded = true
         defer { original = (title, notes, accent, hidden) }
         if let coin = existing {
-            title = coin.title
+            if coin.title.range(of: #"^Coin \d{1,9}$"#, options: .regularExpression) != nil {
+                automaticTitle = coin.title
+                title = ""
+                // Ready to type its real name.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))
+                    titleFocused = true
+                }
+            } else {
+                title = coin.title
+            }
             notes = coin.notes
             accent = coin.accent
             hidden = coin.hidden
@@ -417,6 +455,8 @@ struct EditorView: View {
                 }
             }
         }
+        // A picture from the camera that could not be saved straight away.
+        if let startingPicture { stage(startingPicture, asMain: true) }
     }
 
     private func stage(_ data: Data, asMain: Bool) {

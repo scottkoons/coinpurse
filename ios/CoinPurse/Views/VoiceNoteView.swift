@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Say a quick list or reminder and save it as a text coin. Listening starts
-/// right away; tap Done, check the words, and save. A picture can be added
-/// later with Edit.
+/// Say a quick list or reminder and it becomes a text coin. Listening starts
+/// right away; tap Done and it is saved (the purse shows Saved, with Add
+/// details and Undo). If saving fails, the words wait here with Save.
+/// With `onText`, it only hands the words back (dictating into a coin's notes).
 struct VoiceNoteView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    var onText: ((String) -> Void)?
 
     @State private var capture = VoiceCapture()
     @State private var text = ""
@@ -91,7 +93,15 @@ struct VoiceNoteView: View {
         // However listening ended (Done, a phone call, Siri, or recognition
         // stopping by itself), the review starts with every word heard.
         .onChange(of: capture.state) { _, state in
-            if state == .finished { text = capture.transcript }
+            guard state == .finished else { return }
+            text = capture.transcript
+            if let onText {
+                onText(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                dismiss()
+            } else if canSave {
+                // Done (or a call or Siri stopped it): saved at once, no extra tap.
+                Task { await save() }
+            }
         }
         .task {
             guard !started else { return }
@@ -264,6 +274,7 @@ struct VoiceNoteView: View {
                 notes: text.trimmingCharacters(in: .whitespacesAndNewlines),
                 accent: accent
             )
+            model.announceSaved(draftId)
             dismiss()
         } catch {
             self.error = error.localizedDescription + " Tap Save to try again."

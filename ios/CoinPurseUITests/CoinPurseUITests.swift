@@ -141,14 +141,11 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         snap("12-voice-listening")
         app.buttons["stopRecording"].tap()
-        let voiceText = app.descendants(matching: .any)["voiceText"]
-        XCTAssertTrue(voiceText.waitForExistence(timeout: 5))
-        XCTAssertEqual(voiceText.value as? String, "Milk, eggs, avocados, coffee and bread")
-        let voiceTitle = app.textFields["voiceTitle"]
-        voiceTitle.tap()
-        voiceTitle.typeText("Groceries")
-        app.buttons["Save"].tap()
+        // Done saves it at once, just as it was said; Add details names it.
+        nameJustSaved("Groceries")
         XCTAssertTrue(card("Groceries").waitForExistence(timeout: 15))
+        XCTAssertEqual(serverCoins()?.first { $0["title"] as? String == "Groceries" }?["notes"] as? String,
+                       "Milk, eggs, avocados, coffee and bread", "the voice note was not saved as said")
         tapCard("Groceries")
         XCTAssertTrue(app.descendants(matching: .any)["noteText"].waitForExistence(timeout: 5), "text coin did not open")
         snap("15-voice-open")
@@ -242,8 +239,7 @@ final class CoinPurseUITests: XCTestCase {
         newCoin("Voice Note")
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         app.buttons["stopRecording"].tap()
-        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 5))
-        app.buttons["Save"].tap()
+        // Done saves it at once.
         XCTAssertTrue(card("Coin 2").waitForExistence(timeout: 15))
 
         // Delete five coins from the top, one after another.
@@ -514,6 +510,72 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("Return label").waitForExistence(timeout: 10))
         sleep(2)
         snap("a06-hidden-window")
+    }
+
+    /// Quick capture: the camera button saves a picture as a coin at once, with
+    /// Add details and Undo; the microphone saves a voice note when you tap
+    /// Done; New Coin takes a voice note into its notes; each checked on the
+    /// server (TEST_RUNNER_QUICK2=1, seed_design.py).
+    @MainActor
+    func testQuickCapture() throws {
+        guard ProcessInfo.processInfo.environment["QUICK2"] == "1" else { throw XCTSkip("Set QUICK2=1 to run") }
+        app = XCUIApplication()
+        // A ready-made "camera" picture and simulated speech (the simulator has neither).
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestCameraSample",
+                                "-uiTestVoiceText", "Grain free salmon, the big blue bag"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        signIn()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+        let start = serverCoinCount()
+
+        // 1. One tap on the camera: the picture is a coin, with no more taps.
+        app.buttons["newPhoto"].tap()
+        XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15), "no Saved bar after the camera")
+        snap("q01-saved")
+        XCTAssertEqual(serverCoinCount(), start + 1, "the picture was not saved as a coin")
+        XCTAssertNotNil(serverCoins()?.first?["imagePath"] as? String, "the new coin has no picture")
+        // Add details: name it.
+        nameJustSaved("Dog food")
+        XCTAssertTrue(card("Dog food").waitForExistence(timeout: 15), "Add details did not rename the coin")
+        XCTAssertEqual(serverFirstTitle(), "Dog food")
+
+        // 2. A bad shot: Undo takes it away again, on the server too.
+        app.buttons["newPhoto"].tap()
+        let undo = app.buttons["undoSaved"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 15))
+        undo.tap()
+        sleep(3)
+        XCTAssertEqual(serverCoinCount(), start + 1, "Undo did not remove the new coin")
+        XCTAssertEqual(serverFirstTitle(), "Dog food")
+
+        // 3. One tap on the microphone, talk, Done: saved as said.
+        app.buttons["newVoice"].tap()
+        XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
+        app.buttons["stopRecording"].tap()
+        XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15), "no Saved bar after a voice note")
+        sleep(1)
+        XCTAssertEqual(serverCoins()?.first?["notes"] as? String, "Grain free salmon, the big blue bag")
+        app.buttons["undoSaved"].tap()
+        sleep(2)
+
+        // 4. New Coin: a voice note into the notes, then Save.
+        app.buttons["newCoin"].tap()
+        let dictate = app.buttons["dictate"]
+        XCTAssertTrue(reveal(dictate), "no voice note in New Coin")
+        dictate.tap()
+        XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
+        app.buttons["stopRecording"].tap()
+        let title = app.textFields["titleField"]
+        XCTAssertTrue(reveal(title))
+        title.tap()
+        title.typeText("Pet store")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Pet store").waitForExistence(timeout: 15))
+        XCTAssertEqual(serverCoins()?.first { $0["title"] as? String == "Pet store" }?["notes"] as? String,
+                       "Grain free salmon, the big blue bag", "the voice note did not go into the notes")
+        snap("q02-after")
     }
 
     /// Slow card moves to film and check frame by frame (TEST_RUNNER_DRAGFILM=1, seed_design.py).
@@ -918,12 +980,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
         pause(3)
         app.buttons["stopRecording"].tap()
-        let voiceTitle = app.textFields["voiceTitle"]
-        XCTAssertTrue(voiceTitle.waitForExistence(timeout: 5))
-        voiceTitle.tap()
-        voiceTitle.typeText("Dry cleaning")
-        pause(0.6)
-        app.buttons["Save"].tap()
+        pause(1.5)
+        nameJustSaved("Dry cleaning")
         XCTAssertTrue(card("Dry cleaning").waitForExistence(timeout: 15))
         pause(2)
 
@@ -1963,6 +2021,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Done"].tap()
         newCoin("Picture")
         sleep(1)
+        dump("a-new-coin")
         audit("New coin")
         cancelSheet()
         newCoin("Typed Note"); pinInEditor()
@@ -1987,9 +2046,9 @@ final class CoinPurseUITests: XCTestCase {
         sleep(1)
         audit("Voice note")
         app.buttons["stopRecording"].tap()
-        sleep(1)
-        audit("Voice note review")
-        cancelSheet()
+        // Saved at once: the purse with its Saved bar.
+        XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15))
+        audit("Purse")
         app.buttons["Account"].tap()
         sleep(1)
         audit("Account")
@@ -2019,7 +2078,7 @@ final class CoinPurseUITests: XCTestCase {
            element?.elementType == .staticText {
             return "white on the deep card colors, measured from the screenshot at 6.1 to 6.4 : 1 (the audit misreads text beside glass and stacked cards)"
         }
-        if ["Pin your spot", "New coin", "Voice note review", "Account"].contains(screen),
+        if ["Pin your spot", "New coin", "New note with a pin", "Voice note review", "Account"].contains(screen),
            issue.auditType == .dynamicType || issue.auditType == .contrast {
             return "system Form styling (section headers, footers, row buttons) drawn by iOS"
         }
@@ -2144,12 +2203,31 @@ final class CoinPurseUITests: XCTestCase {
     /// New Coin, then how to start it: "Picture", "Voice Note" or "Typed Note".
     @MainActor
     private func newCoin(_ kind: String) {
-        let button = app.buttons["newCoin"]
-        XCTAssertTrue(button.waitForExistence(timeout: 10), "no New Coin button")
-        button.tap()
-        let item = app.buttons[kind]
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "no \(kind) in the New Coin menu")
-        item.tap()
+        // The microphone starts a voice note; New Coin starts one from scratch
+        // (a picture, a typed note, a pin).
+        let button = app.buttons[kind == "Voice Note" ? "newVoice" : "newCoin"]
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "no button for \(kind)")
+        // Tapped while the last coin's sheet is still sliding away, iOS drops the
+        // tap: try again once the screen has settled.
+        for _ in 0..<3 {
+            button.tap()
+            if app.navigationBars.firstMatch.waitForExistence(timeout: 3) { return }
+        }
+    }
+
+    /// After a coin is made in one go (camera or voice): Add details, a title, Save.
+    @MainActor
+    private func nameJustSaved(_ title: String) {
+        let details = app.buttons["addDetails"]
+        XCTAssertTrue(details.waitForExistence(timeout: 15), "no Saved bar with Add details")
+        details.tap()
+        let field = app.textFields["titleField"]
+        XCTAssertTrue(reveal(field), "Add details did not open the editor")
+        // An automatic name (Coin 3) is only the hint: the box is empty, ready to type.
+        XCTAssertEqual(field.value as? String ?? "", field.placeholderValue ?? "", "the automatic name was in the way")
+        field.tap()
+        field.typeText(title)
+        app.buttons["Save"].tap()
     }
 
     /// In the coin editor: Pin where I am now.
@@ -2181,13 +2259,9 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     private func tapPaste() {
         let paste = app.buttons["Paste"].firstMatch
-        // On a small iPhone the keyboard pushes the picture row out of view: scroll back up.
-        for _ in 0..<3 where !paste.waitForExistence(timeout: 2) || !paste.isHittable {
-            app.navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
-                .withOffset(CGVector(dx: 0, dy: 60))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
-        }
-        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        // On a small iPhone the picture row can sit under the keyboard: scroll the
+        // form until it shows (down first, so a drag never pulls the sheet closed).
+        XCTAssertTrue(reveal(paste), "no Paste in the editor")
         paste.tap()
         // The first paste in a fresh simulator can still ask; allow it.
         let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow Paste"]

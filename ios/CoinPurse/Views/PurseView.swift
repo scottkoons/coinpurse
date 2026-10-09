@@ -30,6 +30,10 @@ struct PurseView: View {
     /// The archive: open, and (from a search) the coin to open in it.
     @State private var showArchive = false
     @State private var archiveStart: String?
+    /// The camera is open (from the camera button).
+    @State private var snapping = false
+    /// A picture from the camera that could not be saved at once: the editor opens with it.
+    @State private var snappedFallback: SnappedPicture?
     private let moveTip = MoveCardsTip()
     @State private var moveOffset: CGFloat = 0
     @State private var moveTarget: Int?
@@ -152,6 +156,16 @@ struct PurseView: View {
         .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
+        .fullScreenCover(isPresented: $snapping) {
+            CameraPicker { image in
+                snapping = false
+                Task { await saveSnapped(image) }
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(item: $snappedFallback) { snap in
+            EditorView(coinId: snap.existing ? snap.id : nil, startingPicture: snap.data)
+        }
         .sheet(isPresented: $showArchive, onDismiss: { archiveStart = nil }) { ArchiveView(startWith: archiveStart) }
         .task(id: model.purse.count) { MoveCardsTip.coinCount = model.purse.count }
         #if DEBUG
@@ -269,6 +283,7 @@ struct PurseView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
+                savedBar
                 undoBar
                 if !searching {
                     addBar
@@ -278,6 +293,7 @@ struct PurseView: View {
             .opacity(isOpen ? 0 : 1)
             .offset(y: isOpen ? 110 : 0)
             .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.undoable?.id)
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.justSaved?.id)
         }
         .onChange(of: model.undoable?.id) { _, id in
             if id != nil, let coin = model.undoable {
@@ -783,6 +799,9 @@ struct PurseView: View {
             } else {
                 Text("Coin Purse")
                     .font(.system(.title, design: .rounded).weight(.bold))
+                    // With four buttons on a small iPhone, it shrinks a little rather than crowd them.
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    .minimumScaleFactor(0.7)
                     .accessibilityAddTraits(.isHeader)
                     .layoutPriority(1)
                 if model.isOffline {
@@ -807,6 +826,12 @@ struct PurseView: View {
                 }
                 if model.purse.count >= 2 {
                     circleButton("arrow.up.arrow.down", label: "Rearrange") { showReorder = true }
+                }
+                // The archive, once anything is archived.
+                if !model.archive.isEmpty {
+                    circleButton("archivebox", label: "Archive") { showArchive = true }
+                        .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
+                        .accessibilityIdentifier("archive")
                 }
                 circleButton("person.fill", label: "Account") { showAccount = true }
             }
@@ -845,25 +870,22 @@ struct PurseView: View {
 
     // MARK: Add
 
-    /// One clear way to add a coin, where your thumb is: New Coin, then how
-    /// to start it (a picture, your voice, or typing).
+    /// Three ways to add a coin, where your thumb is: the microphone starts a
+    /// voice note at once, New Coin starts one from scratch (type, paste,
+    /// Photos, camera, voice, a pin), and the camera takes a picture at once.
     private var addBar: some View {
-        Group {
-            if model.archive.isEmpty {
-                newCoinMenu
-            } else {
-                // The archive, beside New Coin (which stays in the middle); at the
-                // largest text sizes, where the row does not fit, just above it.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 16) {
-                        archiveButton
-                        newCoinMenu
-                        Color.clear.frame(width: 54, height: 1)
-                    }
-                    VStack(spacing: 8) {
-                        newCoinMenu
-                        archiveButton
-                    }
+        // At the largest text sizes, where one row does not fit: New Coin on top.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 18) {
+                voiceButton
+                newCoinButton
+                cameraButton
+            }
+            VStack(spacing: 10) {
+                newCoinButton
+                HStack(spacing: 24) {
+                    voiceButton
+                    cameraButton
                 }
             }
         }
@@ -876,52 +898,130 @@ struct PurseView: View {
         }
     }
 
-    /// Opens the archive: coins put away until they are needed.
-    private var archiveButton: some View {
-        Button { showArchive = true } label: {
-            Image(systemName: "archivebox")
-                .font(.system(size: 19, weight: .semibold))
-                .frame(width: 54, height: 54)
-                .glassCircle()
+    /// A voice note: listening starts the moment it opens; Done saves it.
+    private var voiceButton: some View {
+        quickButton("mic.fill", label: "Voice Note", id: "newVoice", color: 5) { recordingVoice = true }
+    }
+
+    /// A picture: the camera opens at once and the picture is saved as a coin.
+    private var cameraButton: some View {
+        quickButton("camera.fill", label: "Take a Picture", id: "newPhoto", color: 1) { startCamera() }
+    }
+
+    /// In a card color (deep enough for a white symbol), as easy to spot as New Coin.
+    private func quickButton(_ icon: String, label: String, id: String, color: Int, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(
+                    LinearGradient(colors: [AccentPalette.cardColors(color).top, AccentPalette.cardColors(color).bottom],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: Circle()
+                )
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
-        .foregroundStyle(.primary)
-        .accessibilityLabel("Archive")
-        .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
-        .accessibilityIdentifier("archive")
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
     }
 
-    private var newCoinMenu: some View {
-        Menu {
-            Section("New Coin") {
-                Button { addingPicture = true } label: {
-                    Label("Picture", systemImage: "camera")
-                    Text("Paste, Photos or Camera")
-                }
-                Button { recordingVoice = true } label: {
-                    Label("Voice Note", systemImage: "mic")
-                    Text("Say it, saved as text")
-                }
-                Button { typingNote = true } label: {
-                    Label("Typed Note", systemImage: "square.and.pencil")
-                    Text("A code, a list, a reminder")
-                }
-            }
-        } label: {
+    /// A coin from scratch: type, paste, choose from Photos, take a picture,
+    /// say a voice note into it, or pin where you are.
+    private var newCoinButton: some View {
+        Button { typingNote = true } label: {
             Label("New Coin", systemImage: "plus")
                 .font(.headline)
                 .foregroundStyle(.white)
-                .padding(.horizontal, 26)
-                .frame(minHeight: 54)
+                .padding(.horizontal, 24)
+                .frame(minHeight: 56)
                 // The deep indigo of the cards: white text reads clearly in light and dark.
                 .background(AccentPalette.cardColors(0).top, in: Capsule())
                 .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
                 .contentShape(Capsule())
         }
-        .menuOrder(.fixed)
+        .buttonStyle(PressableStyle())
         .accessibilityIdentifier("newCoin")
-        .accessibilityHint("Choose a picture, a voice note or a typed note")
+        .accessibilityHint("Type, paste, add pictures, a voice note or a pin")
+    }
+
+    // MARK: Camera
+
+    private func startCamera() {
+        #if DEBUG
+        // UI tests (the simulator has no camera): a ready-made picture.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestCameraSample") {
+            Task { await saveSnapped(Self.sampleSnap()) }
+            return
+        }
+        #endif
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            snapping = true
+        } else {
+            // No camera (some iPads, the simulator): the coin editor, to pick one.
+            addingPicture = true
+        }
+    }
+
+    /// The picture becomes a coin straight away; if that cannot be saved (no
+    /// signal), the editor opens with it so it is not lost.
+    private func saveSnapped(_ image: UIImage?) async {
+        guard let image, let jpeg = await PictureLoader.prepare(image) else { return }
+        let id = UUID().uuidString.lowercased()
+        do {
+            try await model.quickSave(picture: jpeg, id: id)
+        } catch {
+            snappedFallback = SnappedPicture(id: id, data: jpeg, existing: model.coin(id) != nil)
+        }
+    }
+
+    #if DEBUG
+    private static func sampleSnap() -> UIImage {
+        UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { ctx in
+            UIColor.systemTeal.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+            ("Dog food" as NSString).draw(at: CGPoint(x: 60, y: 360), withAttributes: [
+                .font: UIFont.boldSystemFont(ofSize: 72), .foregroundColor: UIColor.white,
+            ])
+        }
+    }
+    #endif
+
+    /// Just after a coin was made in one go: Saved, with Add details and Undo.
+    @ViewBuilder private var savedBar: some View {
+        if let coin = model.justSaved {
+            HStack(spacing: 14) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+                Text("Saved “\(coin.title)”")
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Button("Add details") {
+                    model.dismissSaved()
+                    editing = CoinRef(id: coin.id)
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("addDetails")
+                Button("Undo") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.discardNew(coin.id) }
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("undoSaved")
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 2)
+            .background(.thinMaterial, in: Capsule())
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 
     // MARK: Empty
@@ -936,7 +1036,7 @@ struct PurseView: View {
                 .accessibilityHidden(true)
             Text("Your purse is empty")
                 .font(.system(.title2, design: .rounded).weight(.bold))
-            Text("Tap New Coin to add a picture of a ticket or a code, a voice note, or a typed note.")
+            Text("Tap the camera for a picture, the microphone for a voice note, or New Coin to type or paste one.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
@@ -1143,4 +1243,12 @@ private struct HoldRecognizer: UIGestureRecognizerRepresentable {
         default: break
         }
     }
+}
+
+/// A picture from the camera waiting in the editor because it could not be
+/// saved straight away (`existing`: the coin was made, the picture was not).
+struct SnappedPicture: Identifiable {
+    let id: String
+    let data: Data
+    let existing: Bool
 }

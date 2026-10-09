@@ -113,6 +113,7 @@ struct CoinDetailView: View {
                         if showsThumbnails { thumbnails }
                         if let notesBelow { notesPanel(notesBelow) }
                         actions
+                        archiveRow
                     }
                     .padding(.top, 16)
                     .padding(.bottom, 16)
@@ -173,22 +174,8 @@ struct CoinDetailView: View {
     // MARK: Pieces
 
     private var topBar: some View {
-        HStack(spacing: 10) {
+        HStack {
             Spacer()
-            // Hide with Face ID, one tap away: closed lock when it is hidden.
-            Button { model.setHidden(coin.id, !coin.hidden) } label: {
-                Image(systemName: coin.hidden ? "lock.fill" : "lock.open")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 40, height: 40)
-                    .glassCircle()
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(coin.hidden ? Color.accentColor : .primary)
-            .accessibilityLabel("Hide with Face ID")
-            .accessibilityValue(coin.hidden ? "On" : "Off")
-            .accessibilityAddTraits(coin.hidden ? .isSelected : [])
-            .accessibilityIdentifier("hideLock")
             Button(action: onClose) {
                 Text("Done")
                     .font(.headline)
@@ -371,14 +358,32 @@ struct CoinDetailView: View {
                 if coin.pin == nil { Task { await dropPin() } } else { confirmMovePin = true }
             }
             actionButton("Edit", "pencil") { editing = true }
-            if coin.archived {
-                actionButton("Unarchive", "tray.and.arrow.up", action: onArchive)
-            } else {
-                actionButton("Archive", "archivebox", action: onArchive)
+            // Hide with Face ID, one tap away (closed lock when it is hidden).
+            actionButton(coin.hidden ? "Unhide" : "Hide", coin.hidden ? "lock.fill" : "lock.open",
+                         tint: coin.hidden ? .accentColor : .primary) {
+                model.setHidden(coin.id, !coin.hidden)
             }
+            .accessibilityLabel("Hide with Face ID")
+            .accessibilityValue(coin.hidden ? "On" : "Off")
+            .accessibilityIdentifier("hideLock")
             actionButton("Delete", "trash", tint: .red) { confirmDelete = true }
         }
         .padding(.horizontal, typeSize.isAccessibilitySize ? 16 : 20)
+    }
+
+    /// Below the buttons: put the coin away in the archive, or back in the purse.
+    private var archiveRow: some View {
+        Button(action: onArchive) {
+            Label(coin.archived ? "Unarchive" : "Archive", systemImage: coin.archived ? "tray.and.arrow.up" : "archivebox")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .glassPanel()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
     }
 
     private func actionButton(_ title: String, _ icon: String, tint: Color = .primary, busy: Bool = false,

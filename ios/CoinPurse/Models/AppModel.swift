@@ -30,6 +30,10 @@ final class AppModel {
     private(set) var undoArchives = false
     private var undoIndex = 0
     private var undoTask: Task<Void, Never>?
+    /// A coin just made in one go (a picture from the camera button, or a voice
+    /// note): "Saved", with Add details and Undo, for a few seconds.
+    private(set) var justSaved: Coin?
+    private var justSavedTask: Task<Void, Never>?
     /// Hidden coins shown with Face ID since the app last came to the front.
     private(set) var revealed: Set<String> = []
 
@@ -319,6 +323,7 @@ final class AppModel {
     func deleteWithUndo(_ id: String) {
         // One Undo at a time: an earlier deleted coin is deleted now.
         finishEarlierUndo()
+        dismissSaved()
         guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
         let removed = coins.remove(at: index)
         changes += 1
@@ -333,6 +338,7 @@ final class AppModel {
     /// Puts a coin away in the archive, with an Undo bar for a few seconds.
     func archive(_ id: String) {
         finishEarlierUndo()
+        dismissSaved()
         guard let coin = coin(id), !coin.archived else { return }
         setArchived(id, true)
         undoable = coin
@@ -418,6 +424,46 @@ final class AppModel {
         guard let coin = undoable else { return nil }
         undoable = nil
         return (coin, undoIndex, undoArchives)
+    }
+
+    // MARK: Made in one go
+
+    /// A picture straight from the camera button becomes a coin at once (named
+    /// like Coin 3), with the Saved bar. Throws when it could not be saved (the
+    /// caller keeps the picture so nothing is lost).
+    func quickSave(picture jpeg: Data, id: String) async throws {
+        _ = try await saveCoinDetails(id: id, title: "", notes: "", accent: suggestedAccent())
+        try await uploadMainPicture(coinId: id, jpeg: jpeg)
+        announceSaved(id)
+    }
+
+    /// Shows the Saved bar for a coin just made in one go.
+    func announceSaved(_ id: String) {
+        // One bar at a time: an earlier deleted coin is deleted now.
+        finishEarlierUndo()
+        justSavedTask?.cancel()
+        justSaved = coin(id)
+        let mine = session
+        justSavedTask = Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, session == mine else { return }
+            justSaved = nil
+        }
+    }
+
+    func dismissSaved() {
+        justSavedTask?.cancel()
+        justSaved = nil
+    }
+
+    /// Undo on the Saved bar: the coin just made is gone again, right away.
+    func discardNew(_ id: String) {
+        dismissSaved()
+        guard let index = coins.firstIndex(where: { $0.id == id }) else { return }
+        let coin = coins.remove(at: index)
+        changes += 1
+        deleting.insert(id)
+        Task { await deleteOnServer(coin, putBackAt: index) }
     }
 
     // MARK: Hidden with Face ID
