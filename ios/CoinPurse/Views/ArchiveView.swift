@@ -93,6 +93,8 @@ struct ArchiveView: View {
         .onChange(of: model.revealed) { _, _ in
             if let id = path.last, let coin = model.coin(id), model.isVeiled(coin) { path.removeAll() }
         }
+        // Closed again, a hidden coin asks for Face ID the next time.
+        .onChange(of: path) { _, path in model.keepRevealed(only: path.last) }
         .task {
             if let startWith, let coin = model.coin(startWith) { open(coin) }
         }
@@ -124,7 +126,7 @@ struct ArchiveRow: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.body.weight(.semibold))
                     .lineLimit(2)
-                Text(veiled ? "\(Image(systemName: "faceid")) Hidden" : preview)
+                Text(veiled ? "\(Image(systemName: "faceid")) Face ID" : preview)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

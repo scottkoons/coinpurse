@@ -459,8 +459,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(serverFirstTitle(), "Coffee gift card", "an unarchived coin should come back on top")
         XCTAssertFalse(app.buttons["archive"].exists, "the Archive button stayed with nothing archived")
 
-        // 5. Hide with Face ID: covered in the purse, open after Face ID, covered
-        // again after leaving the app.
+        // 5. Hide with Face ID: the card looks as usual, but opening it asks for
+        // Face ID every time (closing it locks it again).
         // One tap on Face ID in the open coin's row.
         tapCard("Tailgate tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
@@ -468,30 +468,32 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(lock.waitForExistence(timeout: 3), "no Face ID button on the open coin")
         XCTAssertEqual(lock.value as? String, "Off")
         lock.tap()
-        XCTAssertEqual(lock.value as? String, "On", "the lock did not hide the coin")
+        XCTAssertEqual(lock.value as? String, "On", "Face ID did not hide the coin")
         snap("a04b-lock-on")
         XCTAssertTrue(openCoin.exists, "hiding the coin you are looking at should not close it")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         sleep(2)
         XCTAssertEqual(server("Tailgate tickets")?["hidden"] as? Bool, true, "the server did not keep it hidden")
-        // Just saved by the person looking at it: shown until the app is left.
-        XCUIDevice.shared.press(.home)
-        sleep(2)
-        app.activate()
-        XCTAssertTrue(card("Tailgate tickets").waitForExistence(timeout: 10))
-        sleep(1)
-        XCTAssertEqual(card("Tailgate tickets").value as? String, "Hidden", "a hidden coin was not covered after leaving the app")
+        // Closed: locked again at once, its title still showing.
+        XCTAssertEqual(card("Tailgate tickets").value as? String, "Hidden", "a closed hidden coin did not lock again")
         snap("a05-hidden")
         tapCard("Tailgate tickets")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "a hidden coin did not open after Face ID")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         sleep(1)
-        XCTAssertEqual(card("Tailgate tickets").value as? String, "", "after Face ID the coin should stay shown")
+        XCTAssertEqual(card("Tailgate tickets").value as? String, "Hidden", "after closing, the next open should ask again")
+        // Leaving the app keeps it locked too.
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.activate()
+        XCTAssertTrue(card("Tailgate tickets").waitForExistence(timeout: 10))
+        sleep(1)
+        XCTAssertEqual(card("Tailgate tickets").value as? String, "Hidden")
 
-        // The card at the bottom shows its window: hidden (this time with the
-        // editor's switch), the picture is blurred.
+        // Hidden with the editor's switch this time: the card at the bottom
+        // still shows its window as usual.
         // (At the largest text sizes the bottom card is not built until scrolled to.)
         guard card("Return label").waitForExistence(timeout: 3) else { return }
         tapCard("Return label")

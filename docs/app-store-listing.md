@@ -45,7 +45,7 @@ Made to be quick:
 • Flip through your coins like cards in Apple Wallet
 • Swipe a coin to the left to delete it, like Mail, with Undo if you change your mind
 • Archive coins you need once a year, like a gate code, and find them again with search
-• Hide any coin with Face ID in one tap: its notes and pictures stay blurred until you look
+• Hide any coin with Face ID in one tap: it stays in your purse, and opening it asks for your face every time
 • Share a single picture with anyone, or a pin as an Apple Maps link they can open without Coin Purse
 • Keep throwaway photos out of your photo library
 

@@ -32,6 +32,7 @@ struct PurseView: View {
     @State private var archiveStart: String?
     /// The camera is open (from the camera button).
     @State private var snapping = false
+    @State private var savingSnap: UIImage?
     /// A picture from the camera that could not be saved at once: the editor opens with it.
     @State private var snappedFallback: SnappedPicture?
     private let moveTip = MoveCardsTip()
@@ -125,6 +126,11 @@ struct PurseView: View {
         .onChange(of: model.revealed) { _, _ in
             if let id = openId, let coin = model.coin(id), model.isVeiled(coin) { openId = nil }
         }
+        // Closed again, a hidden coin asks for Face ID the next time.
+        .onChange(of: openId) { _, id in model.keepRevealed(only: id) }
+        // A snapped picture stays on screen while it saves; the coin is then
+        // open underneath, so the purse and a closed card never show.
+        .overlay { if let savingSnap { SavingSnap(image: savingSnap).transition(.opacity) } }
         .onChange(of: model.purse.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
             // Once the cards have slid into their new places, layer them again.
@@ -158,7 +164,11 @@ struct PurseView: View {
         .sheet(isPresented: $showReorder) { ReorderView() }
         .fullScreenCover(isPresented: $snapping) {
             CameraPicker { image in
-                snapping = false
+                // The picture takes over the screen at once (no slide back to the purse).
+                savingSnap = image
+                var now = Transaction()
+                now.disablesAnimations = true
+                withTransaction(now) { snapping = false }
                 Task { await saveSnapped(image) }
             }
             .ignoresSafeArea()
@@ -953,7 +963,9 @@ struct PurseView: View {
         #if DEBUG
         // UI tests (the simulator has no camera): a ready-made picture.
         if ProcessInfo.processInfo.arguments.contains("-uiTestCameraSample") {
-            Task { await saveSnapped(Self.sampleSnap()) }
+            let sample = Self.sampleSnap()
+            savingSnap = sample
+            Task { await saveSnapped(sample) }
             return
         }
         #endif
@@ -968,12 +980,19 @@ struct PurseView: View {
     /// The picture becomes a coin straight away; if that cannot be saved (no
     /// signal), the editor opens with it so it is not lost.
     private func saveSnapped(_ image: UIImage?) async {
+        defer { withAnimation(.easeOut(duration: 0.3)) { savingSnap = nil } }
         guard let image, let jpeg = await PictureLoader.prepare(image) else { return }
         let id = UUID().uuidString.lowercased()
         do {
             try await model.quickSave(picture: jpeg, id: id)
-            // Opened right away, to name it, add to it, or leave it as it is.
-            openCoin(id)
+            // Open at once, under the picture (no flight from the stack), to
+            // name it, add to it, or leave it as it is.
+            searchFocused = false
+            var now = Transaction()
+            now.disablesAnimations = true
+            withTransaction(now) { openId = id }
+            // A moment to lay out, then the picture lifts off the open coin.
+            try? await Task.sleep(for: .milliseconds(250))
         } catch {
             snappedFallback = SnappedPicture(id: id, data: jpeg, existing: model.coin(id) != nil)
         }
@@ -1253,4 +1272,31 @@ struct SnappedPicture: Identifiable {
     let id: String
     let data: Data
     let existing: Bool
+}
+
+/// The picture just taken, full screen, while it is saved as a coin.
+private struct SavingSnap: View {
+    let image: UIImage
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.ignoresSafeArea()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityHidden(true)
+            HStack(spacing: 10) {
+                ProgressView().tint(.white)
+                Text("Saving").font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(.bottom, 40)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Saving the picture")
+    }
 }

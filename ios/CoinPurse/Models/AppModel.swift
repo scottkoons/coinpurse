@@ -219,7 +219,7 @@ final class AppModel {
         } else {
             coin = try await api.updateCoin(id: id, title: title, notes: notes, accent: accent, hidden: hidden)
         }
-        // Just saved by someone looking at it: it stays shown until the app is left.
+        // Just saved by someone looking at it: it stays shown until it is closed.
         if hidden { revealed.insert(id) }
         upsert(coin)
         return coin
@@ -518,6 +518,13 @@ final class AppModel {
     /// Leaving the app covers every hidden coin again.
     func hideRevealed() { revealed = [] }
 
+    /// A hidden coin is shown only while it is open: closing it (or opening
+    /// another) means Face ID again next time.
+    func keepRevealed(only id: String?) {
+        let keep = revealed.filter { $0 == id }
+        if keep != revealed { revealed = keep }
+    }
+
     /// Hiding needs something to check with: Face ID, Touch ID or a passcode.
     var canHide: Bool {
         #if DEBUG
@@ -534,7 +541,7 @@ final class AppModel {
             show("Set a passcode on this iPhone to hide coins with Face ID")
             return
         }
-        // Whoever hid it is looking at it: it stays shown until they leave the app.
+        // Whoever hid it is looking at it: it stays shown until they close it.
         revealed.insert(id)
         coins[i].hidden = hidden
         changes += 1

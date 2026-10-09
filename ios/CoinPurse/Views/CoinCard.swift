@@ -25,7 +25,7 @@ struct CoinCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin, onDelete: onDelete, veiled: veiled)
-            CoinFace(coin: coin, veiled: veiled)
+            CoinFace(coin: coin)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -66,7 +66,7 @@ struct CoinCardHeader: View {
                     .lineLimit(isOpen ? (typeSize.isAccessibilitySize ? 2 : 3) : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
-                (veiled ? Text("\(Image(systemName: "faceid")) Hidden") : Text(subtitle))
+                Text(veiled ? lockedSubtitle : subtitle)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.white)
                     .lineLimit(isOpen ? nil : 1)
@@ -74,6 +74,13 @@ struct CoinCardHeader: View {
             }
             Spacer(minLength: 4)
             if !typeSize.isAccessibilitySize { contents }
+            // Beside the trash can: this coin asks for Face ID to open.
+            if coin.hidden {
+                Image(systemName: "faceid")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .accessibilityLabel("Needs Face ID")
+            }
             if let onDelete {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
@@ -126,6 +133,13 @@ struct CoinCardHeader: View {
         return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)
     }
 
+    /// Hidden and not opened yet: when it was pinned, else the date (never the note).
+    private var lockedSubtitle: String {
+        if let pin = coin.pin { return pin.pinnedLabel }
+        guard let ms = coin.updatedAt ?? coin.createdAt else { return "" }
+        return Date(timeIntervalSince1970: ms / 1000).formatted(date: .abbreviated, time: .omitted)
+    }
+
     /// "Pinned at 2:14 PM · 2 pictures", or the date for a plain note.
     private var details: String {
         var parts: [String] = []
@@ -145,7 +159,6 @@ struct PileCard: View {
     /// How much of the card shows above the next one: just its title.
     let stripe: CGFloat
     let height: CGFloat
-    var veiled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -156,7 +169,7 @@ struct PileCard: View {
                     .lineLimit(1)
                     .accessibilityIdentifier("pileTitle")
                 Spacer(minLength: 0)
-                if veiled {
+                if coin.hidden {
                     Image(systemName: "faceid")
                         .font(.caption.weight(.bold))
                         .accessibilityLabel("Hidden")
@@ -165,7 +178,7 @@ struct PileCard: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .frame(height: stripe)
-            CoinFace(coin: coin, veiled: veiled)
+            CoinFace(coin: coin)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -204,35 +217,11 @@ struct CoinEmblem: View {
 /// The window in a card: the map pin, else the first picture, else the note.
 struct CoinFace: View {
     let coin: Coin
-    /// Hidden with Face ID and not shown yet: blurred, so you can tell
-    /// something is there but not read it.
-    var veiled = false
 
     var body: some View {
         // Always exactly the room it is given (a tucked-in card gives it very
         // little), so what is inside can never push the card out of shape.
-        Color.clear.overlay(alignment: .top) {
-            if veiled {
-                face
-                    // Blurred enough that no word or code can be read, not so much that
-                    // you cannot tell a picture or a note is there.
-                    .blur(radius: 14, opaque: true)
-                    // A live map does not take the blur: it is frosted instead.
-                    .overlay { if coin.pictures.isEmpty && coin.pin != nil { Rectangle().fill(.regularMaterial) } }
-                    .overlay {
-                        Image(systemName: "faceid")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 46, height: 46)
-                            .background(.black.opacity(0.4), in: Circle())
-                            .padding(.top, 30)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                    }
-                    .accessibilityHidden(true)
-            } else {
-                face
-            }
-        }
+        Color.clear.overlay(alignment: .top) { face }
         .clipped()
     }
 

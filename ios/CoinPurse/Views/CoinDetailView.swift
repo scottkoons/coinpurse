@@ -438,7 +438,7 @@ struct CoinDetailView: View {
             ZStack(alignment: .top) {
                 ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
                     let lifted = peeking == c.id
-                    PileCard(coin: c, stripe: stripe, height: cardHeight, veiled: model.isVeiled(c))
+                    PileCard(coin: c, stripe: stripe, height: cardHeight)
                         // The same card as in the purse: it rises into place when chosen.
                         .matchedCard(id: c.id, in: namespace, enabled: !reduceMotion)
                         // Touch areas before the card moves into its place, so they move with it.
