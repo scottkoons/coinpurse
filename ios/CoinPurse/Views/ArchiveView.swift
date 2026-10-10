@@ -18,6 +18,11 @@ struct ArchiveView: View {
         return q.isEmpty ? model.archive : model.archive.filter { $0.matches(q) }
     }
 
+    /// A coin hidden with Face ID asks for Face ID before "Are you sure".
+    private func askToDelete(_ coin: Coin) {
+        Task { if await model.mayDelete(coin) { pendingDelete = coin } }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             List {
@@ -28,14 +33,14 @@ struct ArchiveView: View {
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("archivedCoin")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = coin }
+                        Button("Delete", systemImage: "trash", role: .destructive) { askToDelete(coin) }
                         Button("Unarchive", systemImage: "tray.and.arrow.up") {
                             withAnimation { model.unarchive(coin.id) }
                         }
                         .tint(.indigo)
                     }
                     .accessibilityAction(named: "Unarchive") { model.unarchive(coin.id) }
-                    .accessibilityAction(named: "Delete") { pendingDelete = coin }
+                    .accessibilityAction(named: "Delete") { askToDelete(coin) }
                 }
             }
             .overlay {

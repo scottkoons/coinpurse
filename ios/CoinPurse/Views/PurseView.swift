@@ -336,7 +336,7 @@ struct PurseView: View {
                         // so none of the rest of it peeks out beside the card after it.
                         CoinCardView(coin: coin, faceShowing: isLast,
                                      height: swipeId == coin.id && !isLast ? peek : nil,
-                                     veiled: model.isVeiled(coin)) { pendingDelete = coin }
+                                     veiled: model.isVeiled(coin)) { askToDelete(coin) }
                             // While it is lifted, the lifted copy above the stack is the card.
                             // While a coin is open, the cards under it at the bottom are these
                             // coins; the purse's own copies step aside until it closes.
@@ -423,7 +423,7 @@ struct PurseView: View {
             .accessibilityAction(named: "Archive") {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.archive(coin.id) }
             }
-            .accessibilityAction(named: "Delete") { pendingDelete = coin }
+            .accessibilityAction(named: "Delete") { askToDelete(coin) }
     }
 
     /// The last card shows whole.
@@ -438,7 +438,7 @@ struct PurseView: View {
         let last = (moveTarget ?? i) == visibleCoins.count - 1
         // Drawn exactly like the card in the stack (trash can included), so
         // nothing changes when one takes over from the other.
-        return CoinCardView(coin: coin, faceShowing: true, veiled: model.isVeiled(coin)) { pendingDelete = coin }
+        return CoinCardView(coin: coin, faceShowing: true, veiled: model.isVeiled(coin)) { askToDelete(coin) }
             .matchedCard(id: openReady ? coin.id : "lift-" + coin.id, in: cards, enabled: !reduceMotion)
             .frame(height: lastCardHeight)
             // Settling, only what shows in the stack stays drawn: its top, or
@@ -553,9 +553,22 @@ struct PurseView: View {
         }
     }
 
+    /// The trash can: a coin hidden with Face ID asks for Face ID before
+    /// "Are you sure".
+    private func askToDelete(_ coin: Coin) {
+        Task { if await model.mayDelete(coin) { pendingDelete = coin } }
+    }
+
+    /// Swiped away: a coin hidden with Face ID goes only after Face ID (else
+    /// it slides back).
+    private func swipeDelete(_ id: String) {
+        guard let coin = model.coin(id), model.isVeiled(coin) else { return slideAway(id) }
+        Task { if await model.mayDelete(coin) { slideAway(id) } else { closeSwipe() } }
+    }
+
     /// The card slides off to the left, the cards after it close the gap, and
     /// the Undo bar comes up.
-    private func swipeDelete(_ id: String) {
+    private func slideAway(_ id: String) {
         if !swipeArmed { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
         withAnimation(.easeIn(duration: 0.18)) { swipeX = -(stackWidth + 40) } completion: {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.deleteWithUndo(id) }

@@ -497,22 +497,28 @@ final class AppModel {
     /// Asks for Face ID (or the passcode) to show a hidden coin; true when it may show.
     func reveal(_ coin: Coin) async -> Bool {
         guard isVeiled(coin) else { return true }
+        let ok = await faceID(for: coin, to: "Show")
+        if ok { revealed.insert(coin.id) }
+        return ok
+    }
+
+    /// Deleting a hidden coin (not opened with Face ID just now) asks for Face ID
+    /// first; it stays hidden either way.
+    func mayDelete(_ coin: Coin) async -> Bool {
+        guard isVeiled(coin) else { return true }
+        return await faceID(for: coin, to: "Delete")
+    }
+
+    private func faceID(for coin: Coin, to action: String) async -> Bool {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") {
-            revealed.insert(coin.id)
-            return true
-        }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealNo") { return false }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") { return true }
         #endif
         let context = LAContext()
         // No passcode on this iPhone: there is nothing to check with.
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else {
-            revealed.insert(coin.id)
-            return true
-        }
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { return true }
         let title = coin.title.isEmpty ? "this coin" : "“\(coin.title)”"
-        let ok = (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Show \(title)")) ?? false
-        if ok { revealed.insert(coin.id) }
-        return ok
+        return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "\(action) \(title)")) ?? false
     }
 
     /// Leaving the app covers every hidden coin again.

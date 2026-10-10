@@ -495,6 +495,30 @@ final class CoinPurseUITests: XCTestCase {
         // Hidden with the editor's switch this time: the card at the bottom
         // still shows its window as usual.
         // (At the largest text sizes the bottom card is not built until scrolled to.)
+        // 6. Without Face ID, a hidden coin cannot be deleted: not with its trash
+        // can, not with a swipe. (Face ID says no for this launch.)
+        app.terminate()
+        app.launchArguments = ["-uiTestNoLock", "-uiTestRevealNo"]
+        app.launch()
+        XCTAssertTrue(showCard("Tailgate tickets").waitForExistence(timeout: 15))
+        sleep(2)
+        app.buttons["Delete Tailgate tickets"].firstMatch.tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "a hidden coin asked to delete without Face ID")
+        let hidden = showCard("Tailgate tickets").frame
+        let grab = origin.withOffset(CGVector(dx: hidden.maxX - 70, dy: hidden.midY))
+        grab.press(forDuration: 0.05, thenDragTo: grab.withOffset(CGVector(dx: -330, dy: 0)),
+                   withVelocity: XCUIGestureVelocity.fast, thenHoldForDuration: 0)
+        sleep(3)
+        XCTAssertTrue(card("Tailgate tickets").exists, "a swipe deleted a hidden coin without Face ID")
+        XCTAssertFalse(app.buttons["undoDelete"].exists)
+        XCTAssertNotNil(server("Tailgate tickets"), "the hidden coin was deleted on the server")
+        snap("a05b-delete-refused")
+        app.terminate()
+        app.launchArguments = ["-uiTestNoLock", "-uiTestRevealOK"]
+        app.launch()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+
         guard card("Return label").waitForExistence(timeout: 3) else { return }
         tapCard("Return label")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
