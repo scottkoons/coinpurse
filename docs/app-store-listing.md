@@ -37,7 +37,7 @@ Made to be quick:
 • Tap a coin's name to rename it
 • New Coin: type a code, a list or a reminder, or tap Add a voice note to say it instead
 • One-tap Paste, with no "Allow Paste" prompt
-• In New Coin, choose a photo, take one, or paste a screenshot
+• In New Coin, choose a photo, take one, paste a screenshot, or pick a picture or PDF from Files (each PDF page becomes a picture)
 • No typing needed: untitled coins are named Coin 1, Coin 2 and so on
 • Up to 6 pictures per coin; swipe between them
 • Tap web links, email addresses and phone numbers right in your notes

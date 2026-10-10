@@ -547,7 +547,7 @@ final class CoinPurseUITests: XCTestCase {
         guard ProcessInfo.processInfo.environment["QUICK2"] == "1" else { throw XCTSkip("Set QUICK2=1 to run") }
         app = XCUIApplication()
         // A ready-made "camera" picture and simulated speech (the simulator has neither).
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestCameraSample",
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestCameraSample", "-uiTestFileSample",
                                 "-uiTestVoiceText", "Grain free salmon, the big blue bag"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
         app.launch()
@@ -645,6 +645,27 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(serverCoins()?.first { $0["title"] as? String == "Pet store" }?["notes"] as? String,
                        "Grain free salmon, the big blue bag", "the voice note did not go into the notes")
         snap("q02-after")
+
+        // 5. New Coin, Files: a two-page PDF becomes two pictures.
+        newCoin("Typed Note")
+        let files = app.buttons["pickFile"]
+        XCTAssertTrue(reveal(files), "no Files button in New Coin")
+        files.tap()
+        XCTAssertTrue(app.buttons["Remove picture 2"].waitForExistence(timeout: 10), "the PDF did not become two pictures")
+        let pdfTitle = app.textFields["titleField"]
+        XCTAssertTrue(reveal(pdfTitle))
+        pdfTitle.tap()
+        pdfTitle.typeText("Concert tickets")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(card("Concert tickets").waitForExistence(timeout: 20))
+        sleep(2)
+        let pdfCoin = serverCoins()?.first { $0["title"] as? String == "Concert tickets" }
+        XCTAssertNotNil(pdfCoin?["imagePath"] as? String, "the first page is not the coin's picture")
+        XCTAssertEqual((pdfCoin?["attachments"] as? [Any])?.count, 1, "the second page is not a second picture")
+        tapCard("Concert tickets")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        sleep(2)
+        snap("q04-pdf")
     }
 
     /// A plain open and close, twice, to film and check frame by frame

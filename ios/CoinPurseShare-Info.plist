@@ -10,16 +10,9 @@
 		<string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
 		<key>NSExtensionAttributes</key>
 		<dict>
-			<!-- Up to six pictures (a coin's limit), or a link, or some text. -->
+			<!-- Pictures, a PDF (each page becomes a picture), a link or some text. -->
 			<key>NSExtensionActivationRule</key>
-			<dict>
-				<key>NSExtensionActivationSupportsImageWithMaxCount</key>
-				<integer>6</integer>
-				<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-				<integer>1</integer>
-				<key>NSExtensionActivationSupportsText</key>
-				<true/>
-			</dict>
+			<string>SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $file, ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text").@count &gt;= 1).@count &gt;= 1</string>
 		</dict>
 	</dict>
 	<!-- Lets debug builds reach a local test server; all real traffic is HTTPS. -->

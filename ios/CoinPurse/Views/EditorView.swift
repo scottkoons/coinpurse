@@ -184,7 +184,7 @@ struct EditorView: View {
         } header: {
             Text(startsWithPin ? "Photo of the spot (optional)" : startsWithText && !hasMain ? "Picture (optional)" : hasMain ? "Pictures (\(pictureCount) of \(Config.maxExtraPictures + 1))" : "Picture")
         } footer: {
-            Text("Copy a picture in any app and Paste lights up.  For everyday things, not credit cards, IDs or important passwords.")
+            Text("Copy a picture in any app and Paste lights up.  Files takes a picture or PDF from iCloud Drive or AirDrop.  For everyday things, not credit cards, IDs or important passwords.")
         }
     }
 
@@ -351,14 +351,14 @@ struct EditorView: View {
             }
 
             if pictureCount < Config.maxExtraPictures + 1 {
-                // A second Paste, Photos or Camera adds another picture; it never
-                // replaces the first one.
+                // A second Paste, Photos, Camera or Files adds another picture; it
+                // never replaces the first one.
                 if hasMain {
                     Text("Add another picture")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
-                PictureSourceButtons { data in stage(data, asMain: false) }
+                PictureSourceButtons(room: Config.maxExtraPictures + 1 - pictureCount) { data in stage(data, asMain: false) }
             } else {
                 Text("A coin holds up to \(Config.maxExtraPictures + 1) pictures.")
                     .font(.footnote)

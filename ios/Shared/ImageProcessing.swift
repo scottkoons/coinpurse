@@ -22,6 +22,41 @@ nonisolated enum ImageProcessing {
         }
     }
 
+    /// Each page of a PDF (up to `limit`), drawn on white at the same width as a
+    /// picture, as upload-ready JPEG: a ticket or boarding pass becomes pictures.
+    static func pdfPages(_ data: Data, limit: Int) -> [Data] {
+        guard limit > 0, let provider = CGDataProvider(data: data as CFData),
+              let document = CGPDFDocument(provider), document.numberOfPages > 0 else { return [] }
+        var pages: [Data] = []
+        for number in 1...document.numberOfPages where pages.count < limit {
+            guard let page = document.page(at: number) else { continue }
+            autoreleasepool {
+                // The page as it is meant to be read (turned if the PDF says so).
+                let box = page.getBoxRect(.cropBox)
+                let turned = page.rotationAngle % 180 != 0
+                let size = turned ? CGSize(width: box.height, height: box.width) : box.size
+                let scale = Config.maxImageWidth / max(size.width, 1)
+                let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = true
+                let image = UIGraphicsImageRenderer(size: target, format: format).image { context in
+                    UIColor.white.setFill()
+                    context.fill(CGRect(origin: .zero, size: target))
+                    let cg = context.cgContext
+                    // PDF pages draw from the bottom up.
+                    cg.translateBy(x: 0, y: target.height)
+                    cg.scaleBy(x: scale, y: -scale)
+                    cg.concatenate(page.getDrawingTransform(.cropBox, rect: CGRect(origin: .zero, size: size),
+                                                            rotate: 0, preserveAspectRatio: true))
+                    cg.drawPDFPage(page)
+                }
+                if let jpeg = image.jpegData(compressionQuality: Config.jpegQuality) { pages.append(jpeg) }
+            }
+        }
+        return pages
+    }
+
     /// Upright, at most 1200 px wide, JPEG: the same as the web app uploads.
     static func uploadData(from image: UIImage) -> Data? {
         let upright = normalized(image)

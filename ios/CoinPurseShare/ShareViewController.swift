@@ -23,14 +23,26 @@ final class ShareViewController: UIViewController {
     }
 }
 
-/// Reads the shared items: pictures become upload-ready JPEGs; a link or text
-/// becomes the note.
+/// Reads the shared items: pictures (and PDF pages) become upload-ready JPEGs;
+/// a link or text becomes the note.
 enum ShareLoader {
     static func input(from providers: [NSItemProvider]) async -> ShareInput {
         var input = ShareInput()
         var texts: [String] = []
         for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            let room = Config.maxExtraPictures + 1 - input.images.count
+            if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {
+                // A PDF (a ticket, a boarding pass): one picture per page, as many as fit.
+                guard room > 0, let data = await data(provider, type: .pdf) else { continue }
+                let pages = await Task.detached(priority: .userInitiated, operation: {
+                    ImageProcessing.pdfPages(data, limit: room)
+                }).value
+                for jpeg in pages {
+                    guard let preview = UIImage(data: jpeg) else { continue }
+                    input.images.append(jpeg)
+                    input.previews.append(preview)
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 guard input.images.count < Config.maxExtraPictures + 1,
                       let data = await data(provider, type: .image) else { continue }
                 // Shrunk off the main thread while reading, one picture at a time.

@@ -111,7 +111,7 @@ struct ViewerView: View {
         }
         .sheet(isPresented: $editing) { EditorView(coinId: coinId) }
         .sheet(isPresented: $adding) {
-            AddPictureSheet { data in
+            AddPictureSheet(room: Config.maxExtraPictures + 1 - pictures.count) { data in
                 adding = false
                 Task {
                     busy = true
@@ -120,7 +120,7 @@ struct ViewerView: View {
                     index = max(0, pictures.count - 1)
                 }
             }
-            .presentationDetents([.height(260)])
+            .presentationDetents([.height(300)])
         }
         .fullScreenCover(item: $cropping) { request in
             CropView(image: request.image) { result in

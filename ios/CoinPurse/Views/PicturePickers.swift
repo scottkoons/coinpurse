@@ -28,14 +28,17 @@ enum PictureLoader {
     }
 }
 
-/// Paste, Photo Library and Camera in one row. Paste uses Apple's
+/// Paste, Photo Library, Camera and Files in one row. Paste uses Apple's
 /// PasteButton, so there is no "Allow Paste" prompt.
 struct PictureSourceButtons: View {
+    /// How many more pictures fit (a PDF gives one per page, up to this).
+    var room = Config.maxExtraPictures + 1
     let onPicked: (Data) -> Void
 
     @Environment(AppModel.self) private var model
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var showFiles = false
     @State private var loading = false
 
     private static var hasCamera: Bool {
@@ -69,6 +72,22 @@ struct PictureSourceButtons: View {
                         .lineLimit(1)
                 }
             }
+            // A PDF or picture from Files: iCloud Drive (where a Mac can put it),
+            // or Downloads (where AirDrop leaves it).
+            Button {
+                #if DEBUG
+                // UI tests: a ready-made two-page PDF instead of the Files screen.
+                if ProcessInfo.processInfo.arguments.contains("-uiTestFileSample") {
+                    Task { await deliverFiles([Self.samplePDF()]) }
+                    return
+                }
+                #endif
+                showFiles = true
+            } label: {
+                Label("Files", systemImage: "folder")
+                    .lineLimit(1)
+            }
+            .accessibilityIdentifier("pickFile")
         }
         // Same compact pill shape as Paste, which iOS sizes itself.
         .labelStyle(.titleAndIcon)
@@ -79,7 +98,7 @@ struct PictureSourceButtons: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // All three on one line; with very large text they wrap to two.
+            // All four on one line; on a small iPhone or with large text they wrap.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 6) {
                     paste
@@ -113,6 +132,58 @@ struct PictureSourceButtons: View {
             }
             .ignoresSafeArea()
         }
+        .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image, .pdf], allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result else { return }
+            Task { await deliverFiles(urls) }
+        }
+    }
+
+    #if DEBUG
+    private static func samplePDF() -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Tickets.pdf")
+        let page = CGRect(x: 0, y: 0, width: 612, height: 792)
+        try? UIGraphicsPDFRenderer(bounds: page).writePDF(to: url) { context in
+            for n in 1...2 {
+                context.beginPage()
+                ("Ticket \(n)" as NSString).draw(at: CGPoint(x: 72, y: 340), withAttributes: [
+                    .font: UIFont.boldSystemFont(ofSize: 64), .foregroundColor: UIColor.black,
+                ])
+            }
+        }
+        return url
+    }
+    #endif
+
+    /// Pictures as they are; a PDF as one picture per page, as many as fit.
+    private func deliverFiles(_ urls: [URL]) async {
+        loading = true
+        defer { loading = false }
+        var added = 0
+        var leftOut = false
+        for url in urls {
+            guard added < room else { leftOut = true; break }
+            let limit = room - added
+            let pages: [Data] = await Task.detached(priority: .userInitiated) {
+                // Files from iCloud Drive or another app are lent only while read.
+                let lent = url.startAccessingSecurityScopedResource()
+                defer { if lent { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url) else { return [] }
+                if UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
+                    return ImageProcessing.pdfPages(data, limit: limit + 1)
+                }
+                return ImageProcessing.uploadData(fromFile: data).map { [$0] } ?? []
+            }.value
+            if pages.isEmpty {
+                model.show("Could not read \(url.lastPathComponent)")
+                continue
+            }
+            if pages.count > limit { leftOut = true }
+            for page in pages.prefix(limit) {
+                onPicked(page)
+                added += 1
+            }
+        }
+        if leftOut { model.show("A coin holds at most \(Config.maxExtraPictures + 1) pictures, so not every page was added") }
     }
 
     private func deliver(_ data: Data?) async {
@@ -126,16 +197,17 @@ struct PictureSourceButtons: View {
 
 /// Sheet used by the viewer's "+" button.
 struct AddPictureSheet: View {
+    var room = Config.maxExtraPictures + 1
     let onPicked: (Data) -> Void
 
     var body: some View {
         VStack(spacing: 16) {
             Text("Add picture").font(.headline)
-            Text("Copy a screenshot or image, then tap Paste. Or choose one from your photos.")
+            Text("Copy a screenshot or image, then tap Paste.  Or choose one from your photos, or a picture or PDF from Files.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            PictureSourceButtons(onPicked: onPicked)
+            PictureSourceButtons(room: room, onPicked: onPicked)
         }
         .padding(24)
     }

@@ -25,7 +25,7 @@ struct CoinCardView: View {
     var body: some View {
         VStack(spacing: 0) {
             CoinCardHeader(coin: coin, onDelete: onDelete, veiled: veiled)
-            CoinFace(coin: coin)
+            CoinFace(coin: coin, veiled: veiled)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -159,6 +159,7 @@ struct PileCard: View {
     /// How much of the card shows above the next one: just its title.
     let stripe: CGFloat
     let height: CGFloat
+    var veiled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -178,7 +179,7 @@ struct PileCard: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .frame(height: stripe)
-            CoinFace(coin: coin)
+            CoinFace(coin: coin, veiled: veiled)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -217,11 +218,26 @@ struct CoinEmblem: View {
 /// The window in a card: the map pin, else the first picture, else the note.
 struct CoinFace: View {
     let coin: Coin
+    /// Hidden with Face ID and not opened: the window is blurred, so you can
+    /// tell something is there but not read it (the card itself shows as usual).
+    var veiled = false
 
     var body: some View {
         // Always exactly the room it is given (a tucked-in card gives it very
         // little), so what is inside can never push the card out of shape.
-        Color.clear.overlay(alignment: .top) { face }
+        Color.clear.overlay(alignment: .top) {
+            if veiled {
+                face
+                    // Blurred enough that no word or code can be read, not so much that
+                    // you cannot tell a picture or a note is there.
+                    .blur(radius: 14, opaque: true)
+                    // A live map does not take the blur: it is frosted instead.
+                    .overlay { if coin.pictures.isEmpty && coin.pin != nil { Rectangle().fill(.regularMaterial) } }
+                    .accessibilityHidden(true)
+            } else {
+                face
+            }
+        }
         .clipped()
     }
 
