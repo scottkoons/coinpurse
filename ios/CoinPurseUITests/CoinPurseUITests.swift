@@ -519,6 +519,54 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
         sleep(1)
 
+        // 7. A hidden coin in the archive: Delete asks for Face ID, then "Are you
+        // sure", and the coin goes (this once stopped the app).
+        tapCard("Tailgate tickets")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["archiveCoin"].tap()
+        XCTAssertTrue(card("Tailgate tickets").waitForNonExistence(timeout: 5))
+        sleep(6)   // past the Undo moment
+        app.buttons["archive"].tap()
+        let hiddenRow = app.buttons.matching(identifier: "archivedCoin")
+            .matching(NSPredicate(format: "label CONTAINS 'Tailgate tickets'")).firstMatch
+        XCTAssertTrue(hiddenRow.waitForExistence(timeout: 5), "the hidden coin is not in the archive")
+        hiddenRow.swipeLeft()
+        let swipeDelete = app.buttons.matching(NSPredicate(format: "label == 'Delete'")).firstMatch
+        XCTAssertTrue(swipeDelete.waitForExistence(timeout: 3), "no Delete on the archived row")
+        swipeDelete.tap()
+        let sure = app.alerts.buttons["Delete"]
+        XCTAssertTrue(sure.waitForExistence(timeout: 5), "no Are you sure after Face ID")
+        sure.tap()
+        XCTAssertTrue(hiddenRow.waitForNonExistence(timeout: 5), "the archived hidden coin did not go")
+        XCTAssertEqual(app.state, .runningForeground, "the app stopped")
+        sleep(8)
+        XCTAssertNil(server("Tailgate tickets"), "the archived hidden coin was not deleted on the server")
+
+        // The other way: open the hidden coin in the archive (Face ID), then Delete.
+        app.navigationBars["Archive"].buttons["Done"].firstMatch.tap()
+        sleep(1)
+        tapCard("Garage code")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        app.buttons["hideLock"].tap()
+        app.buttons["archiveCoin"].tap()
+        XCTAssertTrue(card("Garage code").waitForNonExistence(timeout: 5))
+        sleep(6)
+        app.buttons["archive"].tap()
+        let garageRow = app.buttons.matching(identifier: "archivedCoin")
+            .matching(NSPredicate(format: "label CONTAINS 'Garage code'")).firstMatch
+        XCTAssertTrue(garageRow.waitForExistence(timeout: 5))
+        garageRow.tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 8), "the hidden archived coin did not open after Face ID")
+        sleep(1)
+        app.buttons["Delete"].firstMatch.tap()
+        app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(garageRow.waitForNonExistence(timeout: 5), "the opened hidden coin did not go")
+        XCTAssertEqual(app.state, .runningForeground, "the app stopped")
+        sleep(8)
+        XCTAssertNil(server("Garage code"), "the opened hidden coin was not deleted on the server")
+        app.navigationBars["Archive"].buttons["Done"].firstMatch.tap()
+        sleep(1)
+
         guard card("Return label").waitForExistence(timeout: 3) else { return }
         tapCard("Return label")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))

@@ -33,7 +33,11 @@ struct ArchiveView: View {
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("archivedCoin")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Delete", systemImage: "trash", role: .destructive) { askToDelete(coin) }
+                        // Red, but not .destructive: that makes the list drop the row at
+                        // once, before Face ID and "Are you sure" (the coin was still in
+                        // the list, and iOS stopped the app).
+                        Button("Delete", systemImage: "trash") { askToDelete(coin) }
+                            .tint(.red)
                         Button("Unarchive", systemImage: "tray.and.arrow.up") {
                             withAnimation { model.unarchive(coin.id) }
                         }

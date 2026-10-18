@@ -512,7 +512,13 @@ final class AppModel {
     private func faceID(for coin: Coin, to action: String) async -> Bool {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestRevealNo") { return false }
-        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") { return true }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestRevealOK") {
+            // As long as a real Face ID check takes, and, as on an iPhone, the
+            // app comes back from the Face ID screen and brings the purse up to date.
+            try? await Task.sleep(for: .seconds(1.5))
+            await refresh()
+            return true
+        }
         #endif
         let context = LAContext()
         // No passcode on this iPhone: there is nothing to check with.
