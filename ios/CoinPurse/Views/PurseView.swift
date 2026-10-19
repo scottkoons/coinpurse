@@ -974,7 +974,9 @@ struct PurseView: View {
             return
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestCameraSample") {
-            let sample = Self.sampleSnap()
+            // The website film snaps a real photo (a file named in the environment).
+            let sample = ProcessInfo.processInfo.environment["CAMERA_SAMPLE_IMAGE"]
+                .flatMap(UIImage.init(contentsOfFile:)) ?? Self.sampleSnap()
             savingSnap = sample
             Task { await saveShot(.photo(sample)) }
             return

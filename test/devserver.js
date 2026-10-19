@@ -17,7 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json' };
 
 // The sample purse, front first, and its pictures (in memory only).
 let coins = [];
@@ -104,6 +104,19 @@ http.createServer(async (req, res) => {
   const f = path.join(ROOT, path.normalize(p));
   if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end(); }
   res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
+  // Byte ranges, so a browser can jump around in the film as it does on Vercel.
+  const size = fs.statSync(f).size;
+  res.setHeader('Accept-Ranges', 'bytes');
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (range) {
+    const start = range[1] ? Number(range[1]) : size - Number(range[2]);
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    res.statusCode = 206;
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+    res.setHeader('Content-Length', end - start + 1);
+    return fs.createReadStream(f, { start, end }).pipe(res);
+  }
+  res.setHeader('Content-Length', size);
   fs.createReadStream(f).pipe(res);
 }).listen(Number(process.env.PORT) || 3000, () => {
   console.log(`Coin Purse test server on http://localhost:${Number(process.env.PORT) || 3000}`);

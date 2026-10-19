@@ -4,8 +4,23 @@
     {
       "name": "web-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5173"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5173"
+      ],
       "port": 5173
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "test/devserver.js"
+      ],
+      "env": {
+        "PORT": "3010"
+      },
+      "port": 3010
     }
   ]
 }

@@ -1128,9 +1128,11 @@ final class CoinPurseUITests: XCTestCase {
         func chapter(_ name: String) { print("CHAPTER \(name) \(Date().timeIntervalSince1970)") }
         func pause(_ s: Double) { Thread.sleep(forTimeInterval: s) }
         app = XCUIApplication()
-        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestLockNow", "-uiTestPin", "38.83395,-104.82135,0938",
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestLockNow", "-uiTestCameraSample",
+                                "-uiTestPin", "38.83395,-104.82135,0938",
                                 "-uiTestVoiceText", "Pick up the dry cleaning before 6 tonight"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launchEnvironment["CAMERA_SAMPLE_IMAGE"] = imgDir + "/gift-card-coffee.jpg"
         app.launch()
         openPurse()
         XCTAssertTrue(card("Tailgate tickets").waitForExistence(timeout: 15))
@@ -1140,21 +1142,24 @@ final class CoinPurseUITests: XCTestCase {
         chapter("purse")
         pause(2.5)
 
-        // Snap or paste: a return label, pasted with one tap.
+        // Snap it: one tap on the camera, and the gift card is a coin, open, ready to name.
         chapter("snap")
-        UIPasteboard.general.image = UIImage(contentsOfFile: imgDir + "/return-label.jpg")
-        newCoin("Picture")
-        pause(1.2)
-        tapPaste()
-        let title = app.textFields["titleField"]
-        reveal(title); title.tap()
-        title.typeText("Return label")
-        pause(0.8)
-        app.buttons["Save"].tap()
-        XCTAssertTrue(card("Return label").waitForExistence(timeout: 15))
-        pause(2.5)
+        app.buttons["newPhoto"].tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 15))
+        pause(2)
+        openCoin.staticTexts["coinTitle"].tap()
+        let nameField = app.alerts.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        pause(0.6)
+        nameField.typeText("Coffee gift card")
+        pause(0.6)
+        app.alerts.buttons["Save"].tap()
+        pause(2)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        pause(2)
 
-        // Say it.
+        // Say it: one tap on the microphone.
         chapter("say")
         newCoin("Voice Note")
         XCTAssertTrue(app.staticTexts["liveTranscript"].waitForExistence(timeout: 5))
@@ -1170,6 +1175,7 @@ final class CoinPurseUITests: XCTestCase {
         newCoin("Typed Note"); pinInEditor()
         XCTAssertTrue(reveal(app.buttons["Move Pin Here"]))
         pause(2)
+        let title = app.textFields["titleField"]
         reveal(title); title.tap()
         title.typeText("Parking spot")
         pause(0.6)
@@ -1285,18 +1291,37 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("DevSummit badge").waitForExistence(timeout: 15))
         pause(2.5)
 
+        // Hide it with Face ID: a gate code shows in the purse, but opens only after a glance.
+        chapter("hide")
+        tapCard("Garage code")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
+        pause(1.5)
+        app.buttons["hideLock"].tap()
+        pause(2)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        pause(2)
+        tapCard("Garage code")
+        // The film script answers the Face ID prompt with a match when it sees this.
+        print("FACEID_MATCH_NOW")
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 15))
+        pause(2.5)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+        pause(1.5)
+
         // Toss it: swipe it away, as in Mail.  Changed your mind?  Undo.
         chapter("toss")
-        let f = card("Garage code").frame
+        let f = card("Dry cleaning").frame
         let from = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.maxX - 70, dy: f.midY))
         from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: -120, dy: 0)), withVelocity: 300, thenHoldForDuration: 0.1)
         pause(1.2)
         let red = app.buttons["swipeDelete"].frame
         app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: red.maxX - 44, dy: red.minY + 31)).tap()
-        XCTAssertTrue(card("Garage code").waitForNonExistence(timeout: 10))
+        XCTAssertTrue(card("Dry cleaning").waitForNonExistence(timeout: 10))
         pause(2)
         app.buttons["undoDelete"].tap()
-        XCTAssertTrue(card("Garage code").waitForExistence(timeout: 5))
+        XCTAssertTrue(card("Dry cleaning").waitForExistence(timeout: 5))
         pause(2.5)
         chapter("end")
 
@@ -1336,7 +1361,6 @@ final class CoinPurseUITests: XCTestCase {
             pause(1.5)
             app.activate()
             pause(1.5)
-            // The film script answers the Face ID prompt with a match when it sees this.
             print("FACEID_MATCH_NOW")
             pause(4)
         }
