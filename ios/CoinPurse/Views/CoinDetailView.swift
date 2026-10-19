@@ -229,11 +229,13 @@ struct CoinDetailView: View {
             CachedImage(picture: picture, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black.opacity(0.22))
+                .overlay { if picture.isVideo { PlayBadge() } }
                 .contentShape(Rectangle())
                 .onTapGesture { fullScreen = FullScreenPicture(index: index) }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityLabel("Picture \(index + 1)")
-                .accessibilityHint("Shows it full screen")
+                .accessibilityValue(picture.isVideo ? "Video" : "")
+                .accessibilityHint(picture.isVideo ? "Plays it full screen" : "Shows it full screen")
         case .map(let pin):
             LivePinMap(pin: pin, name: coin.title, tint: coin.accentColor)
                 .contentShape(Rectangle())
@@ -267,8 +269,12 @@ struct CoinDetailView: View {
         switch p {
         case .map:
             hintChip(Label("Directions", systemImage: "figure.walk"))
-        case .picture:
-            hintChip(Label("Full size", systemImage: "arrow.up.left.and.arrow.down.right"))
+        case .picture(let picture, _):
+            if picture.isVideo {
+                hintChip(Label("Play", systemImage: "play.fill"))
+            } else {
+                hintChip(Label("Full size", systemImage: "arrow.up.left.and.arrow.down.right"))
+            }
         case .note:
             EmptyView()
         }
@@ -322,6 +328,7 @@ struct CoinDetailView: View {
         switch p {
         case .picture(let picture, _):
             CachedImage(picture: picture, contentMode: .fill)
+                .overlay { if picture.isVideo { PlayBadge(small: true) } }
         case .map(let pin):
             PinMapView(pin: pin, tint: coin.accentColor)
                 .allowsHitTesting(false)

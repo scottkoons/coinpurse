@@ -33,6 +33,8 @@ struct PurseView: View {
     /// The camera is open (from the camera button).
     @State private var snapping = false
     @State private var savingSnap: UIImage?
+    /// A video from the camera is being saved (its still shows once it is made).
+    @State private var savingVideo = false
     /// A picture from the camera that could not be saved at once: the editor opens with it.
     @State private var snappedFallback: SnappedPicture?
     private let moveTip = MoveCardsTip()
@@ -134,7 +136,7 @@ struct PurseView: View {
         .onChange(of: openId) { _, id in model.keepRevealed(only: id) }
         // A snapped picture stays on screen while it saves; the coin is then
         // open underneath, so the purse and a closed card never show.
-        .overlay { if let savingSnap { SavingSnap(image: savingSnap).transition(.opacity) } }
+        .overlay { if savingSnap != nil || savingVideo { SavingSnap(image: savingSnap).transition(.opacity) } }
         .onChange(of: model.purse.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
             // Once the cards have slid into their new places, layer them again.
@@ -167,18 +169,22 @@ struct PurseView: View {
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
         .fullScreenCover(isPresented: $snapping) {
-            CameraPicker { image in
-                // The picture takes over the screen at once (no slide back to the purse).
-                savingSnap = image
+            CameraPicker { shot in
+                // What was taken takes over the screen at once (no slide back to the purse).
+                switch shot {
+                case .photo(let image): savingSnap = image
+                case .video: savingVideo = true
+                case nil: break
+                }
                 var now = Transaction()
                 now.disablesAnimations = true
                 withTransaction(now) { snapping = false }
-                Task { await saveSnapped(image) }
+                Task { await saveShot(shot) }
             }
             .ignoresSafeArea()
         }
         .sheet(item: $snappedFallback) { snap in
-            EditorView(coinId: snap.existing ? snap.id : nil, startingPicture: snap.data)
+            EditorView(coinId: snap.existing ? snap.id : nil, startingPicture: snap.data, startingVideo: snap.video)
         }
         .sheet(isPresented: $showArchive, onDismiss: { archiveStart = nil }) { ArchiveView(startWith: archiveStart) }
         .task(id: model.purse.count) { MoveCardsTip.coinCount = model.purse.count }
@@ -968,10 +974,15 @@ struct PurseView: View {
     private func startCamera() {
         #if DEBUG
         // UI tests (the simulator has no camera): a ready-made picture.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestCameraVideo") {
+            savingVideo = true
+            Task { await saveShot(await VideoClip.sample().map(CameraShot.video)) }
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTestCameraSample") {
             let sample = Self.sampleSnap()
             savingSnap = sample
-            Task { await saveSnapped(sample) }
+            Task { await saveShot(.photo(sample)) }
             return
         }
         #endif
@@ -985,12 +996,31 @@ struct PurseView: View {
 
     /// The picture becomes a coin straight away; if that cannot be saved (no
     /// signal), the editor opens with it so it is not lost.
-    private func saveSnapped(_ image: UIImage?) async {
-        defer { withAnimation(.easeOut(duration: 0.3)) { savingSnap = nil } }
-        guard let image, let jpeg = await PictureLoader.prepare(image) else { return }
+    private func saveShot(_ shot: CameraShot?) async {
+        defer {
+            withAnimation(.easeOut(duration: 0.3)) {
+                savingSnap = nil
+                savingVideo = false
+            }
+        }
+        var video: URL?
+        let jpeg: Data?
+        switch shot {
+        case .photo(let image):
+            jpeg = await PictureLoader.prepare(image)
+        case .video(let url):
+            video = url
+            jpeg = await VideoClip.poster(for: url)
+            // Its still shows while it saves.
+            if let jpeg { savingSnap = UIImage(data: jpeg) }
+            if jpeg == nil { model.show("That video could not be read") }
+        case nil:
+            return
+        }
+        guard let jpeg else { return }
         let id = UUID().uuidString.lowercased()
         do {
-            try await model.quickSave(picture: jpeg, id: id)
+            try await model.quickSave(picture: jpeg, video: video, id: id)
             // Open at once, under the picture (no flight from the stack), to
             // name it, add to it, or leave it as it is.
             searchFocused = false
@@ -1000,7 +1030,7 @@ struct PurseView: View {
             // A moment to lay out, then the picture lifts off the open coin.
             try? await Task.sleep(for: .milliseconds(250))
         } catch {
-            snappedFallback = SnappedPicture(id: id, data: jpeg, existing: model.coin(id) != nil)
+            snappedFallback = SnappedPicture(id: id, data: jpeg, video: video, existing: model.coin(id) != nil)
         }
     }
 
@@ -1265,21 +1295,26 @@ private struct HoldRecognizer: UIGestureRecognizerRepresentable {
 struct SnappedPicture: Identifiable {
     let id: String
     let data: Data
+    /// A video from the camera (`data` is a still from it).
+    var video: URL?
     let existing: Bool
 }
 
 /// The picture just taken, full screen, while it is saved as a coin.
 private struct SavingSnap: View {
-    let image: UIImage
+    /// nil for a video whose still is still being made.
+    let image: UIImage?
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.black.ignoresSafeArea()
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityHidden(true)
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityHidden(true)
+            }
             HStack(spacing: 10) {
                 ProgressView().tint(.white)
                 Text("Saving").font(.subheadline.weight(.semibold))

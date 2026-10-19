@@ -216,14 +216,15 @@ final class AppModel {
         upsert(coin)
     }
 
-    func uploadMainPicture(coinId: String, jpeg: Data) async throws {
-        let coin = try await guarded(coinId) { try await self.store.uploadMainPicture(coinId: coinId, jpeg: jpeg) }
+    /// The first picture; with `video`, a video and `jpeg` a still from it.
+    func uploadMainPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws {
+        let coin = try await guarded(coinId) { try await self.store.uploadMainPicture(coinId: coinId, jpeg: jpeg, video: video) }
         cacheUpload(jpeg, key: coin.imagePath)
         upsert(coin)
     }
 
-    func uploadExtraPicture(coinId: String, jpeg: Data) async throws {
-        let coin = try await guarded(coinId) { try await self.store.addPicture(coinId: coinId, jpeg: jpeg) }
+    func uploadExtraPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws {
+        let coin = try await guarded(coinId) { try await self.store.addPicture(coinId: coinId, jpeg: jpeg, video: video) }
         cacheUpload(jpeg, key: coin.attachments.last?.imagePath)
         upsert(coin)
     }
@@ -251,10 +252,10 @@ final class AppModel {
         }
     }
 
-    func addPicture(to coinId: String, jpeg: Data) async {
+    func addPicture(to coinId: String, jpeg: Data, video: URL? = nil) async {
         let mine = session
         do {
-            try await uploadExtraPicture(coinId: coinId, jpeg: jpeg)
+            try await uploadExtraPicture(coinId: coinId, jpeg: jpeg, video: video)
         } catch {
             await handle(error, from: mine)
         }
@@ -407,12 +408,12 @@ final class AppModel {
 
     // MARK: Made in one go
 
-    /// A picture straight from the camera button becomes a coin at once (named
-    /// like Coin 3); the purse then opens it. Throws when it could not be saved
+    /// A picture (or video) straight from the camera button becomes a coin at
+    /// once (named like Coin 3); the purse then opens it. Throws when it could not be saved
     /// (the caller keeps the picture so nothing is lost).
-    func quickSave(picture jpeg: Data, id: String) async throws {
+    func quickSave(picture jpeg: Data, video: URL? = nil, id: String) async throws {
         _ = try await saveCoinDetails(id: id, title: "", notes: "", accent: suggestedAccent())
-        try await uploadMainPicture(coinId: id, jpeg: jpeg)
+        try await uploadMainPicture(coinId: id, jpeg: jpeg, video: video)
     }
 
     /// A new name from tapping the title. It shows at once and is saved; a
@@ -628,6 +629,9 @@ final class AppModel {
     }
 
     func url(for picture: Picture) -> URL? { store.url(for: picture) }
+
+    /// A video's file (nil for a plain picture).
+    func videoURL(for picture: Picture) -> URL? { store.videoURL(for: picture) }
 
     /// What a coin saved without a title will be called (the editor shows it).
     func nextDefaultTitle() -> String { LocalStore.nextDefaultTitle(after: coins) }

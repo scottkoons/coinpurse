@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// A picture chosen in the editor but not uploaded yet.
+/// A picture chosen in the editor but not saved yet (for a video, a still
+/// from it and the video's file).
 struct StagedPicture: Identifiable, Equatable {
     let id = UUID()
     var data: Data
     var image: UIImage
+    var video: URL?
 }
 
 /// Add or edit a coin: title, notes, color, map pin, main picture and extras.
@@ -19,8 +21,9 @@ struct EditorView: View {
     /// New Coin, Typed Note: the title and notes first, ready to type; a picture is optional.
     var startsWithText = false
     /// A picture to start with (from the camera button, when saving it straight
-    /// away did not work), so it is never lost.
+    /// away did not work), so it is never lost; with a video, a still from it.
     var startingPicture: Data?
+    var startingVideo: URL?
 
     @State private var draftId = UUID().uuidString.lowercased()
     @State private var title = ""
@@ -143,12 +146,12 @@ struct EditorView: View {
                 }
             }
             .sheet(isPresented: $addingExtra) {
-                AddPictureSheet { data in
+                AddPictureSheet { data, video in
                     addingExtra = false
-                    stage(data, asMain: replacingMain)
+                    stage(data, video: video, asMain: replacingMain)
                     replacingMain = false
                 }
-                .presentationDetents([.height(260)])
+                .presentationDetents([.height(300)])
             }
             .fullScreenCover(item: $cropping) { request in
                 CropView(image: request.picture.image) { result in
@@ -309,8 +312,10 @@ struct EditorView: View {
             Group {
                 if let stagedMain {
                     Image(uiImage: stagedMain.image).resizable().scaledToFit()
+                        .overlay { if stagedMain.video != nil { PlayBadge() } }
                 } else if let first = existing?.pictures.first, first.isPrimary {
                     CachedImage(picture: first)
+                        .overlay { if first.isVideo { PlayBadge() } }
                 } else {
                     VStack(spacing: 6) {
                         Image(systemName: "photo.badge.plus")
@@ -331,7 +336,8 @@ struct EditorView: View {
                 // Every picture in one row, right under the first, with + to add one.
                 extras
                 HStack(spacing: 18) {
-                    if let stagedMain {
+                    // A video is kept as it was recorded.
+                    if let stagedMain, stagedMain.video == nil {
                         Button {
                             cropping = StagedCrop(picture: stagedMain, isMain: true)
                         } label: {
@@ -358,7 +364,9 @@ struct EditorView: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
-                PictureSourceButtons(room: Config.maxExtraPictures + 1 - pictureCount) { data in stage(data, asMain: false) }
+                PictureSourceButtons(room: Config.maxExtraPictures + 1 - pictureCount) { data, video in
+                    stage(data, video: video, asMain: false)
+                }
             } else {
                 Text("A coin holds up to \(Config.maxExtraPictures + 1) pictures.")
                     .font(.footnote)
@@ -376,17 +384,21 @@ struct EditorView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(Array(existingExtras.enumerated()), id: \.element.id) { i, picture in
-                    thumb(number: i + 2) { CachedImage(picture: picture, contentMode: .fill) } onRemove: {
+                    thumb(number: i + 2) {
+                        CachedImage(picture: picture, contentMode: .fill)
+                            .overlay { if picture.isVideo { PlayBadge(small: true) } }
+                    } onRemove: {
                         withAnimation(.snappy) { _ = removedExtras.insert(picture.id) }
                     }
                 }
                 ForEach(Array(stagedExtras.enumerated()), id: \.element.id) { i, staged in
                     thumb(number: existingExtras.count + i + 2) {
                         Image(uiImage: staged.image).resizable().scaledToFill()
+                            .overlay { if staged.video != nil { PlayBadge(small: true) } }
                     } onRemove: {
                         stagedExtras.removeAll { $0.id == staged.id }
                     }
-                    .onTapGesture { cropping = StagedCrop(picture: staged, isMain: false) }
+                    .onTapGesture { if staged.video == nil { cropping = StagedCrop(picture: staged, isMain: false) } }
                 }
                 if extrasCount < Config.maxExtraPictures {
                     Button { addingExtra = true } label: {
@@ -456,12 +468,12 @@ struct EditorView: View {
             }
         }
         // A picture from the camera that could not be saved straight away.
-        if let startingPicture { stage(startingPicture, asMain: true) }
+        if let startingPicture { stage(startingPicture, video: startingVideo, asMain: true) }
     }
 
-    private func stage(_ data: Data, asMain: Bool) {
+    private func stage(_ data: Data, video: URL? = nil, asMain: Bool) {
         guard let image = UIImage(data: data) else { return }
-        let picture = StagedPicture(data: data, image: image)
+        let picture = StagedPicture(data: data, image: image, video: video)
         if asMain || !hasMain {
             stagedMain = picture
         } else if extrasCount < Config.maxExtraPictures {
@@ -495,11 +507,11 @@ struct EditorView: View {
                 removedExtras.remove(pictureId)
             }
             if let main = stagedMain {
-                try await model.uploadMainPicture(coinId: id, jpeg: main.data)
+                try await model.uploadMainPicture(coinId: id, jpeg: main.data, video: main.video)
                 stagedMain = nil
             }
             while let next = stagedExtras.first {
-                try await model.uploadExtraPicture(coinId: id, jpeg: next.data)
+                try await model.uploadExtraPicture(coinId: id, jpeg: next.data, video: next.video)
                 stagedExtras.removeFirst()
             }
             dismiss()

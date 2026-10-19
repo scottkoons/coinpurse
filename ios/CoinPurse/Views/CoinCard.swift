@@ -249,6 +249,8 @@ struct CoinFace: View {
                     .overlay(alignment: .top) {
                         CachedImage(picture: first, contentMode: .fill)
                     }
+                    // A video: a play button where the window shows it.
+                    .overlay(alignment: .top) { if first.isVideo { PlayBadge().padding(.top, 54) } }
                     .clipped()
                     .background(Color.black.opacity(0.2))
             } else if let pin = coin.pin {
@@ -318,4 +320,18 @@ struct CardSurface: ViewModifier {
 
 extension View {
     func cardSurface(_ accent: Int) -> some View { modifier(CardSurface(accent: accent)) }
+}
+
+/// On a picture that is a video: a play button.
+struct PlayBadge: View {
+    var small = false
+
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(small ? .caption.weight(.bold) : .title2.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: small ? 28 : 56, height: small ? 28 : 56)
+            .background(.black.opacity(0.5), in: Circle())
+            .accessibilityHidden(true)
+    }
 }

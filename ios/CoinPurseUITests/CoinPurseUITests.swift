@@ -712,6 +712,28 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
         sleep(2)
         snap("q04-pdf")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
+
+        // 6. The camera takes video too: it is a coin that plays full size.
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestNoLock", "-uiTestCameraVideo"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        openPurse()
+        app.buttons["newPhoto"].tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 20), "the video coin did not open")
+        sleep(1)
+        snap("q05-video-coin")
+        let videoPage = openCoin.buttons["Picture 1"].firstMatch
+        XCTAssertEqual(videoPage.value as? String, "Video", "the coin does not show it is a video")
+        XCTAssertNotNil(serverCoins()?.first?["videoPath"] as? String, "the video was not saved")
+        videoPage.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["videoPlayer"].waitForExistence(timeout: 10), "the video does not play full size")
+        sleep(2)
+        snap("q06-video-playing")
+        app.buttons["Back"].tap()
     }
 
     /// A plain open and close, twice, to film and check frame by frame

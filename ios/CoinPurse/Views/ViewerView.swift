@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 
 /// Full-screen coin: swipe between pictures, pinch to zoom, share one picture.
@@ -15,6 +16,7 @@ struct ViewerView: View {
     }
     @State private var images: [String: UIImage] = [:]
     @State private var share: ShareImage?
+    @State private var shareVideo: ShareItems?
     @State private var editing = false
     @State private var renaming = false
     @State private var adding = false
@@ -61,7 +63,9 @@ struct ViewerView: View {
                 TabView(selection: $index) {
                     ForEach(Array(pictures.enumerated()), id: \.element.key) { i, picture in
                         Group {
-                            if let img = images[picture.key] {
+                            if picture.isVideo, let url = model.videoURL(for: picture) {
+                                VideoPage(url: url, showing: i == index)
+                            } else if let img = images[picture.key] {
                                 ZoomableImage(image: img) { dismiss() }
                             } else if failed.contains(picture.key) {
                                 VStack(spacing: 12) {
@@ -109,13 +113,16 @@ struct ViewerView: View {
         .sheet(item: $share) { item in
             ShareSheet(image: item.image).presentationDetents([.medium, .large])
         }
+        .sheet(item: $shareVideo) { item in
+            ActivitySheet(items: item.items).presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $editing) { EditorView(coinId: coinId) }
         .sheet(isPresented: $adding) {
-            AddPictureSheet(room: Config.maxExtraPictures + 1 - pictures.count) { data in
+            AddPictureSheet(room: Config.maxExtraPictures + 1 - pictures.count) { data, video in
                 adding = false
                 Task {
                     busy = true
-                    await model.addPicture(to: coinId, jpeg: data)
+                    await model.addPicture(to: coinId, jpeg: data, video: video)
                     busy = false
                     index = max(0, pictures.count - 1)
                 }
@@ -207,8 +214,10 @@ struct ViewerView: View {
             HStack(spacing: 0) {
                 barButton("Share", "square.and.arrow.up") { Task { await shareCurrent() } }
                     .disabled(current == nil)
+                // A video is kept as it was recorded.
                 barButton("Crop", "crop.rotate") { Task { await cropCurrent() } }
-                    .disabled(current == nil)
+                    .disabled(current == nil || current?.isVideo == true)
+                    .opacity(current?.isVideo == true ? 0.35 : 1)
                 barButton("Remove", "minus.circle") { confirmRemovePicture = true }
                     .disabled(current?.isPrimary ?? true)
                     .opacity(current?.isPrimary ?? true ? 0.35 : 1)
@@ -226,6 +235,7 @@ struct ViewerView: View {
             HStack(spacing: 8) {
                 ForEach(Array(pictures.enumerated()), id: \.element.key) { i, picture in
                     CachedImage(picture: picture, contentMode: .fill)
+                        .overlay { if picture.isVideo { PlayBadge(small: true).scaleEffect(0.8) } }
                         .frame(width: 44, height: 44)
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         .overlay(
@@ -275,7 +285,7 @@ struct ViewerView: View {
     }
 
     private func updateBrightness() async {
-        guard let current, let image = images[current.key] else { brightness.restore(); return }
+        guard let current, !current.isVideo, let image = images[current.key] else { brightness.restore(); return }
         let found: Bool
         if let known = hasCode[current.key] {
             found = known
@@ -305,7 +315,12 @@ struct ViewerView: View {
     }
 
     private func shareCurrent() async {
-        if let img = await currentImage() { share = ShareImage(image: img) }
+        // A video goes as the video itself, not its still.
+        if let current, current.isVideo, let url = model.videoURL(for: current) {
+            shareVideo = ShareItems(items: [url])
+        } else if let img = await currentImage() {
+            share = ShareImage(image: img)
+        }
     }
 
     private func cropCurrent() async {
@@ -328,4 +343,24 @@ struct CropRequest: Identifiable {
     let id = UUID()
     let picture: Picture
     let image: UIImage
+}
+
+/// A video, full screen: it plays while it is the one showing.
+private struct VideoPage: View {
+    let url: URL
+    let showing: Bool
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                if player == nil { player = AVPlayer(url: url) }
+                if showing { player?.play() }
+            }
+            .onChange(of: showing) { _, now in
+                if now { player?.play() } else { player?.pause() }
+            }
+            .onDisappear { player?.pause() }
+            .accessibilityIdentifier("videoPlayer")
+    }
 }

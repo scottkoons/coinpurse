@@ -4,6 +4,8 @@ nonisolated struct Attachment: Codable, Hashable, Identifiable {
     let id: String
     var imageUrl: String?
     var imagePath: String?
+    /// A video: its file (the picture is a still from it, shown with a play button).
+    var videoPath: String?
 }
 
 nonisolated struct Coin: Codable, Hashable, Identifiable {
@@ -13,6 +15,8 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     var accent: Int
     var imageUrl: String?
     var imagePath: String?
+    /// When the first picture is a video: its file (the picture is a still from it).
+    var videoPath: String?
     var attachments: [Attachment]
     /// Where you were when you tapped Add Pin (nil when the coin has no pin).
     var pin: Pin?
@@ -25,7 +29,7 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     var hidden = false
 
     enum CodingKeys: String, CodingKey {
-        case id, title, notes, accent, imageUrl, imagePath, attachments, pin, sortOrder, createdAt, updatedAt, archived, hidden
+        case id, title, notes, accent, imageUrl, imagePath, videoPath, attachments, pin, sortOrder, createdAt, updatedAt, archived, hidden
     }
 
     /// A new coin made on this iPhone.
@@ -49,6 +53,7 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
         accent = (try? c.decode(Int.self, forKey: .accent)) ?? 0
         imageUrl = try? c.decode(String.self, forKey: .imageUrl)
         imagePath = try? c.decode(String.self, forKey: .imagePath)
+        videoPath = try? c.decode(String.self, forKey: .videoPath)
         attachments = (try? c.decode([Attachment].self, forKey: .attachments)) ?? []
         pin = try? c.decode(Pin.self, forKey: .pin)
         sortOrder = try? c.decode(Double.self, forKey: .sortOrder)
@@ -61,9 +66,13 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     /// Main picture first, then the extras, as the viewer shows them.
     var pictures: [Picture] {
         var list: [Picture] = []
-        if let url = imageUrl { list.append(Picture(id: "primary", url: url, key: imagePath ?? url, attachmentId: nil)) }
+        if let url = imageUrl {
+            list.append(Picture(id: "primary", url: url, key: imagePath ?? url, attachmentId: nil, video: videoPath))
+        }
         for a in attachments {
-            if let url = a.imageUrl { list.append(Picture(id: a.id, url: url, key: a.imagePath ?? url, attachmentId: a.id)) }
+            if let url = a.imageUrl {
+                list.append(Picture(id: a.id, url: url, key: a.imagePath ?? url, attachmentId: a.id, video: a.videoPath))
+            }
         }
         return list
     }
@@ -97,14 +106,16 @@ nonisolated struct Pin: Codable, Hashable {
     }
 }
 
-/// One picture on a coin. `key` is stable across signed-link refreshes, so it
-/// is what the image cache uses.
+/// One picture on a coin. `key` is its file, so it is what the image cache uses.
+/// A video is a picture too: a still from it, with `video` its file.
 nonisolated struct Picture: Hashable, Identifiable {
     let id: String
     let url: String
     let key: String
     let attachmentId: String?
+    var video: String?
     var isPrimary: Bool { attachmentId == nil }
+    var isVideo: Bool { video != nil }
 }
 
 /// The same six accent colors as the web app.

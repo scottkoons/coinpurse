@@ -33,7 +33,9 @@ enum PictureLoader {
 struct PictureSourceButtons: View {
     /// How many more pictures fit (a PDF gives one per page, up to this).
     var room = Config.maxExtraPictures + 1
-    let onPicked: (Data) -> Void
+    /// A picture as upload-ready JPEG; for a video from the camera, a still
+    /// from it and the video's file.
+    let onPicked: (Data, URL?) -> Void
 
     @Environment(AppModel.self) private var model
     @State private var photoItem: PhotosPickerItem?
@@ -125,10 +127,22 @@ struct PictureSourceButtons: View {
             Task { await deliver(await PictureLoader.data(from: item)) }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker { image in
+            CameraPicker { shot in
                 showCamera = false
-                guard let image else { return }
-                Task { await deliver(await PictureLoader.prepare(image)) }
+                switch shot {
+                case .photo(let image):
+                    Task { await deliver(await PictureLoader.prepare(image)) }
+                case .video(let url):
+                    Task {
+                        guard let still = await VideoClip.poster(for: url) else {
+                            model.show("That video could not be read")
+                            return
+                        }
+                        onPicked(still, url)
+                    }
+                case nil:
+                    break
+                }
             }
             .ignoresSafeArea()
         }
@@ -179,7 +193,7 @@ struct PictureSourceButtons: View {
             }
             if pages.count > limit { leftOut = true }
             for page in pages.prefix(limit) {
-                onPicked(page)
+                onPicked(page, nil)
                 added += 1
             }
         }
@@ -191,14 +205,14 @@ struct PictureSourceButtons: View {
             model.show("That is not a picture. Copy a screenshot or image first.")
             return
         }
-        onPicked(data)
+        onPicked(data, nil)
     }
 }
 
 /// Sheet used by the viewer's "+" button.
 struct AddPictureSheet: View {
     var room = Config.maxExtraPictures + 1
-    let onPicked: (Data) -> Void
+    let onPicked: (Data, URL?) -> Void
 
     var body: some View {
         VStack(spacing: 16) {
@@ -213,12 +227,24 @@ struct AddPictureSheet: View {
     }
 }
 
+/// What the camera took: a photo, or a video (its file, ours to keep).
+enum CameraShot {
+    case photo(UIImage)
+    case video(URL)
+}
+
+/// The iPhone camera, with Photo and Video, as in the Camera app.
 struct CameraPicker: UIViewControllerRepresentable {
-    let onDone: (UIImage?) -> Void
+    let onDone: (CameraShot?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
+        let offered = UIImagePickerController.availableMediaTypes(for: .camera) ?? []
+        picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier].filter(offered.contains)
+        picker.videoQuality = .typeHigh
+        // Long enough for a quick look around, short enough to keep the phone's storage free.
+        picker.videoMaximumDuration = 120
         picker.delegate = context.coordinator
         return picker
     }
@@ -228,11 +254,15 @@ struct CameraPicker: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onDone: onDone) }
 
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onDone: (UIImage?) -> Void
-        init(onDone: @escaping (UIImage?) -> Void) { self.onDone = onDone }
+        let onDone: (CameraShot?) -> Void
+        init(onDone: @escaping (CameraShot?) -> Void) { self.onDone = onDone }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            onDone(info[.originalImage] as? UIImage)
+            if let movie = info[.mediaURL] as? URL {
+                onDone(VideoClip.keepCopy(of: movie).map(CameraShot.video))
+            } else {
+                onDone((info[.originalImage] as? UIImage).map(CameraShot.photo))
+            }
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {

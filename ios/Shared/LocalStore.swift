@@ -69,7 +69,10 @@ nonisolated struct LocalStore: Sendable {
             guard let i = coins.firstIndex(where: { $0.id == id }) else { return nil }
             return coins.remove(at: i)
         }
-        removed?.pictures.forEach { Self.removeFile($0.key) }
+        removed?.pictures.forEach { picture in
+            Self.removeFile(picture.key)
+            if let video = picture.video { Self.removeFile(video) }
+        }
     }
 
     /// The coins in this order; any not listed keep their order after them.
@@ -84,35 +87,45 @@ nonisolated struct LocalStore: Sendable {
 
     // MARK: Pictures
 
-    /// The coin's first picture (the one on its card), new or in place of the old one.
-    func uploadMainPicture(coinId: String, jpeg: Data) async throws -> Coin {
+    /// The coin's first picture (the one on its card), new or in place of the
+    /// old one. With `video`, it is a video and `jpeg` a still from it.
+    func uploadMainPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws -> Coin {
         let path = try Self.savePicture(jpeg)
-        var old: String?
+        let videoPath: String?
+        do { videoPath = try video.map(Self.saveVideo) } catch { Self.removeFile(path); throw error }
+        var old: [String?] = []
         do {
             let coin = try Self.edit(coinId) { coin in
-                old = coin.imagePath
+                old = [coin.imagePath, coin.videoPath]
                 coin.imageUrl = path
                 coin.imagePath = path
+                coin.videoPath = videoPath
             }
-            if let old { Self.removeFile(old) }
+            old.compactMap { $0 }.forEach(Self.removeFile)
             return coin
         } catch {
             Self.removeFile(path)
+            if let videoPath { Self.removeFile(videoPath) }
             throw error
         }
     }
 
-    func addPicture(coinId: String, jpeg: Data) async throws -> Coin {
+    /// Another picture (or, with `video`, a video and a still from it).
+    func addPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws -> Coin {
         let path = try Self.savePicture(jpeg)
+        let videoPath: String?
+        do { videoPath = try video.map(Self.saveVideo) } catch { Self.removeFile(path); throw error }
         do {
             return try Self.edit(coinId) { coin in
                 guard coin.pictures.count < Config.maxExtraPictures + 1 else {
                     throw APIError.server("A coin holds at most \(Config.maxExtraPictures + 1) pictures")
                 }
-                coin.attachments.append(Attachment(id: UUID().uuidString.lowercased(), imageUrl: path, imagePath: path))
+                coin.attachments.append(Attachment(id: UUID().uuidString.lowercased(), imageUrl: path, imagePath: path,
+                                                   videoPath: videoPath))
             }
         } catch {
             Self.removeFile(path)
+            if let videoPath { Self.removeFile(videoPath) }
             throw error
         }
     }
@@ -136,18 +149,23 @@ nonisolated struct LocalStore: Sendable {
     }
 
     func deletePicture(coinId: String, attachmentId: String) async throws -> Coin {
-        var old: String?
+        var old: Attachment?
         let coin = try Self.edit(coinId) { coin in
             guard let i = coin.attachments.firstIndex(where: { $0.id == attachmentId }) else { throw APIError.pictureGone }
-            old = coin.attachments.remove(at: i).imagePath
+            old = coin.attachments.remove(at: i)
         }
-        if let old { Self.removeFile(old) }
+        [old?.imagePath, old?.videoPath].compactMap { $0 }.forEach(Self.removeFile)
         return coin
     }
 
     /// Where a picture's file is.
     func url(for picture: Picture) -> URL? {
         Self.folder.appendingPathComponent(picture.key)
+    }
+
+    /// Where a video's file is (nil for a plain picture).
+    func videoURL(for picture: Picture) -> URL? {
+        picture.video.map { Self.folder.appendingPathComponent($0) }
     }
 
     // MARK: Moving in
@@ -255,6 +273,21 @@ nonisolated struct LocalStore: Sendable {
                            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch {
             throw APIError.server("Could not save the picture on this iPhone. Is its storage full?")
+        }
+        return path
+    }
+
+    /// Moves a recorded video into the purse; where it is now.
+    private static func saveVideo(_ source: URL) throws -> String {
+        let ext = source.pathExtension.isEmpty ? "mov" : source.pathExtension.lowercased()
+        let path = "Pictures/\(UUID().uuidString.lowercased()).\(ext)"
+        let target = folder.appendingPathComponent(path)
+        do {
+            try FileManager.default.moveItem(at: source, to: target)
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                                                   ofItemAtPath: target.path)
+        } catch {
+            throw APIError.server("Could not save the video on this iPhone. Is its storage full?")
         }
         return path
     }
