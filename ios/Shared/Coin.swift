@@ -94,7 +94,7 @@ nonisolated struct Pin: Codable, Hashable {
     var lat: Double
     var lng: Double
     var acc: Double?
-    /// When it was dropped, in milliseconds since 1970 (like the server).
+    /// When it was dropped, in milliseconds since 1970.
     var at: Double
 
     var date: Date { Date(timeIntervalSince1970: at / 1000) }
@@ -118,7 +118,7 @@ nonisolated struct Picture: Hashable, Identifiable {
     var isVideo: Bool { video != nil }
 }
 
-/// The same six accent colors as the web app.
+/// The six accent colors.
 nonisolated enum AccentPalette {
     static let hex: [UInt32] = [0x6366F1, 0x06B6D4, 0x22C55E, 0xEAB308, 0xF97316, 0xEC4899]
     /// What VoiceOver calls each color.

@@ -32,8 +32,8 @@ struct AccountView: View {
                     }
                 }
                 Section {
-                    Link("Privacy Policy", destination: Config.baseURL.appendingPathComponent("privacy"))
-                    Link("Support", destination: Config.baseURL.appendingPathComponent("support"))
+                    Link("Privacy Policy", destination: Config.website.appendingPathComponent("privacy"))
+                    Link("Support", destination: Config.website.appendingPathComponent("support"))
                 } footer: {
                     Text("Your coins and pictures are kept only on this iPhone, and work with no internet.  They are included in your iPhone's iCloud Backup.\n\nCoin Purse \(Self.version) by Yetignome")
                 }

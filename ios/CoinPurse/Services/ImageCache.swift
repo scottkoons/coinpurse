@@ -1,30 +1,16 @@
 import UIKit
 
-/// Keeps pictures in memory, keyed by the picture's path (which changes
-/// whenever the picture changes), so a card drawn again shows at once.
-/// Pictures are files on this iPhone; anything from a web address (only
-/// while moving coins off the old server) is also kept on disk.
+/// Keeps pictures in memory once read from their files on this iPhone, keyed
+/// by the file's path (a changed picture is a new file), so a card drawn again
+/// shows its picture at once.
 actor ImageCache {
     static let shared = ImageCache()
 
-    /// NSCache is safe to use from any thread.
+    /// NSCache is safe to use from any thread, and iOS empties it when memory runs low.
     nonisolated(unsafe) private let memory = NSCache<NSString, UIImage>()
-    private let folder: URL
-    private var inFlight: [String: Task<UIImage?, Never>] = [:]
-    /// Bumped by removeAll (sign out), so a download that was already on its
-    /// way cannot put a picture back afterwards.
-    private var generation = 0
 
     init() {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        folder = caches.appendingPathComponent("pictures", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         memory.countLimit = 120
-    }
-
-    private func file(for key: String) -> URL {
-        let safe = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? String(key.hashValue)
-        return folder.appendingPathComponent(String(safe.suffix(200)))
     }
 
     /// A picture already in memory, right away (no waiting), so a card that is
@@ -33,54 +19,12 @@ actor ImageCache {
         memory.object(forKey: key as NSString)
     }
 
-    func cached(_ key: String) -> UIImage? {
+    /// Reads it from its file (off the main thread, as this is an actor).
+    func image(key: String, url: URL) -> UIImage? {
         if let img = memory.object(forKey: key as NSString) { return img }
-        if let data = try? Data(contentsOf: file(for: key)), let img = UIImage(data: data) {
-            memory.setObject(img, forKey: key as NSString)
-            return img
-        }
-        return nil
-    }
-
-    /// Raw bytes for sharing or editing.
-    func data(key: String, url: URL) async -> Data? {
-        if url.isFileURL { return try? Data(contentsOf: url) }
-        if let data = try? Data(contentsOf: file(for: key)) { return data }
-        _ = await image(key: key, url: url)
-        return try? Data(contentsOf: file(for: key))
-    }
-
-    func image(key: String, url: URL) async -> UIImage? {
-        if let img = memory.object(forKey: key as NSString) { return img }
-        // On this iPhone: read it (off the main thread, as this is an actor).
-        if url.isFileURL {
-            guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return nil }
-            memory.setObject(img, forKey: key as NSString)
-            return img
-        }
-        if let img = cached(key) { return img }
-        if let task = inFlight[key] { return await task.value }
-        let target = file(for: key)
-        let mine = generation
-        let task = Task<UIImage?, Never> {
-            guard let (data, response) = try? await URLSession.shared.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200,
-                  let img = UIImage(data: data) else { return nil }
-            // Saved only if the cache was not emptied meanwhile (this runs on
-            // the cache, so removeAll cannot slip in between check and write).
-            await self.keep(data, img, at: target, key: key, generation: mine)
-            return img
-        }
-        inFlight[key] = task
-        let img = await task.value
-        if generation == mine { inFlight[key] = nil }
-        return img
-    }
-
-    private func keep(_ data: Data, _ img: UIImage, at target: URL, key: String, generation mine: Int) {
-        guard generation == mine else { return }
-        try? data.write(to: target, options: .atomic)
+        guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return nil }
         memory.setObject(img, forKey: key as NSString)
+        return img
     }
 
     /// A picture just saved, so it shows at once.
@@ -89,11 +33,6 @@ actor ImageCache {
     }
 
     func removeAll() {
-        generation += 1
-        inFlight.values.forEach { $0.cancel() }
-        inFlight.removeAll()
         memory.removeAllObjects()
-        try? FileManager.default.removeItem(at: folder)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 }

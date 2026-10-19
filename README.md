@@ -1,67 +1,29 @@
-# CoinPurse
+# Coin Purse
 
-Phone-first PWA for Scott: a wallet-like stack of temporary passes — conference QR screenshots, haircut cards, loyalty barcodes, etc.
+An iPhone app for the little things you need to show quickly: the QR code for the conference, the barcode on a gift card, the row you parked in.  Snap it, find it, toss it.
 
-**Not for secrets.** Data never leaves the device. No login, no sync, no Apple Wallet signing.
+Everything is kept on the iPhone.  There is no account, no sign-in and no server, and the whole app works with no internet.  Coins are included in the iPhone's iCloud Backup.
 
-## Features
+## What is here
 
-- Vertical wallet-style card stack (tap to expand / bring forward, tap again for full screen)
-- Add pass: required title, optional notes, optional image (file, camera, or clipboard paste)
-- Full-screen viewer optimized for scanning QRs
-- Edit & delete (delete asks for confirmation)
-- IndexedDB storage (images as blobs), compressed before save (~1200px, JPEG/WebP)
-- Installable PWA with offline shell (saved cards work offline)
+- `ios/`: the SwiftUI app, its Share extension (Share to Coin Purse) and its UI tests.
+  - `ios/Shared/LocalStore.swift` keeps the purse: coins in one small JSON file and each picture or video as a file beside it, in the app group `group.com.yetignome.coinpurse` shared with the Share extension.
+- `index.html`, `support.html`, `privacy.html`: the website at https://coinpurse.yetignome.com, hosted on Vercel (static files only).
+- `test/devserver.js`: a small local server used only by the UI tests.  Seed scripts give it sample coins, a debug build started with `-uiTestReset` copies them onto the phone, and the app sends back a copy of what it saved for the tests to check.
+- `scripts/ios-test/`: the UI test runner (`run.sh`) and the seed scripts.
 
-## Local preview
-
-From this folder:
+## Running the UI tests
 
 ```bash
-cd /workspace/qr-locker
-npx --yes serve -l 4173
+scripts/ios-test/run.sh
 ```
 
-Then open `http://localhost:4173` (or the URL `serve` prints).
+Name suites to run only those (for example `scripts/ios-test/run.sh testFullFlow testOffline`).  `DEVICE`, `APPEARANCE`, `TEXT` and `PORT` choose the simulator and its settings.
 
-Any static server works (`python3 -m http.server 4173`, etc.). Prefer HTTPS or localhost so clipboard paste and camera work as expected.
-
-## Add to Home Screen (iPhone)
-
-1. Open the site in **Safari** (not Chrome/in-app browsers).
-2. Tap the **Share** button.
-3. Tap **Add to Home Screen**.
-4. Confirm the name (**CoinPurse**) and tap **Add**.
-
-The app opens fullscreen. Passes you save live in Safari’s IndexedDB for that origin on **this iPhone**. Clearing website data or removing the home-screen app can wipe them.
-
-## Data is device-local
-
-- Everything is stored in **IndexedDB** in your browser / PWA container.
-- Images are resized and compressed client-side before save.
-- There is **no backend**, auth, or cloud backup. Moving phones means re-adding passes (or exporting later if you build that yourself).
-
-## Deploy (Vercel)
+## Looking at the website locally
 
 ```bash
-cd /workspace/qr-locker
-npx vercel@latest --yes --prod
+node test/devserver.js
 ```
 
-Log in with `npx vercel login` first if auth fails.
-
-## Project layout
-
-```
-qr-locker/
-  index.html
-  styles.css
-  app.js
-  sw.js
-  manifest.webmanifest
-  icons/icon-180.png
-  icons/icon-192.png
-  icons/icon-512.png
-  README.md
-  generate-icons.mjs   # optional; icons already generated
-```
+Then open http://localhost:3000.

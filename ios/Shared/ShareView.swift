@@ -45,10 +45,10 @@ struct ShareView: View {
         guard let text = input.text else { return false }
         switch target {
         case .new:
-            return text.serverLength > Config.maxNotes
+            return text.textLength > Config.maxNotes
         case .existing:
             guard let coin = chosenCoin, !coin.notes.contains(text) else { return false }
-            return coin.notes.serverLength + 1 + text.serverLength > Config.maxNotes
+            return coin.notes.textLength + 1 + text.textLength > Config.maxNotes
         }
     }
 
@@ -161,7 +161,7 @@ struct ShareView: View {
                     TextField("Title (optional)", text: $title)
                         .accessibilityIdentifier("shareTitle")
                         .onChange(of: title) { _, new in
-                            if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                            if new.textLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
                         }
                 } footer: {
                     Text("Leave the title blank and it gets the next Coin number.")

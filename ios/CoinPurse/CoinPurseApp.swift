@@ -53,11 +53,8 @@ struct CoinPurseApp: App {
                         model.hideRevealed()
                     }
                     if phase == .active, model.phase == .ready, !lock.isLocked {
-                        Task {
-                            await model.refresh()
-                            // Coins still on the old server: try again now.
-                            await model.moveFromServer()
-                        }
+                        // Pick up coins Share to Coin Purse saved meanwhile.
+                        Task { await model.refresh() }
                     }
                 }
         }

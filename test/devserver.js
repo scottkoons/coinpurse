@@ -1,114 +1,104 @@
 /**
- * Local CoinPurse server for Simulator testing. Runs the real api/ handlers
- * against an in-memory Blob store (nothing touches production), serves the
- * web app files, and prints sign-in codes here instead of emailing them.
+ * Local server for the iPhone app's UI tests (Coin Purse itself has no
+ * server: every coin lives on the phone).
+ *
+ * - The seed scripts (scripts/ios-test/seed*.py) put sample coins here, and a
+ *   debug build started with -uiTestReset copies them onto the phone as the
+ *   test's starting purse.
+ * - A debug build sends a copy of what it saved after every change, so a test
+ *   can check it (/__test/state).
+ * - It also serves the website files, for a local look at them.
  *
  *   node test/devserver.js            http://localhost:3000
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { installMockBlob, MOCK_TOKEN } = require('./mockblob');
-
-installMockBlob();
-process.env.AUTH_SECRET = process.env.AUTH_SECRET || 'local-dev-secret-not-for-production';
-process.env.COINPURSE_PRIVATE_READ_WRITE_TOKEN = MOCK_TOKEN;
-process.env.RESEND_API_KEY = 're_local';
-process.env.REVIEW_EMAIL = process.env.REVIEW_EMAIL || 'review@example.com';
-process.env.REVIEW_CODE = process.env.REVIEW_CODE || '123456';
-
-const realFetch = global.fetch;
-global.fetch = async (url, init) => {
-  if (String(url).includes('api.resend.com')) {
-    const body = JSON.parse(init.body);
-    console.log(`\n  sign-in code for ${body.to[0]}: ${body.text.match(/\d{6}/)[0]}\n`);
-    return new Response(JSON.stringify({ id: 'local' }), { status: 200 });
-  }
-  return realFetch(url, init);
-};
+const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const API = path.join(ROOT, 'api');
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
 
-/** Map a URL path to an api/ file the way Vercel does ([id] segments too). */
-function route(pathname) {
-  const parts = pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
-  const query = {};
-  function walk(dir, i) {
-    if (i === parts.length) return null;
-    const last = i === parts.length - 1;
-    const entries = fs.readdirSync(dir);
-    const exact = parts[i];
-    if (last && entries.includes(exact + '.js')) return path.join(dir, exact + '.js');
-    if (entries.includes(exact) && fs.statSync(path.join(dir, exact)).isDirectory()) {
-      const r = walk(path.join(dir, exact), i + 1);
-      if (r) return r;
-    }
-    for (const e of entries) {
-      const m = /^\[(\w+)\](\.js)?$/.exec(e);
-      if (!m) continue;
-      if (m[2] && last) { query[m[1]] = decodeURIComponent(exact); return path.join(dir, e); }
-      if (!m[2]) {
-        query[m[1]] = decodeURIComponent(exact);
-        const r = walk(path.join(dir, e), i + 1);
-        if (r) return r;
-      }
-    }
-    return null;
-  }
-  return { file: walk(API, 0), query };
+// The sample purse, front first, and its pictures (in memory only).
+let coins = [];
+const pictures = new Map();
+// What the app last said it saved.
+let appState = { number: 0, coins: [] };
+
+async function body(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks);
 }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+function json(res, value, status = 200) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(value));
+}
 
-// Test-only switch: GET /__test/offline?on=1 makes every API call fail like a
-// dropped connection, so the app's offline behavior can be tested.
-let offline = false;
+/** "Coin 3": one more than the highest such number, as the app names coins. */
+function nextTitle() {
+  const numbers = coins.map((c) => /^Coin (\d{1,9})$/.exec(c.title.trim())).filter(Boolean).map((m) => Number(m[1]));
+  return `Coin ${Math.max(0, ...numbers) + 1}`;
+}
 
-// Test-only: the iPhone app keeps its purse on the phone, and a debug build
-// started with this server sends a copy here after every change (POST), so a
-// UI test can check what was saved (GET).
-let appState = { number: 0, coins: [] };
+function keepPicture(jpeg) {
+  const key = crypto.randomUUID();
+  pictures.set(key, jpeg);
+  return `/img/${key}`;
+}
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  const parts = url.pathname.split('/').filter(Boolean);
+
   if (url.pathname === '/__test/state') {
-    res.setHeader('Content-Type', 'application/json');
     if (req.method === 'POST') {
-      let body = '';
-      for await (const chunk of req) body += chunk;
       try {
-        const sent = JSON.parse(body);
+        const sent = JSON.parse(await body(req));
         // A copy that arrives late never replaces a newer one.
         if (sent.number >= appState.number) appState = sent;
       } catch { res.statusCode = 400; }
-      return res.end('{}');
+      return json(res, {});
     }
-    return res.end(JSON.stringify({ coins: appState.coins }));
+    return json(res, { coins: appState.coins });
   }
-  if (url.pathname === '/__test/offline') {
-    offline = url.searchParams.get('on') === '1';
-    console.log('offline mode', offline);
-    res.end(offline ? 'offline' : 'online');
-    return;
+
+  // The seed scripts sign in the way the old server needed; any answer will do.
+  if (url.pathname === '/api/auth/verify-code') return json(res, { token: 'test', email: 'review@example.com' });
+
+  if (url.pathname === '/api/coins' && req.method === 'GET') return json(res, { coins, email: 'review@example.com' });
+
+  if (url.pathname === '/api/coins' && req.method === 'POST') {
+    const { id, title, notes, accent, pin } = JSON.parse(await body(req));
+    const now = Date.now();
+    const coin = { id, title: title || nextTitle(), notes: notes || '', accent: accent || 0, attachments: [], createdAt: now, updatedAt: now };
+    if (pin) coin.pin = pin;
+    coins.unshift(coin);
+    return json(res, { coin });
   }
-  if (offline && url.pathname.startsWith('/api/')) {
-    req.socket.destroy();
-    return;
-  }
-  if (url.pathname.startsWith('/api/')) {
-    const { file, query } = route(url.pathname);
-    if (!file) { res.statusCode = 404; return res.end('{"error":"Not found"}'); }
-    req.query = { ...Object.fromEntries(url.searchParams), ...query };
-    try {
-      await require(file)(req, res);
-    } catch (e) {
-      console.error(e);
-      if (!res.headersSent) { res.statusCode = 500; res.end('{"error":"Server error"}'); }
+
+  // POST /api/coins/<id>/image (the first picture) or /attachments (another).
+  if (parts[0] === 'api' && parts[1] === 'coins' && parts.length === 4 && req.method === 'POST') {
+    const coin = coins.find((c) => c.id === parts[2]);
+    if (!coin) return json(res, { error: 'Not found' }, 404);
+    const link = keepPicture(await body(req));
+    if (parts[3] === 'image') {
+      coin.imageUrl = link;
+      coin.imagePath = link;
+    } else {
+      coin.attachments.push({ id: crypto.randomUUID(), imageUrl: link, imagePath: link });
     }
-    console.log(req.method, url.pathname, res.statusCode);
-    return;
+    return json(res, { coin });
   }
+
+  if (parts[0] === 'img' && pictures.has(parts[1])) {
+    res.setHeader('Content-Type', 'image/jpeg');
+    return res.end(pictures.get(parts[1]));
+  }
+
+  // The website.
   let p = url.pathname === '/' ? '/index.html' : url.pathname;
   if (p === '/privacy' || p === '/support') p += '.html';
   const f = path.join(ROOT, path.normalize(p));
@@ -116,6 +106,5 @@ http.createServer(async (req, res) => {
   res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
   fs.createReadStream(f).pipe(res);
 }).listen(Number(process.env.PORT) || 3000, () => {
-  console.log(`CoinPurse local server on http://localhost:${Number(process.env.PORT) || 3000} (private store, in memory)`);
-  console.log(`Reviewer sign-in: ${process.env.REVIEW_EMAIL} / ${process.env.REVIEW_CODE}`);
+  console.log(`Coin Purse test server on http://localhost:${Number(process.env.PORT) || 3000}`);
 });

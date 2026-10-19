@@ -3,8 +3,7 @@ import Foundation
 /// The purse, kept on this iPhone: the coins in one small file and each
 /// picture as a JPEG beside it, in the space the app shares with Share to
 /// Coin Purse. Nothing leaves the phone, so everything works with no signal.
-/// It answers the same way the old server did (a coin back from every
-/// change), so the rest of the app did not have to change.
+/// Every change hands back the coin as it now is.
 nonisolated struct LocalStore: Sendable {
     static let appGroup = "group.com.yetignome.coinpurse"
 
@@ -118,7 +117,7 @@ nonisolated struct LocalStore: Sendable {
         do {
             return try Self.edit(coinId) { coin in
                 guard coin.pictures.count < Config.maxExtraPictures + 1 else {
-                    throw APIError.server("A coin holds at most \(Config.maxExtraPictures + 1) pictures")
+                    throw PurseError.failed("A coin holds at most \(Config.maxExtraPictures + 1) pictures")
                 }
                 coin.attachments.append(Attachment(id: UUID().uuidString.lowercased(), imageUrl: path, imagePath: path,
                                                    videoPath: videoPath))
@@ -135,7 +134,7 @@ nonisolated struct LocalStore: Sendable {
         var old: String?
         do {
             let coin = try Self.edit(coinId) { coin in
-                guard let i = coin.attachments.firstIndex(where: { $0.id == attachmentId }) else { throw APIError.pictureGone }
+                guard let i = coin.attachments.firstIndex(where: { $0.id == attachmentId }) else { throw PurseError.pictureGone }
                 old = coin.attachments[i].imagePath
                 coin.attachments[i].imageUrl = path
                 coin.attachments[i].imagePath = path
@@ -151,7 +150,7 @@ nonisolated struct LocalStore: Sendable {
     func deletePicture(coinId: String, attachmentId: String) async throws -> Coin {
         var old: Attachment?
         let coin = try Self.edit(coinId) { coin in
-            guard let i = coin.attachments.firstIndex(where: { $0.id == attachmentId }) else { throw APIError.pictureGone }
+            guard let i = coin.attachments.firstIndex(where: { $0.id == attachmentId }) else { throw PurseError.pictureGone }
             old = coin.attachments.remove(at: i)
         }
         [old?.imagePath, old?.videoPath].compactMap { $0 }.forEach(Self.removeFile)
@@ -168,13 +167,13 @@ nonisolated struct LocalStore: Sendable {
         picture.video.map { Self.folder.appendingPathComponent($0) }
     }
 
-    // MARK: Moving in
+    // MARK: Adding whole coins
 
-    /// Saves a picture brought from somewhere else (the old server) and says
-    /// where it is, for a coin about to be added with `add(_:)`.
+    /// Saves a picture brought from somewhere else and says where it is, for a
+    /// coin about to be added with `add(_:)`.
     func keepPicture(_ jpeg: Data) throws -> String { try Self.savePicture(jpeg) }
 
-    /// Coins that arrive whole (moved from the old server): on top, in their
+    /// Coins that arrive whole (a UI test's sample purse): on top, in their
     /// order, skipping any this phone already has.
     func add(_ arriving: [Coin]) async throws {
         try Self.change { coins in
@@ -211,7 +210,7 @@ nonisolated struct LocalStore: Sendable {
     /// One coin changed in place; it must exist.
     private static func edit(_ id: String, _ change: (inout Coin) throws -> Void) throws -> Coin {
         try self.change { coins in
-            guard let i = coins.firstIndex(where: { $0.id == id }) else { throw APIError.gone }
+            guard let i = coins.firstIndex(where: { $0.id == id }) else { throw PurseError.gone }
             try change(&coins[i])
             coins[i].updatedAt = now
             return coins[i]
@@ -231,7 +230,7 @@ nonisolated struct LocalStore: Sendable {
     }
 
     private static func coordinated<T>(writing: Bool, _ body: (URL) throws -> T) throws -> T {
-        var outcome: Result<T, Error> = .failure(APIError.server("Could not open the purse on this iPhone."))
+        var outcome: Result<T, Error> = .failure(PurseError.failed("Could not open the purse on this iPhone."))
         var coordination: NSError?
         let coordinator = NSFileCoordinator()
         let file = coinsFile
@@ -244,7 +243,7 @@ nonisolated struct LocalStore: Sendable {
                 outcome = Result { try body(url) }
             }
         }
-        if coordination != nil { throw APIError.server("Could not open the purse on this iPhone.") }
+        if coordination != nil { throw PurseError.failed("Could not open the purse on this iPhone.") }
         return try outcome.get()
     }
 
@@ -259,7 +258,7 @@ nonisolated struct LocalStore: Sendable {
             // Protected while the phone is locked after a restart.
             try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch {
-            throw APIError.server("Could not save on this iPhone. Is its storage full?")
+            throw PurseError.failed("Could not save on this iPhone. Is its storage full?")
         }
         #if DEBUG
         TestMirror.send(coins)
@@ -272,7 +271,7 @@ nonisolated struct LocalStore: Sendable {
             try jpeg.write(to: folder.appendingPathComponent(path),
                            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch {
-            throw APIError.server("Could not save the picture on this iPhone. Is its storage full?")
+            throw PurseError.failed("Could not save the picture on this iPhone. Is its storage full?")
         }
         return path
     }
@@ -287,7 +286,7 @@ nonisolated struct LocalStore: Sendable {
             try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                                                    ofItemAtPath: target.path)
         } catch {
-            throw APIError.server("Could not save the video on this iPhone. Is its storage full?")
+            throw PurseError.failed("Could not save the video on this iPhone. Is its storage full?")
         }
         return path
     }
@@ -325,3 +324,20 @@ nonisolated enum TestMirror {
     }
 }
 #endif
+
+/// What can go wrong keeping the purse on the phone.
+nonisolated enum PurseError: LocalizedError {
+    /// The coin is gone (deleted a moment before).
+    case gone
+    /// One picture is gone; its coin is still there.
+    case pictureGone
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .gone: return "This coin was deleted."
+        case .pictureGone: return "This picture was removed."
+        case .failed(let message): return message
+        }
+    }
+}

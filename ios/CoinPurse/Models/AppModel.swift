@@ -15,8 +15,6 @@ final class AppModel {
     /// spinner instead of "Your purse is empty".
     var coinsLoaded = false
     var isRefreshing = false
-    /// Coins from the old Coin Purse server are being brought onto this iPhone.
-    private(set) var moving = false
     /// Coins being deleted right now; a refresh that started earlier must not bring them back.
     private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
@@ -57,101 +55,64 @@ final class AppModel {
     // MARK: Starting
 
     func start() async {
-        // The Keychain outlives the app. After a delete and reinstall, an old
-        // sign-in from the server days is not this phone's to use.
-        if !UserDefaults.standard.bool(forKey: "hasLaunched") {
-            Keychain.deleteToken()
-            UserDefaults.standard.set(true, forKey: "hasLaunched")
-        }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
             session += 1
-            Keychain.deleteToken()
             LocalStore.removeAll()
             await ImageCache.shared.removeAll()
-            // A test's coins come from the local test server, the same way coins
-            // from the old server move onto a phone.
-            await signInToTestServer()
+            await importTestCoins()
         }
         #endif
+        Self.removeOldCopies()
         await refresh()
         phase = .ready
         scheduleSpotlight()
-        await moveFromServer()
     }
 
-    // MARK: Moving off the old server
+    /// Left by versions that kept coins on a server: a copy of the purse and
+    /// downloaded pictures. Everything is in the purse on the phone now.
+    private static func removeOldCopies() {
+        let files = FileManager.default
+        let support = files.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let caches = files.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        try? files.removeItem(at: support.appendingPathComponent("purse.json"))
+        try? files.removeItem(at: caches.appendingPathComponent("pictures", isDirectory: true))
+    }
 
-    /// Once: the coins kept on the old Coin Purse server come onto this iPhone,
-    /// pictures and all, and the old sign-in is forgotten. With no signal it
-    /// waits, and tries again whenever the app comes to the front.
-    func moveFromServer() async {
-        guard !moving, let token = Keychain.loadToken() else { return }
-        moving = true
-        defer { moving = false }
-        let mine = session
-        let api = APIClient(token: token)
+    #if DEBUG
+    /// UI tests: the sample coins the local test server was given (pictures
+    /// and all) become the test's starting purse on the phone.
+    private func importTestCoins() async {
+        guard let base = ProcessInfo.processInfo.environment["COINPURSE_BASE_URL"].flatMap(URL.init(string:)) else { return }
+        struct List: Decodable { let coins: [Coin] }
         do {
+            let (data, _) = try await URLSession.shared.data(from: base.appendingPathComponent("api/coins"))
             var arriving: [Coin] = []
-            for var coin in try await api.coins().coins {
+            for var coin in try JSONDecoder().decode(List.self, from: data).coins {
                 if let link = coin.imageUrl {
-                    let path = try await bring(link, from: api)
+                    let path = try await fetchPicture(link, from: base)
                     coin.imageUrl = path
                     coin.imagePath = path
                 }
                 for i in coin.attachments.indices {
                     guard let link = coin.attachments[i].imageUrl else { continue }
-                    let path = try await bring(link, from: api)
+                    let path = try await fetchPicture(link, from: base)
                     coin.attachments[i].imageUrl = path
                     coin.attachments[i].imagePath = path
                 }
                 arriving.append(coin)
             }
-            guard session == mine else { return }
             try await store.add(arriving)
-            Keychain.deleteToken()
-            Self.removeOldCopy()
-            await ImageCache.shared.removeAll()
-            await refresh()
-            if !arriving.isEmpty { show("Your coins are now kept on this iPhone") }
-        } catch APIError.unauthorized {
-            show("Coins on the old server could not be moved: its sign-in expired")
-        } catch {
-            show("Your coins will move to this iPhone the next time it is online")
-        }
-    }
-
-    /// One picture from the old server, saved on this phone; where it is now.
-    private func bring(_ link: String, from api: APIClient) async throws -> String {
-        let picture = Picture(id: link, url: link, key: link, attachmentId: nil)
-        guard let url = api.url(for: picture) else { throw APIError.server("Bad picture address") }
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
-            throw APIError.network("A picture could not be brought over")
-        }
-        return try store.keepPicture(data)
-    }
-
-    /// The copy of the purse that older versions kept while signed in.
-    private static func removeOldCopy() {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        try? FileManager.default.removeItem(at: dir.appendingPathComponent("purse.json"))
-    }
-
-    #if DEBUG
-    /// UI tests: the review account on the local test server, whose coins
-    /// then move onto the phone like an older version's.
-    private func signInToTestServer() async {
-        guard ProcessInfo.processInfo.environment["COINPURSE_BASE_URL"] != nil else { return }
-        let api = APIClient()
-        do {
-            try await api.requestCode(email: "review@example.com")
-            if let token = try await api.verifyCode(email: "review@example.com", code: "123456").token {
-                Keychain.saveToken(token)
-            }
         } catch {
             show("Could not reach the test server")
         }
+    }
+
+    private func fetchPicture(_ link: String, from base: URL) async throws -> String {
+        guard let url = URL(string: link, relativeTo: base) else { throw PurseError.failed("Bad picture address") }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PurseError.failed("A picture could not be fetched") }
+        return try store.keepPicture(data)
     }
     #endif
 
@@ -238,17 +199,17 @@ final class AppModel {
             let result = try await op()
             guard session == mine else { throw SessionEnded() }
             return result
-        } catch APIError.gone {
+        } catch PurseError.gone {
             guard session == mine else { throw SessionEnded() }
             coins.removeAll { $0.id == coinId }
             changes += 1
-            throw APIError.gone
-        } catch APIError.pictureGone {
+            throw PurseError.gone
+        } catch PurseError.pictureGone {
             // Only that picture is gone; the coin stays, and a refresh shows
             // what it holds now.
             guard session == mine else { throw SessionEnded() }
             Task { await refresh() }
-            throw APIError.pictureGone
+            throw PurseError.pictureGone
         }
     }
 
@@ -279,7 +240,7 @@ final class AppModel {
         guard let attId = picture.attachmentId else { return }
         do {
             upsert(try await guarded(coinId) { try await self.store.deletePicture(coinId: coinId, attachmentId: attId) })
-        } catch APIError.pictureGone {
+        } catch PurseError.pictureGone {
             // Already removed: that is what Save wanted.
         }
     }
@@ -289,7 +250,7 @@ final class AppModel {
         let mine = session
         do {
             upsert(try await guarded(coinId) { try await self.store.deletePicture(coinId: coinId, attachmentId: attId) })
-        } catch APIError.pictureGone {
+        } catch PurseError.pictureGone {
             // Already removed: nothing more to do.
         } catch {
             await handle(error, from: mine)
@@ -561,7 +522,7 @@ final class AppModel {
         defer { deleting.remove(coin.id) }
         do {
             try await store.deleteCoin(id: coin.id)
-        } catch APIError.gone {
+        } catch PurseError.gone {
             // Already gone.
         } catch {
             guard session == mine else { return }
@@ -636,7 +597,7 @@ final class AppModel {
     /// What a coin saved without a title will be called (the editor shows it).
     func nextDefaultTitle() -> String { LocalStore.nextDefaultTitle(after: coins) }
 
-    /// The six accent colors, least-used first, like the web app.
+    /// The six accent colors, least-used first.
     func suggestedAccent() -> Int {
         var counts = Array(repeating: 0, count: AccentPalette.hex.count)
         for c in purse where counts.indices.contains(c.accent) { counts[c.accent] += 1 }

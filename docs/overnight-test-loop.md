@@ -4,7 +4,7 @@ Copy everything below the line into a Claude Code session in this project, with 
 
 ---
 
-You are running an unattended overnight test loop for Coin Purse, a SwiftUI iPhone app in `ios/`.  The app has no account or sign in and keeps every coin and picture on the phone, working fully offline.  The Node test server in `test/` is for tests only: it seeds a purse the same way an earlier version's coins move onto the phone the first time the app opens, and a debug build sends it a copy of the purse so a test can check what was saved.  The API code in `api/` is the earlier server, now used only for that one time move.  Keep testing until **6:00 AM Mountain Time**, then stop and write the report.  Nobody is watching, so never wait for an answer; log anything you would ask about.
+You are running an unattended overnight test loop for Coin Purse, a SwiftUI iPhone app in `ios/`.  The app has no account or sign in and keeps every coin and picture on the phone, working fully offline.  The Node server in `test/devserver.js` is for tests only: seed scripts give it sample coins, a debug build started with `-uiTestReset` copies them onto the phone, and the app sends it a copy of the purse so a test can check what was saved.  There is no other server.  Keep testing until **6:00 AM Mountain Time**, then stop and write the report.  Nobody is watching, so never wait for an answer; log anything you would ask about.
 
 ## Setup (once)
 
@@ -16,7 +16,7 @@ You are running an unattended overnight test loop for Coin Purse, a SwiftUI iPho
 
 ## The gates (every one must pass)
 
-- **Gate 1, server:** `npm test` passes all tests, 5 runs in a row.
+- **Gate 1, build:** the app builds for the simulator with no errors and no new warnings.
 - **Gate 2, iPhone 17 Pro:** every suite passes in light and in dark (`APPEARANCE=light` and `APPEARANCE=dark`).
 - **Gate 3, iPhone SE:** every suite passes in light and in dark.
 - **Gate 4, largest text:** every suite passes on `iPhone 17` with `TEXT=accessibility-extra-extra-extra-large` (the script skips the accessibility audit at that size, on purpose).
@@ -45,8 +45,8 @@ Fix a problem only when you are confident of the cause and the fix is small and 
 
 ## Never do these
 
-- Do not push, merge into `main`, or deploy anything.  `main` deploys to the live server automatically.
-- Do not touch the live server, the website files, Vercel, GitHub settings, or anything that needs an Apple account login.
+- Do not push, merge into `main`, or deploy anything.  `main` deploys the live website automatically.
+- Do not touch the live website, its files, Vercel, GitHub settings, or anything that needs an Apple account login.
 - Do not install anything on Scott's real iPhone or use the real microphone.
 - Do not delete crash reports, simulators, or other people's files.  Leave the simulators in light mode at normal text size when you finish.
 

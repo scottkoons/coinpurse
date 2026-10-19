@@ -22,7 +22,7 @@ struct VoiceNoteView: View {
     @FocusState private var editing: Bool
 
     private var canSave: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.serverLength <= Config.maxNotes
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.textLength <= Config.maxNotes
     }
     @State private var confirmingDiscard = false
 
@@ -207,7 +207,7 @@ struct VoiceNoteView: View {
                 if text.isEmpty {
                     Text("Coin Purse did not catch that.  Tap Keep talking to try again.")
                 } else {
-                    TextLimitNote(length: text.serverLength, limit: Config.maxNotes)
+                    TextLimitNote(length: text.textLength, limit: Config.maxNotes)
                 }
             }
 
@@ -216,7 +216,7 @@ struct VoiceNoteView: View {
                     .accessibilityIdentifier("voiceTitle")
                     .submitLabel(.done)
                     .onChange(of: title) { _, new in
-                        if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                        if new.textLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
                     }
             } footer: {
                 if title.trimmingCharacters(in: .whitespaces).isEmpty {

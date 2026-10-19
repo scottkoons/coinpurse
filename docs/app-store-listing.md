@@ -79,4 +79,4 @@ No sign in or demo account is needed: Coin Purse has no accounts, and every coin
 - Audio: voice notes are turned into text by Apple speech recognition (on the iPhone when it supports it); Coin Purse never saves the recording, and only the text the person saves is kept, on the iPhone.
 - Tracking: none.  No third-party analytics or ads.
 - Sharing a picture or a pin happens only when the person chooses it, through the iOS share sheet.
-- People who used the earlier server version get their coins copied onto the iPhone once, the first time the new version opens with internet; the server copy is then no longer used and will be deleted.  This does not collect any new data.
+- An earlier test version kept coins on a server; those coins were copied onto the iPhone and the server data has been deleted.  Nothing is collected.

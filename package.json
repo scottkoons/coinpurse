@@ -1,16 +1,10 @@
 {
-  "name": "qr-locker",
+  "name": "coinpurse",
   "version": "1.0.0",
-  "description": "CoinPurse: a private, synced wallet of pictures (QR codes, passes, cards). Web app, iOS app and Vercel API.",
-  "main": "app.js",
+  "private": true,
+  "description": "Coin Purse: an offline iPhone app for the little things you need to show quickly. This repo holds the iOS app, its website and the local server its UI tests use.",
   "scripts": {
-    "test": "node --test test/server.test.js"
+    "test-server": "node test/devserver.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@vercel/blob": "^2.8.0",
-    "resend": "^6.28.1"
-  }
+  "license": "UNLICENSED"
 }

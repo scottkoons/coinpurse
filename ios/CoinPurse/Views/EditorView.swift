@@ -70,7 +70,7 @@ struct EditorView: View {
     /// A quick coin needs only a picture; a title or notes alone (like a
     /// pasted gift card code) is fine too.
     private var canSave: Bool {
-        guard notes.serverLength <= Config.maxNotes else { return false }
+        guard notes.textLength <= Config.maxNotes else { return false }
         return existing != nil || stagedMain != nil || pin != nil
             || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -198,7 +198,7 @@ struct EditorView: View {
                 .focused($titleFocused)
                 .submitLabel(.done)
                 .onChange(of: title) { _, new in
-                    if new.serverLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
+                    if new.textLength > Config.maxTitle { title = new.limited(to: Config.maxTitle) }
                 }
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(2...6)
@@ -221,7 +221,7 @@ struct EditorView: View {
                 } else if let automaticTitle, title.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text("Leave the title blank to keep the name \(automaticTitle).")
                 }
-                TextLimitNote(length: notes.serverLength, limit: Config.maxNotes)
+                TextLimitNote(length: notes.textLength, limit: Config.maxNotes)
             }
         }
     }
@@ -521,7 +521,7 @@ struct EditorView: View {
     }
 }
 
-/// Shown under a note as it nears the most the server keeps: how much room is
+/// Shown under a note as it nears the most a coin keeps: how much room is
 /// left, or (in red) how much to remove before it can be saved. Never cut off
 /// without saying so.
 struct TextLimitNote: View {

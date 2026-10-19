@@ -832,12 +832,6 @@ struct PurseView: View {
                     .minimumScaleFactor(0.7)
                     .accessibilityAddTraits(.isHeader)
                     .layoutPriority(1)
-                if model.moving {
-                    // Coins from the old server, on their way onto this iPhone.
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Moving your coins onto this iPhone")
-                }
                 Spacer()
                 // Counting the archive too, so archived coins can be found.
                 if model.coins.count >= searchThreshold {

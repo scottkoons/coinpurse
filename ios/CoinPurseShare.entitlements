@@ -7,10 +7,5 @@
 	<array>
 		<string>group.com.yetignome.coinpurse</string>
 	</array>
-	<!-- Only for moving coins from the old server: its sign-in token. -->
-	<key>keychain-access-groups</key>
-	<array>
-		<string>$(AppIdentifierPrefix)com.yetignome.coinpurse.shared</string>
-	</array>
 </dict>
 </plist>

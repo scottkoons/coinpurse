@@ -57,7 +57,7 @@ nonisolated enum ImageProcessing {
         return pages
     }
 
-    /// Upright, at most 1200 px wide, JPEG: the same as the web app uploads.
+    /// Upright, at most 1200 px wide, JPEG: how every picture is kept.
     static func uploadData(from image: UIImage) -> Data? {
         let upright = normalized(image)
         let width = upright.size.width * upright.scale
