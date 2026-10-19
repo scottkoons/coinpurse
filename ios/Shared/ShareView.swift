@@ -33,10 +33,10 @@ struct ShareView: View {
     /// Set once the coin has a main picture from this share (survives a retry).
     @State private var sentMain = false
 
-    private let token = Keychain.loadToken()
     private static let maxPictures = Config.maxExtraPictures + 1
 
-    private var api: APIClient { APIClient(token: token) }
+    /// The purse on this iPhone, shared with the app.
+    private let api = LocalStore()
     private var chosenCoin: Coin? { coins.first { $0.id == chosen } }
     private func room(in coin: Coin) -> Int { max(0, Self.maxPictures - coin.pictures.count) }
 
@@ -53,7 +53,7 @@ struct ShareView: View {
     }
 
     private var canSave: Bool {
-        guard !saving, !loading, token != nil, !input.images.isEmpty || input.text != nil else { return false }
+        guard !saving, !loading, !input.images.isEmpty || input.text != nil else { return false }
         switch target {
         case .new: return true
         case .existing:
@@ -67,12 +67,6 @@ struct ShareView: View {
             Group {
                 if loading {
                     ProgressView()
-                } else if token == nil {
-                    ContentUnavailableView(
-                        "Sign In First",
-                        systemImage: "person.crop.circle.badge.exclamationmark",
-                        description: Text("Open Coin Purse and sign in, then share again.")
-                    )
                 } else if input.images.isEmpty && input.text == nil {
                     ContentUnavailableView(
                         "Nothing to Add",
@@ -104,9 +98,9 @@ struct ShareView: View {
         .task {
             input = await load()
             loading = false
-            if token != nil, let list = try? await api.coins() {
+            if let list = try? await api.coins() {
                 // Archived coins are put away; sharing adds to the purse.
-                coins = list.coins.filter { !$0.archived }
+                coins = list.filter { !$0.archived }
             }
         }
     }

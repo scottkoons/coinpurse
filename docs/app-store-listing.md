@@ -50,11 +50,13 @@ Made to be quick:
 • Keep throwaway photos out of your photo library
 
 Private by design:
+• No account and no sign in
+• Your coins and pictures are kept only on your iPhone, and included in your iCloud Backup
+• Works completely offline, in a parking garage or a packed stadium
 • Face ID lock
-• Your coins are private to your account
-• No ads and no tracking
+• No ads, no tracking, and no data collected
 
-Coin Purse is for everyday things, not secrets.  Like a note on your phone, a coin is private to your account but not built for security.  Credit cards, IDs and important passwords belong in Apple Wallet or Passwords.
+Coin Purse is for everyday things, not secrets.  Like a note on your phone, a coin is private to your iPhone but not built for security.  Credit cards, IDs and important passwords belong in Apple Wallet or Passwords.
 
 ## Keywords (100 max, comma separated)
 
@@ -68,11 +70,13 @@ qr code,pass,badge,conference,event,return label,screenshot,notes,list,loyalty,p
 
 ## App Review notes
 
-Sign in with the review account: enter the email in REVIEW_EMAIL, tap "Email me a code", then enter the 6-digit REVIEW_CODE (both set in Vercel; no email is sent to this address).  Delete Account is in Account (person icon, top right); it permanently deletes the account and every coin.  To add a map pin, tap New Coin (bottom middle), then Pin where I am now, or open a coin and tap Add Pin; either one reads the location once to save that spot on the coin.  Voice Note is the microphone button at the bottom left; it uses the microphone and Apple speech recognition only while recording, to create a text coin.  The camera button at the bottom right opens the camera only when tapped, to save a picture as a new coin.
+No sign in or demo account is needed: Coin Purse has no accounts, and every coin and picture is kept only on the iPhone, in the app's own storage, so it works fully offline.  Settings is the gear at the top right (Rearrange Coins, Swipe to Delete, Lock with Face ID, Privacy Policy, Support).  To delete everything, delete the app.  To add a map pin, tap New Coin (bottom middle), then Pin where I am now, or open a coin and tap Add Pin; either one reads the location once to save that spot on the coin.  Voice Note is the microphone button at the bottom left; it uses the microphone and Apple speech recognition only while recording, to create a text coin.  The camera button at the bottom right opens the camera only when tapped, to save a picture as a new coin.
 
 ## App Privacy answers
 
-- Data collected: Email Address (linked to user, App Functionality), Photos (linked to user, App Functionality), Other User Content: coin titles, notes and voice note text (linked to user, App Functionality).
-- Precise Location (linked to user, App Functionality): only when the person taps Pin where I am now, Add Pin or Move Pin Here; the spot is saved on that coin and deleted with it.  Never collected in the background.
-- Audio: not collected.  Voice notes are turned into text by Apple speech recognition (on the iPhone when it supports it); the recording is never saved or sent to our server, only the text the person saves.
+- Answer: **Data Not Collected.**  Coin Purse has no servers that hold user data; coins, pictures, notes and pins stay on the iPhone (and in the person's own iCloud Backup).  Nothing is sent to the developer.
+- Precise Location: read once only when the person taps Pin where I am now, Add Pin or Move Pin Here, and saved on that coin on the iPhone.  Never sent to the developer and never read in the background.
+- Audio: voice notes are turned into text by Apple speech recognition (on the iPhone when it supports it); Coin Purse never saves the recording, and only the text the person saves is kept, on the iPhone.
 - Tracking: none.  No third-party analytics or ads.
+- Sharing a picture or a pin happens only when the person chooses it, through the iOS share sheet.
+- People who used the earlier server version get their coins copied onto the iPhone once, the first time the new version opens with internet; the server copy is then no longer used and will be deleted.  This does not collect any new data.

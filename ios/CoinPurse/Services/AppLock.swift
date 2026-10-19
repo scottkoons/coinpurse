@@ -45,9 +45,9 @@ final class AppLock {
         }
     }
 
-    /// Only a signed-in purse is ever locked.
-    func scenePhaseChanged(_ phase: ScenePhase, signedIn: Bool) {
-        guard signedIn else {
+    /// Only a purse that has opened is ever locked.
+    func scenePhaseChanged(_ phase: ScenePhase, ready: Bool) {
+        guard ready else {
             isLocked = false
             backgroundedAt = nil
             return

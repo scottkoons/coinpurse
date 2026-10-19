@@ -87,21 +87,38 @@ struct PinMarker: View {
 }
 
 /// Map pictures are made once per spot and size, then reused, so scrolling
-/// the purse never waits on Maps.
+/// the purse never waits on Maps. Each is also kept on the phone, so a pin's
+/// map still shows with no internet once it has been drawn.
 final class MapSnapshots {
     static let shared = MapSnapshots()
     /// iOS empties this by itself when memory runs low.
     private let cache = NSCache<NSString, UIImage>()
+    private let folder: URL = {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let folder = caches.appendingPathComponent("maps", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }()
+
+    private func file(_ key: String) -> URL {
+        folder.appendingPathComponent((key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? key) + ".png")
+    }
 
     private func key(_ pin: Pin, _ size: CGSize, _ dark: Bool) -> String {
         "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height)),\(dark)"
     }
 
-    func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? { cache.object(forKey: key(pin, size, dark) as NSString) }
+    func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? {
+        let key = key(pin, size, dark)
+        if let hit = cache.object(forKey: key as NSString) { return hit }
+        guard let saved = UIImage(contentsOfFile: file(key).path) else { return nil }
+        cache.setObject(saved, forKey: key as NSString)
+        return saved
+    }
 
     func image(for pin: Pin, size: CGSize, dark: Bool) async -> UIImage? {
         let key = key(pin, size, dark)
-        if let hit = cache.object(forKey: key as NSString) { return hit }
+        if let hit = cached(for: pin, size: size, dark: dark) { return hit }
         let options = MKMapSnapshotter.Options()
         let center = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lng)
         let wide = PinMapView.spanMeters * Double(size.width / max(size.height, 1))
@@ -110,6 +127,7 @@ final class MapSnapshots {
         options.traitCollection = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
         guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
         cache.setObject(snapshot.image, forKey: key as NSString)
+        try? snapshot.image.pngData()?.write(to: file(key), options: .atomic)
         return snapshot.image
     }
 }

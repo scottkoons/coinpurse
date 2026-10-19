@@ -1,8 +1,9 @@
 import UIKit
 
-/// Keeps downloaded pictures in memory and on disk, keyed by the picture's
-/// storage path (which changes whenever the picture changes), so signed links
-/// can expire without forcing a re-download.
+/// Keeps pictures in memory, keyed by the picture's path (which changes
+/// whenever the picture changes), so a card drawn again shows at once.
+/// Pictures are files on this iPhone; anything from a web address (only
+/// while moving coins off the old server) is also kept on disk.
 actor ImageCache {
     static let shared = ImageCache()
 
@@ -41,14 +42,22 @@ actor ImageCache {
         return nil
     }
 
-    /// Raw bytes for sharing or editing (downloads if needed).
+    /// Raw bytes for sharing or editing.
     func data(key: String, url: URL) async -> Data? {
+        if url.isFileURL { return try? Data(contentsOf: url) }
         if let data = try? Data(contentsOf: file(for: key)) { return data }
         _ = await image(key: key, url: url)
         return try? Data(contentsOf: file(for: key))
     }
 
     func image(key: String, url: URL) async -> UIImage? {
+        if let img = memory.object(forKey: key as NSString) { return img }
+        // On this iPhone: read it (off the main thread, as this is an actor).
+        if url.isFileURL {
+            guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return nil }
+            memory.setObject(img, forKey: key as NSString)
+            return img
+        }
         if let img = cached(key) { return img }
         if let task = inFlight[key] { return await task.value }
         let target = file(for: key)
@@ -74,9 +83,8 @@ actor ImageCache {
         memory.setObject(img, forKey: key as NSString)
     }
 
-    /// Store a picture we just uploaded so it shows instantly.
+    /// A picture just saved, so it shows at once.
     func store(_ data: Data, key: String) {
-        try? data.write(to: file(for: key), options: .atomic)
         if let img = UIImage(data: data) { memory.setObject(img, forKey: key as NSString) }
     }
 

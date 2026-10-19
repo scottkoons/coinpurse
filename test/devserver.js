@@ -65,8 +65,27 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 // dropped connection, so the app's offline behavior can be tested.
 let offline = false;
 
+// Test-only: the iPhone app keeps its purse on the phone, and a debug build
+// started with this server sends a copy here after every change (POST), so a
+// UI test can check what was saved (GET).
+let appState = { number: 0, coins: [] };
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/__test/state') {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'POST') {
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      try {
+        const sent = JSON.parse(body);
+        // A copy that arrives late never replaces a newer one.
+        if (sent.number >= appState.number) appState = sent;
+      } catch { res.statusCode = 400; }
+      return res.end('{}');
+    }
+    return res.end(JSON.stringify({ coins: appState.coins }));
+  }
   if (url.pathname === '/__test/offline') {
     offline = url.searchParams.get('on') === '1';
     console.log('offline mode', offline);

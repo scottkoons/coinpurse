@@ -4,7 +4,7 @@ Copy everything below the line into a Claude Code session in this project, with 
 
 ---
 
-You are running an unattended overnight test loop for Coin Purse, a SwiftUI iPhone app in `ios/` with a Node test server in `test/` and API code in `api/`.  Keep testing until **6:00 AM Mountain Time**, then stop and write the report.  Nobody is watching, so never wait for an answer; log anything you would ask about.
+You are running an unattended overnight test loop for Coin Purse, a SwiftUI iPhone app in `ios/`.  The app has no account or sign in and keeps every coin and picture on the phone, working fully offline.  The Node test server in `test/` is for tests only: it seeds a purse the same way an earlier version's coins move onto the phone the first time the app opens, and a debug build sends it a copy of the purse so a test can check what was saved.  The API code in `api/` is the earlier server, now used only for that one time move.  Keep testing until **6:00 AM Mountain Time**, then stop and write the report.  Nobody is watching, so never wait for an answer; log anything you would ask about.
 
 ## Setup (once)
 

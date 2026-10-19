@@ -1,6 +1,6 @@
 import Foundation
 
-enum APIError: LocalizedError {
+nonisolated enum APIError: LocalizedError {
     case unauthorized
     /// The coin no longer exists (deleted on another device).
     case gone

@@ -34,31 +34,30 @@ struct CoinPurseApp: App {
                 }
                 .task {
                     await model.start()
-                    // Launching into a signed-in purse: ask to unlock now.
-                    lock.scenePhaseChanged(scenePhase, signedIn: model.phase == .signedIn)
-                }
-                .onChange(of: model.phase) { old, new in
-                    // Signing in just proved who you are; signing out leaves
-                    // nothing to lock. Launching into a saved session stays locked.
-                    if new == .signedOut || old == .signedOut { lock.isLocked = false }
+                    // Launching: ask to unlock now.
+                    lock.scenePhaseChanged(scenePhase, ready: model.phase == .ready)
                 }
                 .onChange(of: lock.isLocked) { wasLocked, locked in
                     // Just unlocked: pick up coins added meanwhile (like ones
                     // shared from Photos or Messages).
-                    if wasLocked, !locked, model.phase == .signedIn {
+                    if wasLocked, !locked, model.phase == .ready {
                         Task { await model.refresh() }
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    lock.scenePhaseChanged(phase, signedIn: model.phase == .signedIn)
+                    lock.scenePhaseChanged(phase, ready: model.phase == .ready)
                     // Leaving the app ends the Undo moment for a swiped-away coin.
                     if phase == .background {
                         Task { await model.finishUndoable() }
                         // Hidden coins are covered again until the next Face ID.
                         model.hideRevealed()
                     }
-                    if phase == .active, model.phase == .signedIn, !lock.isLocked {
-                        Task { await model.refresh() }
+                    if phase == .active, model.phase == .ready, !lock.isLocked {
+                        Task {
+                            await model.refresh()
+                            // Coins still on the old server: try again now.
+                            await model.moveFromServer()
+                        }
                     }
                 }
         }
@@ -75,7 +74,7 @@ struct RootView: View {
     /// Locked, or hidden in the app switcher: nothing in the purse may show,
     /// including anything open on top of it.
     private var covered: Bool {
-        model.phase == .signedIn && lock.enabled && AppLock.canLock
+        model.phase == .ready && lock.enabled && AppLock.canLock
             && (lock.isLocked || scenePhase != .active)
     }
 
@@ -84,9 +83,7 @@ struct RootView: View {
             switch model.phase {
             case .loading:
                 ProgressView()
-            case .signedOut:
-                SignInView()
-            case .signedIn:
+            case .ready:
                 PurseView()
             }
         }

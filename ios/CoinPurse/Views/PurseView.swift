@@ -271,14 +271,6 @@ struct PurseView: View {
                 pulledToRefresh = false
             }
         }
-        // Offline: try again every 15 seconds; the Offline note goes away by itself.
-        .task(id: model.isOffline) {
-            while model.isOffline, !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                guard !Task.isCancelled, model.isOffline else { break }
-                await model.refresh()
-            }
-        }
         .scrollDisabled(isOpen || moving != nil)
         // A new coin goes on top of the purse: bring the top into view so it shows.
         .onChange(of: model.purse.first?.id) { old, new in
@@ -834,17 +826,11 @@ struct PurseView: View {
                     .minimumScaleFactor(0.7)
                     .accessibilityAddTraits(.isHeader)
                     .layoutPriority(1)
-                if model.isOffline {
-                    // At the largest text sizes, just the symbol: the words would
-                    // break the title and themselves mid-word.
-                    Label("Offline", systemImage: "wifi.slash")
-                        .labelStyle(OfflineLabelStyle(compact: typeSize.isAccessibilitySize))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.secondarySystemBackground), in: Capsule())
-                        .accessibilityLabel("Offline. Showing coins saved on this iPhone.")
+                if model.moving {
+                    // Coins from the old server, on their way onto this iPhone.
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Moving your coins onto this iPhone")
                 }
                 Spacer()
                 // Counting the archive too, so archived coins can be found.
@@ -863,7 +849,7 @@ struct PurseView: View {
                         .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
                         .accessibilityIdentifier("archive")
                 }
-                circleButton("person.fill", label: "Account") { showAccount = true }
+                circleButton("gearshape", label: "Settings") { showAccount = true }
             }
         }
         .foregroundStyle(.primary)
@@ -1159,18 +1145,6 @@ enum ShareSamples {
 }
 #endif
 
-/// The Offline badge: symbol and word, or just the symbol when space is short.
-private struct OfflineLabelStyle: LabelStyle {
-    let compact: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        if compact {
-            configuration.icon
-        } else {
-            Label(configuration)
-        }
-    }
-}
 
 /// How far the purse is pulled down past its top.
 private struct PullTracker: ViewModifier {

@@ -2,7 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- The sign-in token is shared with the Share extension. -->
+	<!-- The purse (coins and pictures) is shared with the Share extension. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.yetignome.coinpurse</string>
+	</array>
+	<!-- Only for moving coins from the old server: its sign-in token. -->
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.yetignome.coinpurse.shared</string>

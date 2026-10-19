@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct Attachment: Codable, Hashable, Identifiable {
+nonisolated struct Attachment: Codable, Hashable, Identifiable {
     let id: String
     var imageUrl: String?
     var imagePath: String?
 }
 
-struct Coin: Codable, Hashable, Identifiable {
+nonisolated struct Coin: Codable, Hashable, Identifiable {
     let id: String
     var title: String
     var notes: String
@@ -26,6 +26,19 @@ struct Coin: Codable, Hashable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, notes, accent, imageUrl, imagePath, attachments, pin, sortOrder, createdAt, updatedAt, archived, hidden
+    }
+
+    /// A new coin made on this iPhone.
+    init(id: String, title: String, notes: String, accent: Int, pin: Pin? = nil, hidden: Bool = false, at now: Double) {
+        self.id = id
+        self.title = title
+        self.notes = notes
+        self.accent = accent
+        attachments = []
+        self.pin = pin
+        createdAt = now
+        updatedAt = now
+        self.hidden = hidden
     }
 
     init(from decoder: Decoder) throws {
@@ -68,7 +81,7 @@ struct Coin: Codable, Hashable, Identifiable {
 }
 
 /// A spot on the map. `acc` is how sure the iPhone was, in meters.
-struct Pin: Codable, Hashable {
+nonisolated struct Pin: Codable, Hashable {
     var lat: Double
     var lng: Double
     var acc: Double?
@@ -86,7 +99,7 @@ struct Pin: Codable, Hashable {
 
 /// One picture on a coin. `key` is stable across signed-link refreshes, so it
 /// is what the image cache uses.
-struct Picture: Hashable, Identifiable {
+nonisolated struct Picture: Hashable, Identifiable {
     let id: String
     let url: String
     let key: String
@@ -95,7 +108,7 @@ struct Picture: Hashable, Identifiable {
 }
 
 /// The same six accent colors as the web app.
-enum AccentPalette {
+nonisolated enum AccentPalette {
     static let hex: [UInt32] = [0x6366F1, 0x06B6D4, 0x22C55E, 0xEAB308, 0xF97316, 0xEC4899]
     /// What VoiceOver calls each color.
     static let names = ["Indigo", "Teal", "Green", "Yellow", "Orange", "Pink"]
