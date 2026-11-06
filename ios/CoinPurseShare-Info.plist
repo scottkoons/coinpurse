@@ -15,7 +15,7 @@
 			<string>SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $file, ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" || ANY $file.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text").@count &gt;= 1).@count &gt;= 1</string>
 		</dict>
 	</dict>
-	<!-- Lets debug builds reach a local test server; all real traffic is HTTPS. -->
+	<!-- Lets debug builds reach the local UI test server.  The app itself uses no network. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

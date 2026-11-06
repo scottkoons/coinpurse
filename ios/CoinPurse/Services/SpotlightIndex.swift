@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 /// Your coins in iPhone Search: swipe down on the Home Screen, type
 /// "parking", and the Parking spot coin is there. The index lives only on this
-/// iPhone and is cleared when you sign out.
+/// iPhone, and deleting the app removes it.
 enum SpotlightIndex {
     private static let domain = "coins"
 
@@ -28,13 +28,8 @@ enum SpotlightIndex {
         }
     }
 
-    static func clear() {
-        enqueue { try? await CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain]) }
-    }
-
     /// Changes to the index run one after another, in the order they were
-    /// asked for, so a clear on sign out always comes after (and wins over) an
-    /// update that was still going.
+    /// asked for, so an older update never finishes after a newer one.
     private static var last: Task<Void, Never>?
 
     // Async calls, not completion handlers: those arrive on a background

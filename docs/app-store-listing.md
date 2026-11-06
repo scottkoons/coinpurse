@@ -31,7 +31,7 @@ Good for:
 
 Made to be quick:
 • Three buttons at the bottom: the microphone, New Coin and the camera
-• Camera: take a picture and it is saved as a coin right away, then opens so you can rename it or add to it
+• Camera: take a picture or a short video and it is saved as a coin right away, then opens so you can rename it or add to it
 • Microphone: say a quick note or reminder, tap Done, and it is saved as text right away
 • Saved, with Add details to name it and Undo, right after the microphone saves a coin
 • Tap a coin's name to rename it
@@ -42,7 +42,7 @@ Made to be quick:
 • Up to 6 pictures per coin; swipe between them
 • Tap web links, email addresses and phone numbers right in your notes
 • Press and hold to copy any text in a picture, like a gift card code
-• Flip through your coins like cards in Apple Wallet
+• Flip through your coins like cards in Apple Wallet, with the newest one in front
 • Swipe a coin to the left to delete it, like Mail, with Undo if you change your mind
 • Archive coins you need once a year, like a gate code, and find them again with search
 • Hide any coin with Face ID in one tap: it stays in your purse, and opening it asks for your face every time

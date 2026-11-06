@@ -4,7 +4,7 @@ import UIKit
 
 /// Ways into Coin Purse from outside the app: pressing and holding the icon,
 /// Siri, Shortcuts, Spotlight or the Action Button. Each one just asks the
-/// purse to open the right screen once you are signed in.
+/// purse to open the right screen once it has loaded.
 enum QuickAction: Equatable {
     case addPicture, voiceNote, pinSpot
     case openCoin(String)
@@ -100,15 +100,15 @@ struct CoinEntity: AppEntity {
 
 struct CoinEntityQuery: EntityQuery, EntityStringQuery {
     func entities(for identifiers: [String]) async throws -> [CoinEntity] {
-        SavedPurse.coins().filter { identifiers.contains($0.id) }
+        await SavedPurse.coins().filter { identifiers.contains($0.id) }
     }
 
     func suggestedEntities() async throws -> [CoinEntity] {
-        SavedPurse.coins()
+        await SavedPurse.coins()
     }
 
     func entities(matching string: String) async throws -> [CoinEntity] {
-        SavedPurse.coins().filter { $0.title.localizedStandardContains(string) }
+        await SavedPurse.coins().filter { $0.title.localizedStandardContains(string) }
     }
 }
 
@@ -152,16 +152,11 @@ struct CoinPurseShortcuts: AppShortcutsProvider {
     }
 }
 
-/// Reads the purse saved on this iPhone, for Siri and Shortcuts.
+/// Reads the purse saved on this iPhone, for Siri and Shortcuts (archived
+/// coins too: they open in the archive).
 nonisolated enum SavedPurse {
-    static func coins() -> [CoinEntity] {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        guard let data = try? Data(contentsOf: dir.appendingPathComponent("purse.json")),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let coins = json["coins"] as? [[String: Any]] else { return [] }
-        return coins.compactMap { c in
-            guard let id = c["id"] as? String else { return nil }
-            return CoinEntity(id: id, title: (c["title"] as? String) ?? "Coin")
-        }
+    static func coins() async -> [CoinEntity] {
+        let coins = (try? await LocalStore().coins()) ?? []
+        return coins.map { CoinEntity(id: $0.id, title: $0.title.isEmpty ? "Coin" : $0.title) }
     }
 }

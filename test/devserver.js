@@ -65,10 +65,7 @@ http.createServer(async (req, res) => {
     return json(res, { coins: appState.coins });
   }
 
-  // The seed scripts sign in the way the old server needed; any answer will do.
-  if (url.pathname === '/api/auth/verify-code') return json(res, { token: 'test', email: 'review@example.com' });
-
-  if (url.pathname === '/api/coins' && req.method === 'GET') return json(res, { coins, email: 'review@example.com' });
+  if (url.pathname === '/api/coins' && req.method === 'GET') return json(res, { coins });
 
   if (url.pathname === '/api/coins' && req.method === 'POST') {
     const { id, title, notes, accent, pin } = JSON.parse(await body(req));

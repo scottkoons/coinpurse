@@ -107,7 +107,8 @@ struct ArchiveView: View {
         }
         // Closed again, a hidden coin asks for Face ID the next time.
         .onChange(of: path) { _, path in model.keepRevealed(only: path.last) }
-        .task {
+        // Again when iPhone Search asks for another coin while this is open.
+        .task(id: startWith) {
             if let startWith, let coin = model.coin(startWith) { open(coin) }
         }
     }
@@ -173,6 +174,7 @@ struct UndoBar: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.undoLast() }
                 }
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.barAction)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
                 .accessibilityIdentifier("undoDelete")

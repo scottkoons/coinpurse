@@ -208,9 +208,7 @@ struct ViewerView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 12) {
-            if pictures.count > 1 || pictures.count < Config.maxExtraPictures + 1 {
-                thumbnails
-            }
+            thumbnails
             HStack(spacing: 0) {
                 barButton("Share", "square.and.arrow.up") { Task { await shareCurrent() } }
                     .disabled(current == nil)
@@ -300,8 +298,7 @@ struct ViewerView: View {
 
     private func load(_ picture: Picture) async {
         if images[picture.key] != nil { return }
-        guard let url = model.url(for: picture) else { return }
-        if let img = await ImageCache.shared.image(key: picture.key, url: url) {
+        if let img = await ImageCache.shared.image(key: picture.key, url: model.url(for: picture)) {
             images[picture.key] = img
         } else {
             failed.insert(picture.key)

@@ -4,17 +4,23 @@ import UIKit
 /// A video from the camera: a still from it (shown wherever a picture shows,
 /// with a play button) and its file, kept until the coin is saved.
 enum VideoClip {
-    /// The camera removes its file soon after; a copy for as long as it is needed.
-    nonisolated static func keepCopy(of url: URL) -> URL? {
+    /// The camera removes its file soon after: taken over (moved, or copied if
+    /// it cannot be moved) for as long as it is needed.
+    nonisolated static func keep(_ url: URL) -> URL? {
         let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
-        let copy = FileManager.default.temporaryDirectory
+        let kept = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
-        do {
-            try FileManager.default.copyItem(at: url, to: copy)
-            return copy
-        } catch {
-            return nil
-        }
+        if (try? FileManager.default.moveItem(at: url, to: kept)) != nil { return kept }
+        return (try? FileManager.default.copyItem(at: url, to: kept)) != nil ? kept : nil
+    }
+
+    /// A video that will not be saved after all, removed (only a file of ours
+    /// waiting in the temporary folder; a saved one has already moved away).
+    nonisolated static func discard(_ url: URL?) {
+        guard let url else { return }
+        let temporary = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path
+        guard url.resolvingSymlinksInPath().path.hasPrefix(temporary) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     /// A still from near the start, upright, saved like any picture.

@@ -21,9 +21,10 @@ nonisolated struct LocalStore: Sendable {
 
     // MARK: Coins
 
-    /// Every coin, front of the purse first (archived ones are kept in the list too).
+    /// Every coin in the purse's order, top of the stack first and the front
+    /// card last (archived ones are kept in the list too).
     func coins() async throws -> [Coin] {
-        try Self.coordinated(writing: false) { Self.read($0) }
+        try Self.coordinated(writing: false) { try Self.read($0) }
     }
 
     /// Makes the coin, or returns it unchanged if it already exists (so a
@@ -51,6 +52,15 @@ nonisolated struct LocalStore: Sendable {
             coin.notes = notes
             coin.accent = accent
             if let hidden { coin.hidden = hidden }
+        }
+    }
+
+    /// Adds text on a new line of a coin's notes, unless it is there already.
+    /// (Read and changed in one step, so nothing else about the coin is undone.)
+    func appendToNotes(id: String, _ text: String) async throws -> Coin {
+        try Self.edit(id) { coin in
+            guard !coin.notes.contains(text) else { return }
+            coin.notes = (coin.notes.isEmpty ? text : coin.notes + "\n" + text).limited(to: Config.maxNotes)
         }
     }
 
@@ -104,12 +114,15 @@ nonisolated struct LocalStore: Sendable {
             return coin
         } catch {
             Self.removeFile(path)
-            if let videoPath { Self.removeFile(videoPath) }
+            Self.giveBack(videoPath, to: video)
             throw error
         }
     }
 
-    /// Another picture (or, with `video`, a video and a still from it).
+    /// Another picture (or, with `video`, a video and a still from it). On a
+    /// coin with no picture yet it becomes the first, the one on its card
+    /// (decided here, in one step, so pictures added one after another never
+    /// replace each other).
     func addPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws -> Coin {
         let path = try Self.savePicture(jpeg)
         let videoPath: String?
@@ -119,12 +132,18 @@ nonisolated struct LocalStore: Sendable {
                 guard coin.pictures.count < Config.maxExtraPictures + 1 else {
                     throw PurseError.failed("A coin holds at most \(Config.maxExtraPictures + 1) pictures")
                 }
-                coin.attachments.append(Attachment(id: UUID().uuidString.lowercased(), imageUrl: path, imagePath: path,
-                                                   videoPath: videoPath))
+                if coin.imageUrl == nil {
+                    coin.imageUrl = path
+                    coin.imagePath = path
+                    coin.videoPath = videoPath
+                } else {
+                    coin.attachments.append(Attachment(id: UUID().uuidString.lowercased(), imageUrl: path, imagePath: path,
+                                                       videoPath: videoPath))
+                }
             }
         } catch {
             Self.removeFile(path)
-            if let videoPath { Self.removeFile(videoPath) }
+            Self.giveBack(videoPath, to: video)
             throw error
         }
     }
@@ -158,7 +177,7 @@ nonisolated struct LocalStore: Sendable {
     }
 
     /// Where a picture's file is.
-    func url(for picture: Picture) -> URL? {
+    func url(for picture: Picture) -> URL {
         Self.folder.appendingPathComponent(picture.key)
     }
 
@@ -167,14 +186,40 @@ nonisolated struct LocalStore: Sendable {
         picture.video.map { Self.folder.appendingPathComponent($0) }
     }
 
+    /// Picture and video files no coin uses (left behind when the app or Share
+    /// to Coin Purse was stopped part way through a save), removed. Only when
+    /// the purse reads back cleanly, and never a file from the last ten
+    /// minutes: a save may still be under way.
+    func removeUnusedFiles() async {
+        let pictures = Self.folder.appendingPathComponent("Pictures", isDirectory: true)
+        // A damaged purse kept to one side still needs its pictures.
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: Self.folder.path)) ?? []
+        guard !kept.contains(where: { $0.hasPrefix("coins-damaged-") }) else { return }
+        guard let coins = try? Self.coordinated(writing: false, { url -> [Coin] in
+            guard FileManager.default.fileExists(atPath: url.path) else { throw PurseError.gone }
+            return try JSONDecoder().decode([Coin].self, from: Data(contentsOf: url))
+        }) else { return }
+        var used = Set<String>()
+        for coin in coins {
+            [coin.imagePath, coin.videoPath].compactMap { $0 }.forEach { used.insert($0) }
+            for a in coin.attachments { [a.imagePath, a.videoPath].compactMap { $0 }.forEach { used.insert($0) } }
+        }
+        let files = (try? FileManager.default.contentsOfDirectory(at: pictures, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        let cutoff = Date().addingTimeInterval(-600)
+        for file in files where !used.contains("Pictures/" + file.lastPathComponent) {
+            guard let made = try? file.resourceValues(forKeys: [.creationDateKey]).creationDate, made < cutoff else { continue }
+            Self.removeFile("Pictures/" + file.lastPathComponent)
+        }
+    }
+
     // MARK: Adding whole coins
 
     /// Saves a picture brought from somewhere else and says where it is, for a
     /// coin about to be added with `add(_:)`.
     func keepPicture(_ jpeg: Data) throws -> String { try Self.savePicture(jpeg) }
 
-    /// Coins that arrive whole (a UI test's sample purse): on top, in their
-    /// order, skipping any this phone already has.
+    /// Coins that arrive whole (a UI test's sample purse): in their order,
+    /// before (behind) the coins already there, skipping any this phone has.
     func add(_ arriving: [Coin]) async throws {
         try Self.change { coins in
             let known = Set(coins.map(\.id))
@@ -222,7 +267,7 @@ nonisolated struct LocalStore: Sendable {
     @discardableResult
     private static func change<T>(_ edit: (inout [Coin]) throws -> T) throws -> T {
         try coordinated(writing: true) { url in
-            var coins = read(url)
+            var coins = try read(url)
             let result = try edit(&coins)
             try write(coins, to: url)
             return result
@@ -247,9 +292,23 @@ nonisolated struct LocalStore: Sendable {
         return try outcome.get()
     }
 
-    private static func read(_ url: URL) -> [Coin] {
-        guard let data = try? Data(contentsOf: url) else { return [] }
-        return (try? JSONDecoder().decode([Coin].self, from: data)) ?? []
+    /// No file yet is an empty purse. A file that cannot be read is an error,
+    /// never an empty purse: saving that would write over every coin.
+    private static func read(_ url: URL) throws -> [Coin] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let data: Data
+        do { data = try Data(contentsOf: url) } catch {
+            throw PurseError.failed("Could not open the purse on this iPhone. Try again in a moment.")
+        }
+        do {
+            return try JSONDecoder().decode([Coin].self, from: data)
+        } catch {
+            // Damaged: kept to one side (never deleted), and the purse starts over.
+            let kept = url.deletingLastPathComponent()
+                .appendingPathComponent("coins-damaged-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: url, to: kept)
+            return []
+        }
     }
 
     private static func write(_ coins: [Coin], to url: URL) throws {
@@ -283,12 +342,22 @@ nonisolated struct LocalStore: Sendable {
         let target = folder.appendingPathComponent(path)
         do {
             try FileManager.default.moveItem(at: source, to: target)
-            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            // Dated now (a move keeps the old date), so cleaning up never takes it
+            // for a file left behind.
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication,
+                                                    .creationDate: Date()],
                                                    ofItemAtPath: target.path)
         } catch {
             throw PurseError.failed("Could not save the video on this iPhone. Is its storage full?")
         }
         return path
+    }
+
+    /// A save that failed hands a recorded video back where it came from, so
+    /// trying again still has it.
+    private static func giveBack(_ path: String?, to source: URL?) {
+        guard let path, let source, path.hasPrefix("Pictures/"), !path.contains("..") else { return }
+        try? FileManager.default.moveItem(at: folder.appendingPathComponent(path), to: source)
     }
 
     private static func removeFile(_ path: String) {

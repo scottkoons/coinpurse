@@ -28,7 +28,7 @@ struct CoinDetailView: View {
     @ScaledMetric(relativeTo: .caption) private var actionSize: CGFloat = 56
     let coin: Coin
     let namespace: Namespace.ID
-    /// The other coins (the next ones first), stacked at the bottom like in Wallet.
+    /// The other coins (the ones in front of it first), stacked at the bottom like in Wallet.
     let pile: [Coin]
     let onClose: () -> Void
     let onDelete: () -> Void

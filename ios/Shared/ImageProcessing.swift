@@ -35,7 +35,10 @@ nonisolated enum ImageProcessing {
                 let box = page.getBoxRect(.cropBox)
                 let turned = page.rotationAngle % 180 != 0
                 let size = turned ? CGSize(width: box.height, height: box.width) : box.size
-                let scale = Config.maxImageWidth / max(size.width, 1)
+                // As wide as a picture, but never taller than four widths: a
+                // very long or very narrow page would need too much memory.
+                let scale = min(Config.maxImageWidth / max(size.width, 1),
+                                Config.maxImageWidth * 4 / max(size.height, 1))
                 let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
                 let format = UIGraphicsImageRendererFormat()
                 format.scale = 1
@@ -55,6 +58,12 @@ nonisolated enum ImageProcessing {
             }
         }
         return pages
+    }
+
+    /// How many pages a PDF has (0 if it is not one).
+    static func pdfPageCount(_ data: Data) -> Int {
+        guard let provider = CGDataProvider(data: data as CFData), let document = CGPDFDocument(provider) else { return 0 }
+        return document.numberOfPages
     }
 
     /// Upright, at most 1200 px wide, JPEG: how every picture is kept.

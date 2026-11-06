@@ -1,12 +1,10 @@
-"""Fills the local test server with 30 coins for review@example.com."""
+"""Fills the local test server with 30 coins."""
 import json, urllib.request, uuid
 import os
 B=os.environ.get('BASE','http://localhost:3000')
-tok=json.load(urllib.request.urlopen(urllib.request.Request(B+'/api/auth/verify-code',data=json.dumps({"email":"review@example.com","code":"123456"}).encode(),headers={'content-type':'application/json'})))['token']
-H={'authorization':'Bearer '+tok}
 def call(method,path,body=None,ctype='application/json'):
     data=body if isinstance(body,bytes) else (json.dumps(body).encode() if body is not None else None)
-    r=urllib.request.Request(B+path,data=data,method=method,headers={**H,'content-type':ctype})
+    r=urllib.request.Request(B+path,data=data,method=method,headers={'content-type':ctype})
     return json.load(urllib.request.urlopen(r))
 coins=[
  ("Tailgate tickets","Lot opens 9 AM",['ticket-1.jpg','ticket-2.jpg']),("Parking B3","Two slots down from the elevator",['parking-b3.jpg']),

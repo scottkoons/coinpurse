@@ -36,7 +36,7 @@ struct ShareView: View {
     private static let maxPictures = Config.maxExtraPictures + 1
 
     /// The purse on this iPhone, shared with the app.
-    private let api = LocalStore()
+    private let store = LocalStore()
     private var chosenCoin: Coin? { coins.first { $0.id == chosen } }
     private func room(in coin: Coin) -> Int { max(0, Self.maxPictures - coin.pictures.count) }
 
@@ -98,7 +98,7 @@ struct ShareView: View {
         .task {
             input = await load()
             loading = false
-            if let list = try? await api.coins() {
+            if let list = try? await store.coins() {
                 // Archived coins are put away; sharing adds to the purse.
                 coins = list.filter { !$0.archived }
             }
@@ -213,7 +213,7 @@ struct ShareView: View {
         do {
             switch target {
             case .new:
-                _ = try await api.createCoin(
+                _ = try await store.createCoin(
                     id: draftId,
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                     notes: (input.text ?? "").limited(to: Config.maxNotes),
@@ -221,9 +221,9 @@ struct ShareView: View {
                 )
                 for (i, jpeg) in input.images.prefix(Self.maxPictures).enumerated() where i >= uploaded {
                     if i == 0 {
-                        _ = try await api.uploadMainPicture(coinId: draftId, jpeg: jpeg)
+                        _ = try await store.uploadMainPicture(coinId: draftId, jpeg: jpeg)
                     } else {
-                        _ = try await api.addPicture(coinId: draftId, jpeg: jpeg)
+                        _ = try await store.addPicture(coinId: draftId, jpeg: jpeg)
                     }
                     uploaded = i + 1
                 }
@@ -232,16 +232,15 @@ struct ShareView: View {
                 let fitting = Array(input.images.prefix(room(in: coin)))
                 for (i, jpeg) in fitting.enumerated() where i >= uploaded {
                     if coin.imageUrl != nil || sentMain {
-                        _ = try await api.addPicture(coinId: coin.id, jpeg: jpeg)
+                        _ = try await store.addPicture(coinId: coin.id, jpeg: jpeg)
                     } else {
-                        _ = try await api.uploadMainPicture(coinId: coin.id, jpeg: jpeg)
+                        _ = try await store.uploadMainPicture(coinId: coin.id, jpeg: jpeg)
                         sentMain = true
                     }
                     uploaded = i + 1
                 }
-                if let text = input.text, !coin.notes.contains(text) {
-                    let notes = (coin.notes.isEmpty ? text : coin.notes + "\n" + text).limited(to: Config.maxNotes)
-                    _ = try await api.updateCoin(id: coin.id, title: coin.title, notes: notes, accent: coin.accent)
+                if let text = input.text {
+                    _ = try await store.appendToNotes(id: coin.id, text)
                 }
             }
             onDone()

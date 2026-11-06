@@ -62,7 +62,6 @@ for entry in $SUITES; do
   # A fresh server (in-memory store) for every suite.
   lsof -ti tcp:$PORT -sTCP:LISTEN | xargs kill 2>/dev/null; sleep 1
   (cd $R && PORT=$PORT nohup node ./test/devserver.js > $OUT/server-$PORT.log 2>&1 &); sleep 2
-  curl -s -X POST localhost:$PORT/api/auth/request-link -H 'content-type: application/json' -d '{"email":"review@example.com"}' >/dev/null
   [ -n "$seed" ] && (cd $R && BASE=http://localhost:$PORT python3 scripts/ios-test/$seed >/dev/null)
   mkdir -p $OUT/$name
   log=$OUT/$name/xcodebuild.log

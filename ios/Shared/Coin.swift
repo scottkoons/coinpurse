@@ -20,7 +20,6 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     var attachments: [Attachment]
     /// Where you were when you tapped Add Pin (nil when the coin has no pin).
     var pin: Pin?
-    var sortOrder: Double?
     var createdAt: Double?
     var updatedAt: Double?
     /// Put away: kept, but out of the purse until it is unarchived.
@@ -29,7 +28,7 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     var hidden = false
 
     enum CodingKeys: String, CodingKey {
-        case id, title, notes, accent, imageUrl, imagePath, videoPath, attachments, pin, sortOrder, createdAt, updatedAt, archived, hidden
+        case id, title, notes, accent, imageUrl, imagePath, videoPath, attachments, pin, createdAt, updatedAt, archived, hidden
     }
 
     /// A new coin made on this iPhone.
@@ -56,7 +55,6 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
         videoPath = try? c.decode(String.self, forKey: .videoPath)
         attachments = (try? c.decode([Attachment].self, forKey: .attachments)) ?? []
         pin = try? c.decode(Pin.self, forKey: .pin)
-        sortOrder = try? c.decode(Double.self, forKey: .sortOrder)
         createdAt = try? c.decode(Double.self, forKey: .createdAt)
         updatedAt = try? c.decode(Double.self, forKey: .updatedAt)
         archived = (try? c.decode(Bool.self, forKey: .archived)) ?? false
@@ -66,12 +64,13 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     /// Main picture first, then the extras, as the viewer shows them.
     var pictures: [Picture] {
         var list: [Picture] = []
+        // `imageUrl` says a picture is there; `imagePath` is its file.
         if let url = imageUrl {
-            list.append(Picture(id: "primary", url: url, key: imagePath ?? url, attachmentId: nil, video: videoPath))
+            list.append(Picture(id: "primary", key: imagePath ?? url, attachmentId: nil, video: videoPath))
         }
         for a in attachments {
             if let url = a.imageUrl {
-                list.append(Picture(id: a.id, url: url, key: a.imagePath ?? url, attachmentId: a.id, video: a.videoPath))
+                list.append(Picture(id: a.id, key: a.imagePath ?? url, attachmentId: a.id, video: a.videoPath))
             }
         }
         return list
@@ -96,21 +95,12 @@ nonisolated struct Pin: Codable, Hashable {
     var acc: Double?
     /// When it was dropped, in milliseconds since 1970.
     var at: Double
-
-    var date: Date { Date(timeIntervalSince1970: at / 1000) }
-
-    var json: [String: Any] {
-        var d: [String: Any] = ["lat": lat, "lng": lng, "at": at]
-        if let acc { d["acc"] = acc }
-        return d
-    }
 }
 
 /// One picture on a coin. `key` is its file, so it is what the image cache uses.
 /// A video is a picture too: a still from it, with `video` its file.
 nonisolated struct Picture: Hashable, Identifiable {
     let id: String
-    let url: String
     let key: String
     let attachmentId: String?
     var video: String?
@@ -138,17 +128,7 @@ nonisolated enum AccentPalette {
         Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
     }
 
-    static func color(_ index: Int) -> Color { shade(index, 1) }
-
-    /// The same color, darker: the far corner of a card's gradient.
-    static func deep(_ index: Int) -> Color { shade(index, 0.5) }
-
-    private static func shade(_ index: Int, _ k: Double) -> Color {
-        let v = hex[(index % hex.count + hex.count) % hex.count]
-        return Color(
-            red: Double((v >> 16) & 0xFF) / 255 * k,
-            green: Double((v >> 8) & 0xFF) / 255 * k,
-            blue: Double(v & 0xFF) / 255 * k
-        )
+    static func color(_ index: Int) -> Color {
+        rgb(hex[(index % hex.count + hex.count) % hex.count])
     }
 }

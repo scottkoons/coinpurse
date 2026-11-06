@@ -16,9 +16,11 @@ enum PictureLoader {
     }
 
     static func data(from item: PhotosPickerItem) async -> Data? {
-        guard let raw = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: raw) else { return nil }
-        return await prepare(image)
+        guard let raw = try? await item.loadTransferable(type: Data.self) else { return nil }
+        // Straight from the file's bytes, never decoding the full 12 to 48 MP photo.
+        return await Task.detached(priority: .userInitiated) {
+            ImageProcessing.uploadData(fromFile: raw)
+        }.value
     }
 
     static func prepare(_ image: UIImage) async -> Data? {
@@ -28,8 +30,8 @@ enum PictureLoader {
     }
 }
 
-/// Paste, Photo Library, Camera and Files in one row. Paste uses Apple's
-/// PasteButton, so there is no "Allow Paste" prompt.
+/// Camera, Paste, Photos and Files as big tiles, two by two. Paste is Apple's
+/// secure paste control, so there is no "Allow Paste" prompt.
 struct PictureSourceButtons: View {
     /// How many more pictures fit (a PDF gives one per page, up to this).
     var room = Config.maxExtraPictures + 1
@@ -150,11 +152,14 @@ struct PictureSourceButtons: View {
                 case .video(let url):
                     Task {
                         guard let still = await VideoClip.poster(for: url) else {
+                            VideoClip.discard(url)
                             model.show("That video could not be read")
                             return
                         }
                         onPicked(still, url)
                     }
+                case .unkept:
+                    model.show(CameraShot.unkeptMessage)
                 case nil:
                     break
                 }
@@ -192,21 +197,22 @@ struct PictureSourceButtons: View {
         for url in urls {
             guard added < room else { leftOut = true; break }
             let limit = room - added
-            let pages: [Data] = await Task.detached(priority: .userInitiated) {
+            let (pages, total): ([Data], Int) = await Task.detached(priority: .userInitiated) {
                 // Files from iCloud Drive or another app are lent only while read.
                 let lent = url.startAccessingSecurityScopedResource()
                 defer { if lent { url.stopAccessingSecurityScopedResource() } }
-                guard let data = try? Data(contentsOf: url) else { return [] }
+                guard let data = try? Data(contentsOf: url) else { return ([], 0) }
                 if UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
-                    return ImageProcessing.pdfPages(data, limit: limit + 1)
+                    return (ImageProcessing.pdfPages(data, limit: limit), ImageProcessing.pdfPageCount(data))
                 }
-                return ImageProcessing.uploadData(fromFile: data).map { [$0] } ?? []
+                let picture = ImageProcessing.uploadData(fromFile: data).map { [$0] } ?? []
+                return (picture, picture.count)
             }.value
             if pages.isEmpty {
                 model.show("Could not read \(url.lastPathComponent)")
                 continue
             }
-            if pages.count > limit { leftOut = true }
+            if total > limit { leftOut = true }
             for page in pages.prefix(limit) {
                 onPicked(page, nil)
                 added += 1
@@ -224,28 +230,36 @@ struct PictureSourceButtons: View {
     }
 }
 
-/// Sheet used by the viewer's "+" button.
+/// Sheet used by the "+" and Replace buttons in the editor and the viewer.
 struct AddPictureSheet: View {
     var room = Config.maxExtraPictures + 1
     let onPicked: (Data, URL?) -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Add picture").font(.headline)
-            Text("Copy a screenshot or image, then tap Paste.  Or choose one from your photos, or a picture or PDF from Files.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            PictureSourceButtons(room: room, onPicked: onPicked)
+        // Scrolls at the largest text sizes, where the tiles stack one per line.
+        ScrollView {
+            VStack(spacing: 16) {
+                Text("Add picture").font(.headline)
+                Text("Take one with the camera, or copy a screenshot or image and tap Paste.  Or choose one from your photos, or a picture or PDF from Files.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                PictureSourceButtons(room: room, onPicked: onPicked)
+            }
+            .padding(24)
         }
-        .padding(24)
+        .scrollBounceBehavior(.basedOnSize)
     }
 }
 
-/// What the camera took: a photo, or a video (its file, ours to keep).
+/// What the camera took: a photo, or a video (its file, ours to keep), or a
+/// video that could not be kept.
 enum CameraShot {
     case photo(UIImage)
     case video(URL)
+    case unkept
+
+    static let unkeptMessage = "The video could not be kept. Is the iPhone's storage full?"
 }
 
 /// The iPhone camera, with Photo and Video, as in the Camera app.
@@ -274,7 +288,7 @@ struct CameraPicker: UIViewControllerRepresentable {
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             if let movie = info[.mediaURL] as? URL {
-                onDone(VideoClip.keepCopy(of: movie).map(CameraShot.video))
+                onDone(VideoClip.keep(movie).map(CameraShot.video) ?? .unkept)
             } else {
                 onDone((info[.originalImage] as? UIImage).map(CameraShot.photo))
             }
@@ -325,7 +339,5 @@ private struct PasteTile: UIViewRepresentable {
         override func paste(itemProviders: [NSItemProvider]) {
             onPaste(itemProviders)
         }
-
-        override func canPaste(_ itemProviders: [NSItemProvider]) -> Bool { true }
     }
 }

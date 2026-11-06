@@ -6,6 +6,8 @@ import SwiftUI
 struct PinMapView: View {
     let pin: Pin
     var tint: Color = .red
+    /// Tapping it opens Apple Maps (not in the editor, where it is only shown).
+    var opensMaps = true
     @Environment(\.colorScheme) private var scheme
 
     @State private var image: UIImage?
@@ -58,7 +60,7 @@ struct PinMapView: View {
         }
         .accessibilityElement()
         .accessibilityLabel("Map pin")
-        .accessibilityHint("Opens Apple Maps with directions")
+        .accessibilityHint(opensMaps ? "Opens Apple Maps with directions" : "")
         .accessibilityIdentifier("pinMap")
     }
 }
@@ -194,7 +196,7 @@ enum MapsLink {
 extension Pin {
     /// "Pinned at 2:14 PM" today, otherwise with the date.
     var pinnedLabel: String {
-        let d = date
+        let d = Date(timeIntervalSince1970: at / 1000)
         if Calendar.current.isDateInToday(d) {
             return "Pinned at " + d.formatted(date: .omitted, time: .shortened)
         }

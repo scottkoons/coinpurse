@@ -120,11 +120,11 @@ struct EditorView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     // Like Notes and Mail: closing with unsaved changes asks first.
                     Button("Cancel") {
-                        if hasChanges { confirmingDiscard = true } else { dismiss() }
+                        if hasChanges { confirmingDiscard = true } else { discardStaged(); dismiss() }
                     }
                     .disabled(saving)
                     .confirmationDialog("Discard your changes?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
-                        Button("Discard Changes", role: .destructive) { dismiss() }
+                        Button("Discard Changes", role: .destructive) { discardStaged(); dismiss() }
                         Button("Keep Editing", role: .cancel) {}
                     }
                 }
@@ -138,13 +138,16 @@ struct EditorView: View {
                     }
                 }
             }
-            .sheet(isPresented: $addingExtra) {
-                AddPictureSheet { data, video in
+            // Closed without picking, it is no longer replacing anything.
+            .sheet(isPresented: $addingExtra, onDismiss: { replacingMain = false }) {
+                // Replacing: the first picture's place, plus any free ones (a PDF's
+                // first page replaces it, the rest are added).
+                AddPictureSheet(room: Config.maxExtraPictures + 1 - extrasCount - (replacingMain ? 0 : 1)) { data, video in
                     addingExtra = false
                     stage(data, video: video, asMain: replacingMain)
                     replacingMain = false
                 }
-                .presentationDetents([.height(300)])
+                .presentationDetents([.height(300), .large])
             }
             .fullScreenCover(item: $cropping) { request in
                 CropView(image: request.picture.image) { result in
@@ -173,7 +176,6 @@ struct EditorView: View {
 
     // MARK: Sections
 
-    /// Where you are now, saved on the coin. Tap it later for walking directions.
     private var pictureSection: some View {
         Section {
             mainPicture
@@ -234,10 +236,11 @@ struct EditorView: View {
         }
     }
 
+    /// Where you are now, saved on the coin. Tap it later for walking directions.
     private var pinSection: some View {
         Section {
             if let pin {
-                PinMapView(pin: pin, tint: AccentPalette.color(accent))
+                PinMapView(pin: pin, tint: AccentPalette.color(accent), opensMaps: false)
                     .frame(height: 190)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
@@ -389,9 +392,15 @@ struct EditorView: View {
                         Image(uiImage: staged.image).resizable().scaledToFill()
                             .overlay { if staged.video != nil { PlayBadge(small: true) } }
                     } onRemove: {
+                        VideoClip.discard(staged.video)
                         stagedExtras.removeAll { $0.id == staged.id }
                     }
                     .onTapGesture { if staged.video == nil { cropping = StagedCrop(picture: staged, isMain: false) } }
+                    .accessibilityActions {
+                        if staged.video == nil {
+                            Button("Crop or rotate") { cropping = StagedCrop(picture: staged, isMain: false) }
+                        }
+                    }
                 }
                 if extrasCount < Config.maxExtraPictures {
                     Button { addingExtra = true } label: {
@@ -468,12 +477,21 @@ struct EditorView: View {
         guard let image = UIImage(data: data) else { return }
         let picture = StagedPicture(data: data, image: image, video: video)
         if asMain || !hasMain {
+            // A video it replaces will not be saved.
+            VideoClip.discard(stagedMain?.video)
             stagedMain = picture
         } else if extrasCount < Config.maxExtraPictures {
             stagedExtras.append(picture)
         } else {
+            VideoClip.discard(video)
             model.show("A coin holds at most \(Config.maxExtraPictures + 1) pictures")
         }
+    }
+
+    /// Videos waiting to be saved, removed when the coin is closed without them.
+    private func discardStaged() {
+        VideoClip.discard(stagedMain?.video)
+        stagedExtras.forEach { VideoClip.discard($0.video) }
     }
 
     /// Each step clears what it finished, so tapping Save again after a

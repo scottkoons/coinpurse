@@ -75,9 +75,13 @@ final class VoiceCapture {
     /// Safe to tap twice: only the first does anything.
     func finish() async {
         guard state == .listening else { return }
+        let mine = generation
         state = .stopping
         if let engine {
-            transcript = await engine.stop()
+            let words = await engine.stop()
+            // Cancelled while the last words came in: nothing more to do.
+            guard mine == generation else { return }
+            transcript = words
         }
         engine = nil
         level = 0

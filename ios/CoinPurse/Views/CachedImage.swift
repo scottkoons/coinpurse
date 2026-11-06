@@ -41,8 +41,8 @@ struct CachedImage: View {
             return
         }
         image = nil
-        guard let url = model.url(for: picture) else { failed = true; return }
-        image = await ImageCache.shared.image(key: picture.key, url: url)
+        failed = false
+        image = await ImageCache.shared.image(key: picture.key, url: model.url(for: picture))
         failed = image == nil
     }
 }

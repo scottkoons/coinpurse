@@ -24,25 +24,26 @@ struct ReorderView: View {
                                     .lineLimit(2)
                                 Spacer(minLength: 8)
                                 // Every row keeps the arrow's room, so the rows line up;
-                                // the first coin is already at the top.
-                                let isFirst = id == ids.first
-                                Button { withAnimation { moveToTop(id) } } label: {
-                                    Image(systemName: "arrow.up.to.line")
+                                // the last coin is already the front card.
+                                let isFront = id == ids.last
+                                Button { withAnimation { moveToFront(id) } } label: {
+                                    Image(systemName: "arrow.down.to.line")
                                         .font(.body.weight(.semibold))
                                         .frame(width: 44, height: 44)
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.borderless)
-                                .opacity(isFirst ? 0 : 1)
-                                .disabled(isFirst)
-                                .accessibilityHidden(isFirst)
-                                .accessibilityLabel("Move \(coin.title) to the top")
+                                .opacity(isFront ? 0 : 1)
+                                .disabled(isFront)
+                                .accessibilityHidden(isFront)
+                                .accessibilityLabel("Move \(coin.title) to the front")
                             }
                         }
                     }
                     .onMove { from, to in ids.move(fromOffsets: from, toOffset: to) }
                 } footer: {
-                    Text("Drag the handles to change the order, or tap the arrow to move a coin to the top.")
+                    // In the purse's own order, top to bottom: the last coin is the front card.
+                    Text("Drag the handles to change the order, or tap the arrow to bring a coin to the front, at the bottom of your purse.")
                 }
             }
             .environment(\.editMode, .constant(.active))
@@ -68,8 +69,8 @@ struct ReorderView: View {
         .onAppear { ids = model.purse.map(\.id) }
     }
 
-    private func moveToTop(_ id: String) {
+    private func moveToFront(_ id: String) {
         guard let i = ids.firstIndex(of: id) else { return }
-        ids.insert(ids.remove(at: i), at: 0)
+        ids.append(ids.remove(at: i))
     }
 }

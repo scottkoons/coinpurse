@@ -173,11 +173,13 @@ struct PurseView: View {
             }
             #endif
         }
-        .sheet(isPresented: $addingPicture) { EditorView(coinId: nil) }
-        .sheet(isPresented: $addingPin) { EditorView(coinId: nil, startsWithPin: true) }
-        .sheet(isPresented: $recordingVoice) { VoiceNoteView() }
-        .sheet(isPresented: $typingNote) { EditorView(coinId: nil, startsWithText: true) }
-        .sheet(item: $editing) { ref in EditorView(coinId: ref.id) }
+        // A hidden coin shown in a sheet (saved in the editor, opened in the
+        // archive) is covered again when it closes, unless it is the open coin.
+        .sheet(isPresented: $addingPicture, onDismiss: coverHidden) { EditorView(coinId: nil) }
+        .sheet(isPresented: $addingPin, onDismiss: coverHidden) { EditorView(coinId: nil, startsWithPin: true) }
+        .sheet(isPresented: $recordingVoice, onDismiss: coverHidden) { VoiceNoteView() }
+        .sheet(isPresented: $typingNote, onDismiss: coverHidden) { EditorView(coinId: nil, startsWithText: true) }
+        .sheet(item: $editing, onDismiss: coverHidden) { ref in EditorView(coinId: ref.id) }
         .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showReorder) { ReorderView() }
         .fullScreenCover(isPresented: $snapping) {
@@ -186,7 +188,7 @@ struct PurseView: View {
                 switch shot {
                 case .photo(let image): savingSnap = image
                 case .video: savingVideo = true
-                case nil: break
+                case .unkept, nil: break
                 }
                 var now = Transaction()
                 now.disablesAnimations = true
@@ -195,10 +197,10 @@ struct PurseView: View {
             }
             .ignoresSafeArea()
         }
-        .sheet(item: $snappedFallback) { snap in
+        .sheet(item: $snappedFallback, onDismiss: coverHidden) { snap in
             EditorView(coinId: snap.existing ? snap.id : nil, startingPicture: snap.data, startingVideo: snap.video)
         }
-        .sheet(isPresented: $showArchive, onDismiss: { archiveStart = nil }) { ArchiveView(startWith: archiveStart) }
+        .sheet(isPresented: $showArchive, onDismiss: { archiveStart = nil; coverHidden() }) { ArchiveView(startWith: archiveStart) }
         .task(id: model.purse.count) { MoveCardsTip.coinCount = model.purse.count }
         #if DEBUG
         // UI tests open the Share to Coin Purse screen with two sample pictures.
@@ -499,7 +501,7 @@ struct PurseView: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("stackCard")
             .accessibilityAction { openCoin(coin.id) }
-            .accessibilityAction(named: "Move to top") { model.move(coin.id, to: 0) }
+            .accessibilityAction(named: "Move to front") { model.move(coin.id, to: model.purse.count) }
             .accessibilityAction(named: "Move up") { model.move(coin.id, to: max(0, i - 1)) }
             .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
             .accessibilityAction(named: "Archive") {
@@ -814,12 +816,13 @@ struct PurseView: View {
     }
 
 
-    /// The coins after the open one (then around to the top), for the stack
-    /// at the bottom of an open coin.
+    /// For the stack at the bottom of an open coin: the cards in front of it
+    /// (below it in the purse), then the ones behind it, newest first. The
+    /// front coin's pile is the coins added just before it.
     private func pile(after id: String) -> [Coin] {
         let list = visibleCoins
-        guard let i = list.firstIndex(where: { $0.id == id }) else { return list }
-        return Array(list[(i + 1)...] + list[..<i])
+        guard let i = list.firstIndex(where: { $0.id == id }) else { return list.reversed() }
+        return Array(list[(i + 1)...] + list[..<i].reversed())
     }
 
     private func openCoin(_ id: String) {
@@ -834,13 +837,28 @@ struct PurseView: View {
         withAnimation(cardAnimation) { openId = id }
     }
 
+    private func coverHidden() { model.keepRevealed(only: openId) }
+
+    /// A coin being made or changed in a sheet: work Siri, Shortcuts or the
+    /// icon menu must never throw away.
+    private var workingOnCoin: Bool {
+        editing != nil || snappedFallback != nil || addingPicture || addingPin || typingNote || recordingVoice
+    }
+
+    /// The other sheets, closed, so Siri, Shortcuts and the icon menu start
+    /// from the purse.
+    private func closeSheets() {
+        showAccount = false
+        showReorder = false
+        showArchive = false
+    }
+
     private func closeCoin() {
         withAnimation(cardAnimation) { openId = nil }
     }
 
     private var cardAnimation: Animation { reduceMotion ? .easeInOut(duration: 0.25) : Self.cardSpring }
 
-    /// The card goes back into the stack first, then leaves it.
     /// The card goes back into the stack first, then into the archive.
     private func archiveOpenCoin(_ id: String) {
         closeCoin()
@@ -864,17 +882,27 @@ struct PurseView: View {
             // Wait for the purse to load; a coin that no longer exists is dropped.
             guard model.coinsLoaded || model.coin(id) != nil else { return }
             quick.pending = nil
-            guard model.coin(id) != nil else { return }
+            guard let coin = model.coin(id) else { return }
+            if workingOnCoin { return model.show("Save or cancel the coin you are working on first") }
+            closeSheets()
             endSearch()
-            openCoin(id)
+            // An archived coin (found in iPhone Search) opens in the archive,
+            // where it can be unarchived.
+            if coin.archived {
+                openId = nil
+                archiveStart = id
+                showArchive = true
+            } else {
+                openCoin(id)
+            }
             return
         }
         quick.pending = nil
+        if workingOnCoin { return model.show("Save or cancel the coin you are working on first") }
         // Start from the purse itself, whatever was open.
         openId = nil
         endSearch()
-        editing = nil
-        showAccount = false
+        closeSheets()
         switch action {
         case .addPicture: addingPicture = true
         case .voiceNote: recordingVoice = true
@@ -1085,8 +1113,8 @@ struct PurseView: View {
         }
     }
 
-    /// The picture becomes a coin straight away; if that cannot be saved (no
-    /// signal), the editor opens with it so it is not lost.
+    /// The picture becomes a coin straight away; if that cannot be saved (the
+    /// iPhone's storage full), the editor opens with it so it is not lost.
     private func saveShot(_ shot: CameraShot?) async {
         defer {
             withAnimation(.easeOut(duration: 0.3)) {
@@ -1104,7 +1132,13 @@ struct PurseView: View {
             jpeg = await VideoClip.poster(for: url)
             // Its still shows while it saves.
             if let jpeg { savingSnap = UIImage(data: jpeg) }
-            if jpeg == nil { model.show("That video could not be read") }
+            if jpeg == nil {
+                VideoClip.discard(url)
+                model.show("That video could not be read")
+            }
+        case .unkept:
+            model.show(CameraShot.unkeptMessage)
+            return
         case nil:
             return
         }
@@ -1153,6 +1187,7 @@ struct PurseView: View {
                     editing = CoinRef(id: coin.id)
                 }
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.barAction)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
                 .accessibilityIdentifier("addDetails")
@@ -1160,6 +1195,7 @@ struct PurseView: View {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.discardNew(coin.id) }
                 }
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.barAction)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
                 .accessibilityIdentifier("undoSaved")
@@ -1252,7 +1288,6 @@ extension View {
     }
 }
 
-/// Long-press opens this: drag the handles to set the saved order.
 #if DEBUG
 /// Two pictures, as if shared from Photos (UI tests only): big camera-size
 /// photos stored sideways, read through the same code the Share extension uses.
@@ -1465,6 +1500,16 @@ struct PurseBackground: View {
         RadialGradient(colors: [Color(red: red / 255, green: green / 255, blue: blue / 255).opacity(opacity), .clear],
                        center: center, startRadius: 0, endRadius: radius)
     }
+}
+
+extension Color {
+    /// The buttons in the Saved and Undo bars: indigo, deep enough in light
+    /// mode and light enough in dark mode to read easily on the bar.
+    static let barAction = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0xA5 / 255, green: 0xB4 / 255, blue: 0xFC / 255, alpha: 1)
+            : UIColor(red: 0x43 / 255, green: 0x38 / 255, blue: 0xCA / 255, alpha: 1)
+    })
 }
 
 /// Touches on or off, as a transition step (an open coin on its way out takes none).

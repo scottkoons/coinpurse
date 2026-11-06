@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- HTTPS only, standard Apple encryption: exempt from export paperwork. -->
+	<!-- No encryption of its own (no network use): exempt from export paperwork. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<!-- Press and hold the app icon. -->
@@ -39,7 +39,7 @@
 		<key>PinYourSpot</key>
 		<string>Coin Purse needs your precise location for this pin, so you can find your way back to the exact spot.</string>
 	</dict>
-	<!-- Lets debug builds reach a local test server; all real traffic is HTTPS. -->
+	<!-- Lets debug builds reach the local UI test server.  The app itself uses no network. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

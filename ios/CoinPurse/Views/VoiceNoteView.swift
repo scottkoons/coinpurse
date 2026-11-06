@@ -220,9 +220,9 @@ struct VoiceNoteView: View {
                     }
             } footer: {
                 if title.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).  You can add a picture later with Edit.")
+                    Text("Leave the title blank and it is saved as \(model.nextDefaultTitle()).  You can add pictures to the coin later.")
                 } else {
-                    Text("You can add a picture later with Edit.")
+                    Text("You can add pictures to the coin later.")
                 }
             }
 

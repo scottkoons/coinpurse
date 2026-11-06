@@ -14,7 +14,6 @@ final class AppModel {
     /// False until the purse has been read once, so a slow start shows a
     /// spinner instead of "Your purse is empty".
     var coinsLoaded = false
-    var isRefreshing = false
     /// Coins being deleted right now; a refresh that started earlier must not bring them back.
     private var deleting: Set<String> = []
     /// A short message shown at the bottom of the screen.
@@ -67,6 +66,8 @@ final class AppModel {
         await refresh()
         phase = .ready
         scheduleSpotlight()
+        // Off the main thread: it lists every picture file.
+        Task.detached(priority: .background) { await LocalStore().removeUnusedFiles() }
     }
 
     /// Left by versions that kept coins on a server: a copy of the purse and
@@ -121,8 +122,6 @@ final class AppModel {
     /// Reads the purse kept on this phone (Share to Coin Purse may have added to it).
     func refresh() async {
         let mine = session
-        isRefreshing = true
-        defer { isRefreshing = false }
         for attempt in 0..<3 {
             let changesBefore = changes
             do {
@@ -185,8 +184,12 @@ final class AppModel {
     }
 
     func uploadExtraPicture(coinId: String, jpeg: Data, video: URL? = nil) async throws {
+        let before = Set(self.coin(coinId)?.pictures.map(\.key) ?? [])
         let coin = try await guarded(coinId) { try await self.store.addPicture(coinId: coinId, jpeg: jpeg, video: video) }
-        cacheUpload(jpeg, key: coin.attachments.last?.imagePath)
+        // The new file (the first picture or another one). Only when that is
+        // certain: if the purse changed meanwhile, it is simply read from its file.
+        let added = coin.pictures.map(\.key).filter { !before.contains($0) }
+        if added.count == 1 { cacheUpload(jpeg, key: added[0]) }
         upsert(coin)
     }
 
@@ -216,6 +219,7 @@ final class AppModel {
     func addPicture(to coinId: String, jpeg: Data, video: URL? = nil) async {
         let mine = session
         do {
+            // On a coin with no picture yet, the store makes it the first.
             try await uploadExtraPicture(coinId: coinId, jpeg: jpeg, video: video)
         } catch {
             await handle(error, from: mine)
@@ -408,8 +412,13 @@ final class AppModel {
         justSavedTask?.cancel()
         justSaved = coin(id)
         let mine = session
+        var stays = 5.0
+        #if DEBUG
+        // The accessibility audit takes longer than that to look at it.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestSavedStays") { stays = 60 }
+        #endif
         justSavedTask = Task {
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .seconds(stays))
             guard !Task.isCancelled, session == mine else { return }
             justSaved = nil
         }
@@ -533,13 +542,13 @@ final class AppModel {
         }
     }
 
-    /// Persist a new order (front of the stack first).
+    /// Persist a new order (top of the stack first, the front card last).
     func reorder(_ ids: [String]) async {
         let byId = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
         let listed = Set(ids)
-        // Coins added after the Rearrange sheet opened keep their place at the
-        // front; archived coins stay after the purse.
-        saveOrder(purse.filter { !listed.contains($0.id) } + ids.compactMap { byId[$0] }.filter { !$0.archived }
+        // Coins added after the Rearrange sheet opened stay in front, after the
+        // listed ones; archived coins stay after the purse.
+        saveOrder(ids.compactMap { byId[$0] }.filter { !$0.archived } + purse.filter { !listed.contains($0.id) }
                   + coins.filter(\.archived))
     }
 
@@ -589,7 +598,7 @@ final class AppModel {
         }
     }
 
-    func url(for picture: Picture) -> URL? { store.url(for: picture) }
+    func url(for picture: Picture) -> URL { store.url(for: picture) }
 
     /// A video's file (nil for a plain picture).
     func videoURL(for picture: Picture) -> URL? { store.videoURL(for: picture) }
@@ -620,7 +629,7 @@ final class AppModel {
         guard let key else { return }
         let mine = session
         Task {
-            // Signed out meanwhile: the cache was just emptied; keep it so.
+            // The purse was emptied meanwhile (a UI test starting over); keep the cache empty.
             guard session == mine else { return }
             await ImageCache.shared.store(data, key: key)
         }
