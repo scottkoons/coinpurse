@@ -33,8 +33,8 @@ nonisolated struct LocalStore: Sendable {
             if let existing = coins.first(where: { $0.id == id }) { return existing }
             let name = title.isEmpty ? Self.nextDefaultTitle(after: coins) : title
             let coin = Coin(id: id, title: name, notes: notes, accent: accent, pin: pin, hidden: hidden, at: Self.now)
-            // New coins go on top of the purse.
-            coins.insert(coin, at: 0)
+            // New coins go in front: the last card, at the bottom, which shows all of it.
+            coins.append(coin)
             return coin
         }
     }

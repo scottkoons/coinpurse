@@ -66,6 +66,15 @@ struct PurseView: View {
     @State private var pull: CGFloat = 0
     @State private var pulledToRefresh = false
     @State private var headerBottom: CGFloat = 120
+    /// The whole screen's size, so the title bar can carry the background's glow on.
+    @State private var backgroundSize: CGSize = .zero
+    /// 0 at the top of the purse, 1 once it is rolled down past a card or two:
+    /// how far the rolodex look (top cards tilting back) has come in.
+    @State private var rolled: CGFloat = 0
+    /// Cards on screen now, to count the earlier coins rolled away above.
+    @State private var onScreen: Set<String> = []
+    /// Scrolled by hand since the purse opened; until then it stays on the coin in front.
+    @State private var scrolledByHand = false
     /// Bumped after the order of the purse changes, so every card is layered
     /// again for its new place (the lazy stack keeps a card's old layering).
     @State private var stackVersion = 0
@@ -97,7 +106,8 @@ struct PurseView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color(.systemBackground).ignoresSafeArea()
+                PurseBackground().ignoresSafeArea()
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { backgroundSize = $0 }
                 stackLayer(screenHeight: geo.size.height)
                     // With Reduce Motion, the purse fades instead of sliding away.
                     .opacity(reduceMotion && openId != nil ? 0 : 1)
@@ -123,7 +133,9 @@ struct PurseView: View {
                     // take over from it and shrink back into place (removed at once,
                     // that card had nothing to grow from and simply faded in).
                     .transition(reduceMotion ? .opacity
-                                : .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
+                                : .asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))
+                                    // Fading out, it takes no touches (they belong to the purse again).
+                                    .combined(with: .modifier(active: HitTesting(on: false), identity: HitTesting(on: true)))))
                     .zIndex(10)
                 }
             }
@@ -213,11 +225,42 @@ struct PurseView: View {
 
     // MARK: The stack
 
+    /// How many coins are rolled away above the first card on screen.
+    private var earlierCount: Int {
+        visibleCoins.firstIndex { onScreen.contains($0.id) } ?? 0
+    }
+
+    /// "12 earlier": coins rolled away above, like the back of a rolodex. A tap
+    /// rolls the purse back to the first one; a swipe down does it bit by bit.
+    @ViewBuilder private func earlierCoins(_ scroller: ScrollViewProxy) -> some View {
+        let count = earlierCount
+        if count > 0, !searching, moving == nil, openId == nil {
+            Button {
+                guard let first = visibleCoins.first?.id else { return }
+                withAnimation(.spring(response: 0.55, dampingFraction: 0.9)) {
+                    scroller.scrollTo(first, anchor: .top)
+                }
+            } label: {
+                Label("\(count) earlier", systemImage: "chevron.up")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .accessibilityLabel(count == 1 ? "1 earlier coin" : "\(count) earlier coins")
+            .accessibilityHint("Rolls back to the first coin")
+            .accessibilityIdentifier("earlierCoins")
+            .transition(.opacity)
+        }
+    }
+
     private func stackLayer(screenHeight: CGFloat) -> some View {
         let isOpen = openId != nil
         return ScrollViewReader { scroller in
         ScrollView {
-            Color.clear.frame(height: 0).id("purseTop")
             // Like Mail: pulled down, a spinner shows the purse is being brought up to date.
             if refreshingFromPull {
                 ProgressView()
@@ -252,10 +295,32 @@ struct PurseView: View {
             if !archiveMatches.isEmpty {
                 inArchive
             }
+            Color.clear.frame(height: 0).id("purseBottom")
+        }
+        // A purse taller than the screen opens on its newest coin, in front at the bottom.
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        // Once more, just after it opens: things shown above the stack a moment
+        // later (the tip) would otherwise leave the coin in front partly hidden.
+        .task {
+            for wait in [300, 900] {
+                try? await Task.sleep(for: .milliseconds(wait))
+                guard !scrolledByHand, openId == nil, moving == nil else { return }
+                scroller.scrollTo("purseBottom", anchor: .bottom)
+            }
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            // In steps, so the purse is not redrawn on every frame of a scroll.
+            (max(0, min(1, (geo.contentOffset.y + geo.contentInsets.top) / 120)) * 20).rounded() / 20
+        } action: { _, amount in
+            rolled = amount
         }
         .modifier(PullTracker(pull: $pull))
         // Scrolling the purse closes a card swiped open, as in Mail.
-        .modifier(ScrollStarted { if swipeId != nil { closeSwipe() } })
+        .modifier(ScrollStarted {
+            scrolledByHand = true
+            if swipeId != nil { closeSwipe() }
+        })
+
         // Pulled down far enough, the purse also refreshes (once per pull).
         .onChange(of: pull) { _, amount in
             if amount > 90, !pulledToRefresh, !refreshingFromPull {
@@ -278,14 +343,17 @@ struct PurseView: View {
             }
         }
         .scrollDisabled(isOpen || moving != nil)
-        // A new coin goes on top of the purse: bring the top into view so it shows.
-        .onChange(of: model.purse.first?.id) { old, new in
+        // A new coin goes in front, the last card: bring it into view so all of it shows.
+        .onChange(of: model.purse.last?.id) { old, new in
             guard let new, new != old, openId == nil, moving == nil else { return }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { scroller.scrollTo("purseTop", anchor: .top) }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) { scroller.scrollTo("purseBottom", anchor: .bottom) }
         }
         .allowsHitTesting(!isOpen)
         .accessibilityHidden(isOpen)
         .scrollDismissesKeyboard(.immediately)
+        // Earlier coins rolled away above: how many, and a tap to roll back to
+        // them, just under the title.
+        .overlay(alignment: .top) { earlierCoins(scroller).padding(.top, 4) }
         .safeAreaInset(edge: .top, spacing: 0) {
             header
                 // Where the title area ends: a lifted card pulled above it opens.
@@ -387,6 +455,21 @@ struct PurseView: View {
                 .offset(y: fanStep * CGFloat(min(i, 12)))
                 // While a coin is out, the rest of the stack drops out of sight.
                 .offset(y: openId == nil || openId == coin.id || reduceMotion ? 0 : screenHeight + CGFloat(i) * 8)
+                // A rolodex: with earlier coins rolled away above, the cards near the
+                // top tuck closer together, a little smaller and dimmer, like the back
+                // of a deck rolling away under the title. At the top of the purse,
+                // nothing changes.
+                .visualEffect { [rolled, restTop = headerBottom + 8] content, proxy in
+                    let zone: CGFloat = 180
+                    let t = max(0, min(1, (restTop + zone - proxy.frame(in: .global).minY) / zone)) * rolled
+                    return content
+                        .scaleEffect(1 - t * 0.1, anchor: .top)
+                        .offset(y: t * 24)
+                        .brightness(-Double(t) * 0.22)
+                }
+                .onScrollVisibilityChange(threshold: 0.5) { shown in
+                    if shown { onScreen.insert(coin.id) } else { onScreen.remove(coin.id) }
+                }
             }
         }
         // The lifted card, above every other card: all of it shows, so you can
@@ -401,7 +484,8 @@ struct PurseView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         // Room for the last card, which hangs below its row.
-        .padding(.bottom, 20 + lastCardHeight - peek)
+        // with a little room above the buttons, so the coin in front shows whole.
+        .padding(.bottom, 20 + lastCardHeight - peek + 12)
     }
 
     /// To VoiceOver, one button per card, exactly the size of what shows, with
@@ -855,14 +939,25 @@ struct PurseView: View {
         .foregroundStyle(.primary)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+        // The purse's own background, lined up with the one behind it, so the
+        // glow carries on under the title while cards roll away beneath it.
         .background(alignment: .top) {
-            VStack(spacing: 0) {
-                Color(.systemBackground)
-                LinearGradient(colors: [Color(.systemBackground), Color(.systemBackground).opacity(0)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 18)
-                    .padding(.bottom, -18)
-            }
-            .ignoresSafeArea(edges: .top)
+            Color.clear
+                .overlay(alignment: .top) {
+                    PurseBackground().frame(width: backgroundSize.width, height: backgroundSize.height)
+                }
+                .padding(.bottom, -18)
+                .clipped()
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 18)
+                    }
+                }
+                .ignoresSafeArea(edges: .top)
+                // Drawn screen sized and clipped: it must never take a touch meant
+                // for the cards below the title.
+                .allowsHitTesting(false)
         }
     }
 
@@ -1071,7 +1166,10 @@ struct PurseView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 2)
-            .background(.thinMaterial, in: Capsule())
+            // Solid, not see-through: it sits over the colorful front card, and
+            // its buttons must stay easy to read on any card color.
+            .background(Color(.secondarySystemBackground), in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
             .padding(.horizontal, 16)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -1103,7 +1201,11 @@ extension View {
     /// "interactive" kind: inside a button, that one takes the tap for itself.
     @ViewBuilder func glassCapsule() -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: .capsule)
+            self.background {
+                Color.clear.glassEffect(.regular, in: .capsule)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
         } else {
             self.background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
@@ -1114,7 +1216,11 @@ extension View {
     @ViewBuilder func glassPanel(cornerRadius: CGFloat = 20) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
+            self.background {
+                Color.clear.glassEffect(.regular, in: shape)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
         } else {
             self.background(.ultraThinMaterial, in: shape)
                 .overlay(shape.strokeBorder(.primary.opacity(0.12)))
@@ -1130,9 +1236,16 @@ extension View {
         }
     }
 
+    /// The glass is drawn behind the button, not on it: on the button itself,
+    /// after the title fades back in (a coin closing), the glass took over the
+    /// middle of the button for VoiceOver and UI tests.
     @ViewBuilder func glassCircle() -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: .circle)
+            self.background {
+                Color.clear.glassEffect(.regular, in: .circle)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
         } else {
             self.background(.ultraThinMaterial, in: Circle())
         }
@@ -1323,5 +1436,42 @@ private struct SavingSnap: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Saving the picture")
+    }
+}
+
+/// Behind the purse and the archive: soft glows like the website's, indigo,
+/// cyan and a little pink, quiet enough that the cards stay what you look at.
+struct PurseBackground: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        // Strongest in dark mode, where a flat black needs it most; none with Increase Contrast.
+        let k = contrast == .increased ? 0 : (scheme == .dark ? 1.0 : 0.5)
+        GeometryReader { geo in
+            let reach = max(geo.size.width, geo.size.height)
+            ZStack {
+                // The website's near black in dark mode.
+                scheme == .dark ? Color(red: 11 / 255, green: 10 / 255, blue: 16 / 255) : Color(.systemBackground)
+                glow(red: 34, green: 211, blue: 238, 0.16 * k, at: UnitPoint(x: 0.05, y: 0.0), reach * 0.6)
+                glow(red: 129, green: 140, blue: 248, 0.24 * k, at: UnitPoint(x: 0.95, y: 0.08), reach * 0.65)
+                glow(red: 236, green: 72, blue: 153, 0.08 * k, at: UnitPoint(x: 0.45, y: 0.62), reach * 0.5)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func glow(red: Double, green: Double, blue: Double, _ opacity: Double, at center: UnitPoint, _ radius: CGFloat) -> some View {
+        RadialGradient(colors: [Color(red: red / 255, green: green / 255, blue: blue / 255).opacity(opacity), .clear],
+                       center: center, startRadius: 0, endRadius: radius)
+    }
+}
+
+/// Touches on or off, as a transition step (an open coin on its way out takes none).
+private struct HitTesting: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        content.allowsHitTesting(on)
     }
 }

@@ -95,18 +95,11 @@ struct EditorView: View {
                     }
                     .id("saveError")
                 }
-                // Pin your spot: the map, then its name, then an optional photo.
-                if startsWithPin {
-                    pinSection
-                    detailsSection
-                    pictureSection
-                } else if startsWithText {
-                    detailsSection
-                    pictureSection
-                } else {
-                    pictureSection
-                    detailsSection
-                }
+                // The title and notes always first, then the picture (for Pin your
+                // spot, the map comes in between).
+                detailsSection
+                if startsWithPin { pinSection }
+                pictureSection
                 Section("Color") {
                     AccentPicker(accent: $accent)
                 }
@@ -329,7 +322,7 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, minHeight: 90)
                 }
             }
-            .frame(maxHeight: 240)
+            .frame(maxHeight: 180)
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             if hasMain {

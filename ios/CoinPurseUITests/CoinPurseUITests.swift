@@ -240,11 +240,13 @@ final class CoinPurseUITests: XCTestCase {
         // Done saves it at once.
         XCTAssertTrue(card("Coin 2").waitForExistence(timeout: 15))
 
-        // Delete five coins from the top, one after another.
+        // Delete five coins from the front (the newest, at the bottom), one after another.
         for _ in 0..<5 {
-            let top = cards.element(boundBy: 0)
-            let name = top.label
-            top.tap()
+            sleep(1)
+            // The purse rests on its front card: the last one built (deleted coins
+            // stay saved until their Undo moment passes, so not from the store).
+            let name = cards.element(boundBy: cards.count - 1).label
+            tapCard(name)
             XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
             app.buttons["Delete"].tap()
             app.alerts.buttons["Delete"].tap()
@@ -454,7 +456,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(card("Coffee gift card").waitForExistence(timeout: 5), "Unarchive did not put it back in the purse")
         sleep(3)
         XCTAssertEqual(server("Coffee gift card")?["archived"] as? Bool, false)
-        XCTAssertEqual(serverFirstTitle(), "Coffee gift card", "an unarchived coin should come back on top")
+        XCTAssertEqual(serverFrontTitle(), "Coffee gift card", "an unarchived coin should come back in front")
         XCTAssertFalse(app.buttons["archive"].exists, "the Archive button stayed with nothing archived")
 
         // 5. Hide with Face ID: the card looks as usual, but opening it asks for
@@ -498,6 +500,7 @@ final class CoinPurseUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-uiTestNoLock", "-uiTestRevealNo"]
         app.launch()
+        openPurse()
         XCTAssertTrue(showCard("Tailgate tickets").waitForExistence(timeout: 15))
         sleep(2)
         app.buttons["Delete Tailgate tickets"].firstMatch.tap()
@@ -514,6 +517,7 @@ final class CoinPurseUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-uiTestNoLock", "-uiTestRevealOK"]
         app.launch()
+        openPurse()
         XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
         sleep(1)
 
@@ -607,7 +611,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForExistence(timeout: 15), "the new picture coin did not open")
         snap("q01-opened")
         XCTAssertEqual(serverCoinCount(), start + 1, "the picture was not saved as a coin")
-        XCTAssertNotNil(serverCoins()?.first?["imagePath"] as? String, "the new coin has no picture")
+        XCTAssertNotNil(serverFrontCoin()?["imagePath"] as? String, "the new coin has no picture")
         // Full size: tap the name (Coin 3) to change it.
         openCoin.buttons["Picture 1"].firstMatch.tap()
         let viewerTitle = app.buttons["viewerTitle"]
@@ -617,14 +621,14 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dog food"].waitForExistence(timeout: 5), "full size still shows the old name")
         app.buttons["Back"].tap()
         sleep(2)
-        XCTAssertEqual(serverFirstTitle(), "Dog food")
+        XCTAssertEqual(serverFrontTitle(), "Dog food")
         // On the open coin too: tap the name.
         openCoin.staticTexts["coinTitle"].tap()
         rename(to: "Dog food bag")
         XCTAssertTrue(openCoin.staticTexts.matching(NSPredicate(format: "label == 'Dog food bag'")).firstMatch
             .waitForExistence(timeout: 5), "the open coin kept the old name")
         sleep(2)
-        XCTAssertEqual(serverFirstTitle(), "Dog food bag")
+        XCTAssertEqual(serverFrontTitle(), "Dog food bag")
         // No Share for the whole coin; Archive and Face ID are in the row.
         XCTAssertFalse(openCoin.buttons["Share"].exists || app.buttons["Share"].exists, "Share for a whole coin is gone")
         XCTAssertTrue(app.buttons["archiveCoin"].exists && app.buttons["hideLock"].exists)
@@ -640,7 +644,7 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         sleep(8)
         XCTAssertEqual(serverCoinCount(), start + 1, "Delete did not remove the new coin")
-        XCTAssertEqual(serverFirstTitle(), "Dog food bag")
+        XCTAssertEqual(serverFrontTitle(), "Dog food bag")
 
         // A pin shares on its own, from the map.
         tapCard("Parking spot")
@@ -671,7 +675,7 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["stopRecording"].tap()
         XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15), "no Saved bar after a voice note")
         sleep(1)
-        XCTAssertEqual(serverCoins()?.first?["notes"] as? String, "Grain free salmon, the big blue bag")
+        XCTAssertEqual(serverFrontCoin()?["notes"] as? String, "Grain free salmon, the big blue bag")
         app.buttons["undoSaved"].tap()
         sleep(2)
 
@@ -728,7 +732,7 @@ final class CoinPurseUITests: XCTestCase {
         snap("q05-video-coin")
         let videoPage = openCoin.buttons["Picture 1"].firstMatch
         XCTAssertEqual(videoPage.value as? String, "Video", "the coin does not show it is a video")
-        XCTAssertNotNil(serverCoins()?.first?["videoPath"] as? String, "the video was not saved")
+        XCTAssertNotNil(serverFrontCoin()?["videoPath"] as? String, "the video was not saved")
         videoPage.tap()
         XCTAssertTrue(app.descendants(matching: .any)["videoPlayer"].waitForExistence(timeout: 10), "the video does not play full size")
         sleep(2)
@@ -1530,7 +1534,8 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(titles().count, 149, "the server still has the tossed coin")
         XCTAssertFalse(titles().contains(victimName))
 
-        // 8. A new coin while scrolled down: the purse comes back to the top to show it.
+        // 8. A new coin goes in front, the last card, and the purse scrolls down to
+        // show all of it (from wherever it was).
         scrollDown(3)
         UIPasteboard.general.image = Self.sample(color: .systemPurple, label: "New")
         newCoin("Picture")
@@ -1541,9 +1546,9 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(card("Brand new coin").waitForExistence(timeout: 15))
         sleep(2)
-        XCTAssertTrue(card("Brand new coin").isHittable, "the new coin is out of view at the top")
-        XCTAssertEqual(titles().first, "Brand new coin")
-        snap("l03-new-on-top")
+        XCTAssertTrue(card("Brand new coin").isHittable, "the new coin is out of view")
+        XCTAssertEqual(titles().last, "Brand new coin")
+        snap("l03-new-in-front")
 
         // 9. Search finds one among 150 and opens it.
         app.buttons["Search"].tap()
@@ -1865,6 +1870,7 @@ final class CoinPurseUITests: XCTestCase {
         app.launchArguments += ["-uiTestNoLock", "-uiTestCameraSample"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = "http://localhost:9"
         app.launch()
+        openPurse()
         XCTAssertTrue(card("Tailgate tickets").waitForExistence(timeout: 15), "the coins did not show with no internet")
         snap("o01-offline-purse")
 
@@ -1919,6 +1925,17 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     private func serverFirstTitle() -> String? {
         serverCoins()?.first?["title"] as? String
+    }
+
+    /// The coin in front of the purse (the last card, where new coins go), as the app saved it.
+    @MainActor
+    private func serverFrontCoin() -> [String: Any]? {
+        serverCoins()?.last { $0["archived"] as? Bool != true }
+    }
+
+    @MainActor
+    private func serverFrontTitle() -> String? {
+        serverFrontCoin()?["title"] as? String
     }
 
     /// How many coins the app has saved.
@@ -2025,8 +2042,10 @@ final class CoinPurseUITests: XCTestCase {
         }
     }
 
-    /// A very big purse (150 coins, seed_big.py): it opens quickly, scrolls to
-    /// the end, and the last coin opens (TEST_RUNNER_BIG=1).
+    /// A very big purse (150 coins, seed_big.py), like a rolodex: it opens
+    /// quickly on the coin in front, with the earlier ones rolled away above
+    /// and a marker that says how many; swiping rolls them back, and the
+    /// marker rolls all the way back to the first (TEST_RUNNER_BIG=1).
     @MainActor
     func testBigPurse() throws {
         guard ProcessInfo.processInfo.environment["BIG"] == "1" else { throw XCTSkip("Set BIG=1 to run") }
@@ -2034,49 +2053,50 @@ final class CoinPurseUITests: XCTestCase {
         app.launchArguments += ["-uiTestReset", "-uiTestNoLock"]
         app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
         app.launch()
-        openPurse()
+        openPurse(atTop: false)
         let started = Date()
-        XCTAssertTrue(card("Coin number 150").waitForExistence(timeout: 30))
-        print("BIG first card after \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
-        snap("b01-top")
-        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
-        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
-        let scrollStart = Date()
-        var reached = false
-        for _ in 0..<60 {
-            low.press(forDuration: 0.02, thenDragTo: high, withVelocity: .fast, thenHoldForDuration: 0)
-            if card("Coin number 001").exists && card("Coin number 001").isHittable { reached = true; break }
-        }
-        print("BIG scrolled to the end in \(String(format: "%.1f", Date().timeIntervalSince(scrollStart))) s")
-        if !reached {
-            // Tell a real scrolling limit from flings that were too quick to settle.
-            snap("b02a-after-flings")
-            dump("b02a-tree")
-            for _ in 0..<4 { app.swipeUp(velocity: .slow); sleep(1) }
-            reached = card("Coin number 001").exists && card("Coin number 001").isHittable
-            snap("b02b-after-slow-swipes")
-            print("BIG reached after slow swipes: \(reached)")
-        }
-        XCTAssertTrue(reached, "could not scroll to the last coin")
-        // Let it come to rest, then the whole last card must sit above the add bar.
-        for _ in 0..<3 { app.swipeUp(velocity: .slow) }
+        // In front (the last coin, where new ones go): all of it shows, above the add bar.
+        let front = card("Coin number 001")
+        XCTAssertTrue(front.waitForExistence(timeout: 30), "the purse did not open on the coin in front")
+        print("BIG front card after \(String(format: "%.1f", Date().timeIntervalSince(started))) s")
         sleep(2)
-        let lastFrame = card("Coin number 001").frame
-        let barTop = app.buttons["newCoin"].frame.minY
-        print("BIG last card bottom \(lastFrame.maxY), bar top \(barTop)")
-        snap("b02-bottom")
-        XCTAssertLessThanOrEqual(lastFrame.maxY, barTop + 12, "at rest, the last coin is partly under the add bar")
-        tapCard("Coin number 001")
+        XCTAssertTrue(front.isHittable)
+        XCTAssertLessThanOrEqual(front.frame.maxY, app.buttons["newCoin"].frame.minY + 12, "the coin in front is under the add bar")
+        snap("b01-front")
+        let earlier = app.buttons["earlierCoins"]
+        XCTAssertTrue(earlier.waitForExistence(timeout: 5), "no marker for the coins rolled away above")
+        func count() -> Int { Int(earlier.label.split(separator: " ").first ?? "") ?? -1 }
+        let atFront = count()
+        XCTAssertGreaterThan(atFront, 100, "the marker does not count the earlier coins")
+        // Swipe down: the rolodex rolls back, a few coins at a time.
+        for _ in 0..<2 { app.swipeDown(velocity: .slow) }
+        sleep(1)
+        XCTAssertLessThan(count(), atFront, "swiping down did not roll earlier coins back")
+        snap("b02-rolled")
+        // The marker: all the way back to the first coin.
+        earlier.tap()
+        XCTAssertTrue(card("Coin number 150").waitForExistence(timeout: 10))
+        sleep(2)
+        XCTAssertTrue(card("Coin number 150").isHittable, "the marker did not roll back to the first coin")
+        XCTAssertFalse(earlier.exists, "the marker stayed at the first coin")
+        snap("b03-first")
+        tapCard("Coin number 150")
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))
-        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coin number 001")
+        XCTAssertEqual(openCoin.staticTexts["coinTitle"].label, "Coin number 150")
         app.buttons["Done"].tap()
         XCTAssertTrue(openCoin.waitForNonExistence(timeout: 5))
         // Search across all 150.
-        for _ in 0..<60 { high.press(forDuration: 0.02, thenDragTo: low, withVelocity: .fast, thenHoldForDuration: 0) }
-        app.buttons["Search"].tap()
-        app.textFields["searchField"].typeText("077")
+        let search = app.textFields["searchField"]
+        // Just after a coin closes, a tap can land before the purse takes it: try again.
+        for _ in 0..<3 where !search.exists {
+            sleep(1)
+            app.buttons["Search"].tap()
+            _ = search.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(search.exists, "Search did not open")
+        search.typeText("077")
         XCTAssertTrue(card("Coin number 077").waitForExistence(timeout: 5))
-        snap("b03-search")
+        snap("b04-search")
     }
 
     /// Apple's own accessibility audit on every main screen: contrast, tap
@@ -2156,6 +2176,9 @@ final class CoinPurseUITests: XCTestCase {
         app.buttons["stopRecording"].tap()
         // Saved at once: the purse with its Saved bar.
         XCTAssertTrue(app.buttons["addDetails"].waitForExistence(timeout: 15))
+        // Once it has slid in (mid-way it is still fading in).
+        sleep(1)
+        dump("a-purse-saved")
         audit("Purse")
         app.buttons["Settings"].tap()
         sleep(1)
@@ -2262,6 +2285,12 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor @discardableResult
     private func showCard(_ name: String) -> XCUIElement {
         let c = card(name)
+        // Rolled away above (only cards near the screen are built): roll the
+        // purse back with the "earlier" marker, as a person would.
+        if !c.waitForExistence(timeout: 3), app.buttons["earlierCoins"].exists {
+            app.buttons["earlierCoins"].tap()
+            sleep(1)
+        }
         XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
         let bar = app.buttons["newCoin"]
         for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 8 {
@@ -2297,8 +2326,17 @@ final class CoinPurseUITests: XCTestCase {
     /// The purse is open (there is no sign-in). With the test server, the
     /// coins it was seeded with have moved onto the phone first, as an older
     /// version's coins do.
-    private func openPurse() {
+    private func openPurse(atTop: Bool = true) {
         XCTAssertTrue(app.buttons["newCoin"].waitForExistence(timeout: 20), "the purse did not open")
+        // The purse opens on the coin in front, with earlier ones rolled away above.
+        // Most tests start from the first coin, as a person would after tapping
+        // the "earlier" marker.
+        guard atTop else { return }
+        let earlier = app.buttons["earlierCoins"]
+        if earlier.waitForExistence(timeout: 3) {
+            earlier.tap()
+            sleep(1)
+        }
     }
 
     // MARK: Helpers

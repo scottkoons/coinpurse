@@ -287,7 +287,7 @@ final class AppModel {
         startUndoTimer()
     }
 
-    /// Back from the archive: it goes on top of the purse, where it shows.
+    /// Back from the archive: it goes in front, the last card, which shows all of it.
     func unarchive(_ id: String) {
         guard coin(id)?.archived == true else { return }
         if undoArchives, undoable?.id == id {
@@ -295,7 +295,7 @@ final class AppModel {
             undoable = nil
         }
         setArchived(id, false)
-        move(id, to: 0)
+        move(id, to: purse.count)
     }
 
     /// Changes the archived mark at once and saves it; a failure puts it back.
@@ -611,7 +611,8 @@ final class AppModel {
         if let i = coins.firstIndex(where: { $0.id == coin.id }) {
             coins[i] = coin
         } else {
-            coins.insert(coin, at: 0)
+            // A new coin goes in front, as the store keeps it.
+            coins.append(coin)
         }
     }
 

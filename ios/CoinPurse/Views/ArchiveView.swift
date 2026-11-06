@@ -58,6 +58,9 @@ struct ArchiveView: View {
                     ContentUnavailableView.search(text: query)
                 }
             }
+            // The purse's soft background behind the list.
+            .scrollContentBackground(.hidden)
+            .background(PurseBackground().ignoresSafeArea())
             .searchable(text: $query, prompt: "Search archived coins")
             .navigationTitle("Archive")
             .navigationBarTitleDisplayMode(.inline)
@@ -77,13 +80,13 @@ struct ArchiveView: View {
                         },
                         onSelect: { _ in },
                         onArchive: {
-                            // Back in the purse, on top.
+                            // Back in the purse, in front.
                             path.removeAll()
                             model.unarchive(id)
                         }
                     )
                     .toolbar(.hidden, for: .navigationBar)
-                    .background(Color(.systemBackground))
+                    .background(PurseBackground().ignoresSafeArea())
                 }
             }
             .safeAreaInset(edge: .bottom) { UndoBar().padding(.bottom, 8) }
@@ -176,7 +179,10 @@ struct UndoBar: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 2)
-            .background(.thinMaterial, in: Capsule())
+            // Solid, not see-through: it sits over the colorful front card, and
+            // its buttons must stay easy to read on any card color.
+            .background(Color(.secondarySystemBackground), in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
             .padding(.horizontal, 16)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }

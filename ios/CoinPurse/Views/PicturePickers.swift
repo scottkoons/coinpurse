@@ -41,6 +41,7 @@ struct PictureSourceButtons: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var showFiles = false
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var loading = false
 
     private static var hasCamera: Bool {
@@ -51,70 +52,84 @@ struct PictureSourceButtons: View {
         return UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
-    // Apple's secure Paste control: one tap, no "Allow Paste" prompt.
-    // iOS dims it by itself until the clipboard holds a picture.
+    // Apple's secure Paste control: one tap, no "Allow Paste" prompt. The UIKit
+    // one can be any size, so it is a tile like the others (iOS dims it until
+    // the clipboard holds a picture).
     private var paste: some View {
-        PasteButton(supportedContentTypes: [.image]) { providers in
+        PasteTile { providers in
             Task { await deliver(await PictureLoader.data(from: providers)) }
         }
-        .labelStyle(.titleAndIcon)
-        .buttonBorderShape(.capsule)
-        .tint(.accentColor)
+        .frame(maxWidth: .infinity, minHeight: 58, maxHeight: 58)
     }
 
-    @ViewBuilder private var others: some View {
-        Group {
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Photos", systemImage: "photo.on.rectangle")
-                    .lineLimit(1)
+    /// A big colored tile: easy to see, easy to hit.
+    private nonisolated static func tile(_ title: String, _ icon: String, color: Int) -> some View {
+        let colors = AccentPalette.cardColors(color)
+        return Label(title, systemImage: icon)
+            .labelStyle(.titleAndIcon)
+            .font(.body.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(.horizontal, 8)
+            .background(LinearGradient(colors: [colors.top, colors.bottom], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// The camera: first and teal, like the camera button in the purse.
+    private var camera: some View {
+        Button { showCamera = true } label: { Self.tile("Camera", "camera.fill", color: 1) }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Camera")
+    }
+
+    private var photos: some View {
+        PhotosPicker(selection: $photoItem, matching: .images) { Self.tile("Photos", "photo.on.rectangle", color: 2) }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Photos")
+    }
+
+    // A PDF or picture from Files: iCloud Drive (where a Mac can put it),
+    // or Downloads (where AirDrop leaves it).
+    private var files: some View {
+        Button {
+            #if DEBUG
+            // UI tests: a ready-made two-page PDF instead of the Files screen.
+            if ProcessInfo.processInfo.arguments.contains("-uiTestFileSample") {
+                Task { await deliverFiles([Self.samplePDF()]) }
+                return
             }
-            if Self.hasCamera {
-                Button { showCamera = true } label: {
-                    Label("Camera", systemImage: "camera")
-                        .lineLimit(1)
-                }
-            }
-            // A PDF or picture from Files: iCloud Drive (where a Mac can put it),
-            // or Downloads (where AirDrop leaves it).
-            Button {
-                #if DEBUG
-                // UI tests: a ready-made two-page PDF instead of the Files screen.
-                if ProcessInfo.processInfo.arguments.contains("-uiTestFileSample") {
-                    Task { await deliverFiles([Self.samplePDF()]) }
-                    return
-                }
-                #endif
-                showFiles = true
-            } label: {
-                Label("Files", systemImage: "folder")
-                    .lineLimit(1)
-            }
+            #endif
+            showFiles = true
+        } label: { Self.tile("Files", "folder.fill", color: 4) }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Files")
             .accessibilityIdentifier("pickFile")
-        }
-        // Same compact pill shape as Paste, which iOS sizes itself.
-        .labelStyle(.titleAndIcon)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .fixedSize()
     }
 
     var body: some View {
         VStack(spacing: 10) {
-            // All four on one line; on a small iPhone or with large text they wrap.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) {
-                    paste
-                    others
-                }
-                .font(.subheadline.weight(.semibold))
+            // Two by two, the camera first: Camera and Paste, then Photos and Files.
+            // At the largest text sizes, one per line.
+            if typeSize.isAccessibilitySize {
                 VStack(spacing: 10) {
+                    if Self.hasCamera { camera }
                     paste
-                    HStack(spacing: 10) { others }
+                    photos
+                    files
                 }
-                // The largest text sizes: one button per line.
-                VStack(spacing: 10) {
-                    paste
-                    others
+            } else {
+                Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                    GridRow {
+                        if Self.hasCamera { camera }
+                        paste
+                    }
+                    GridRow {
+                        photos
+                        files
+                    }
                 }
             }
 
@@ -268,5 +283,49 @@ struct CameraPicker: UIViewControllerRepresentable {
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onDone(nil)
         }
+    }
+}
+
+/// Apple's secure Paste control (UIPasteControl) as a big indigo tile: a paste
+/// with one tap and no "Allow Paste" prompt, sized like the tiles beside it.
+private struct PasteTile: UIViewRepresentable {
+    let onPaste: ([NSItemProvider]) -> Void
+
+    func makeUIView(context: Context) -> UIPasteControl {
+        let look = UIPasteControl.Configuration()
+        look.displayMode = .iconAndLabel
+        look.cornerStyle = .fixed
+        look.cornerRadius = 16
+        look.baseBackgroundColor = UIColor(AccentPalette.cardColors(0).top)
+        look.baseForegroundColor = .white
+        let control = UIPasteControl(configuration: look)
+        control.target = context.coordinator
+        return control
+    }
+
+    func updateUIView(_ control: UIPasteControl, context: Context) {
+        context.coordinator.onPaste = onPaste
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIPasteControl, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 160, height: proposal.height ?? 58)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPaste: onPaste) }
+
+    final class Coordinator: UIResponder {
+        var onPaste: ([NSItemProvider]) -> Void
+
+        init(onPaste: @escaping ([NSItemProvider]) -> Void) {
+            self.onPaste = onPaste
+            super.init()
+            pasteConfiguration = UIPasteConfiguration(acceptableTypeIdentifiers: [UTType.image.identifier])
+        }
+
+        override func paste(itemProviders: [NSItemProvider]) {
+            onPaste(itemProviders)
+        }
+
+        override func canPaste(_ itemProviders: [NSItemProvider]) -> Bool { true }
     }
 }
