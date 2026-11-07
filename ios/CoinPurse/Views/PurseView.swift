@@ -404,7 +404,7 @@ struct PurseView: View {
                         // so none of the rest of it peeks out beside the card after it.
                         CoinCardView(coin: coin, faceShowing: isLast,
                                      height: swipeId == coin.id && !isLast ? peek : nil,
-                                     veiled: model.isVeiled(coin)) { askToDelete(coin) }
+                                     veiled: model.isVeiled(coin))
                             // While it is lifted, the lifted copy above the stack is the card.
                             // While a coin is open, the cards under it at the bottom are these
                             // coins; the purse's own copies step aside until it closes.
@@ -520,9 +520,9 @@ struct PurseView: View {
     /// copy grow out of the stack).
     private func liftedCard(_ coin: Coin, at i: Int) -> some View {
         let last = (moveTarget ?? i) == visibleCoins.count - 1
-        // Drawn exactly like the card in the stack (trash can included), so
-        // nothing changes when one takes over from the other.
-        return CoinCardView(coin: coin, faceShowing: true, veiled: model.isVeiled(coin)) { askToDelete(coin) }
+        // Drawn exactly like the card in the stack, so nothing changes when
+        // one takes over from the other.
+        return CoinCardView(coin: coin, faceShowing: true, veiled: model.isVeiled(coin))
             .matchedCard(id: openReady ? coin.id : "lift-" + coin.id, in: cards, enabled: !reduceMotion)
             .frame(height: lastCardHeight)
             // Settling, only what shows in the stack stays drawn: its top, or
@@ -637,7 +637,7 @@ struct PurseView: View {
         }
     }
 
-    /// The trash can: a coin hidden with Face ID asks for Face ID before
+    /// Delete (the VoiceOver action): a coin hidden with Face ID asks for Face ID before
     /// "Are you sure".
     private func askToDelete(_ coin: Coin) {
         Task { if await model.mayDelete(coin) { pendingDelete = coin } }
@@ -913,7 +913,8 @@ struct PurseView: View {
 
     // MARK: Header
 
-    /// "Coin Purse" on the same line as search and account, to save room.
+    /// "Coin Purse" with how many coins, then the buttons together on one
+    /// pane of Liquid Glass, and the Coin Purse coin at the top right.
     private var header: some View {
         HStack(spacing: 10) {
             if searching {
@@ -937,31 +938,45 @@ struct PurseView: View {
                 Button("Cancel") { endSearch() }
                     .foregroundStyle(.primary)
             } else {
-                Text("Coin Purse")
-                    .font(.system(.title, design: .rounded).weight(.bold))
-                    // With four buttons on a small iPhone, it shrinks a little rather than crowd them.
-                    .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityAddTraits(.isHeader)
-                    .layoutPriority(1)
-                Spacer()
-                // Counting the archive too, so archived coins can be found.
-                if model.coins.count >= searchThreshold {
-                    circleButton("magnifyingglass", label: "Search") {
-                        withAnimation(.snappy) { searching = true }
-                        searchFocused = true
+                VStack(alignment: .leading, spacing: 0) {
+                    if !model.purse.isEmpty {
+                        Text(model.purse.count == 1 ? "1 coin" : "\(model.purse.count) coins")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
+                    Text("Coin Purse")
+                        .font(.system(.title, design: .rounded).weight(.bold))
+                        // On a small iPhone, it shrinks a little rather than crowd the buttons.
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                        .minimumScaleFactor(0.7)
+                        .accessibilityAddTraits(.isHeader)
                 }
-                if model.purse.count >= 2 {
-                    circleButton("arrow.up.arrow.down", label: "Rearrange") { showReorder = true }
+                .layoutPriority(1)
+                Spacer(minLength: 0)
+                HStack(spacing: 0) {
+                    // Counting the archive too, so archived coins can be found.
+                    if model.coins.count >= searchThreshold {
+                        pillButton("magnifyingglass", label: "Search") {
+                            withAnimation(.snappy) { searching = true }
+                            searchFocused = true
+                        }
+                    }
+                    // The archive, once anything is archived.
+                    if !model.archive.isEmpty {
+                        pillButton("archivebox", label: "Archive") { showArchive = true }
+                            .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
+                            .accessibilityIdentifier("archive")
+                    }
+                    pillButton("gearshape", label: "Settings") { showAccount = true }
                 }
-                // The archive, once anything is archived.
-                if !model.archive.isEmpty {
-                    circleButton("archivebox", label: "Archive") { showArchive = true }
-                        .accessibilityValue(model.archive.count == 1 ? "1 coin" : "\(model.archive.count) coins")
-                        .accessibilityIdentifier("archive")
-                }
-                circleButton("gearshape", label: "Settings") { showAccount = true }
+                .padding(.horizontal, 3)
+                .glassCapsule()
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 38, height: 38)
+                    .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    .accessibilityHidden(true)
             }
         }
         .foregroundStyle(.primary)
@@ -989,13 +1004,13 @@ struct PurseView: View {
         }
     }
 
-    private func circleButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+    /// One of the header's buttons, sharing the glass pane with the others.
+    private func pillButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 42, height: 42)
-                .glassCircle()
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
@@ -1012,19 +1027,22 @@ struct PurseView: View {
     /// Three ways to add a coin, where your thumb is: the microphone starts a
     /// voice note at once, New Coin starts one from scratch (type, paste,
     /// Photos, camera, voice, a pin), and the camera takes a picture at once.
+    /// All three float together on one dock of Liquid Glass.
     private var addBar: some View {
         // At the largest text sizes, where one row does not fit: New Coin on top.
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 18) {
+            HStack(spacing: 4) {
                 voiceButton
                 newCoinButton
                 cameraButton
             }
+            .padding(6)
+            .glassCapsule()
             VStack(spacing: 10) {
                 newCoinButton
                 HStack(spacing: 24) {
-                    voiceButton
-                    cameraButton
+                    voiceButton.glassCircle()
+                    cameraButton.glassCircle()
                 }
             }
         }
@@ -1039,27 +1057,21 @@ struct PurseView: View {
 
     /// A voice note: listening starts the moment it opens; Done saves it.
     private var voiceButton: some View {
-        quickButton("mic.fill", label: "Voice Note", id: "newVoice", color: 5) { recordingVoice = true }
+        quickButton("mic.fill", label: "Voice Note", id: "newVoice") { recordingVoice = true }
     }
 
     /// A picture: the camera opens at once and the picture is saved as a coin.
     private var cameraButton: some View {
-        quickButton("camera.fill", label: "Take a Picture", id: "newPhoto", color: 1) { startCamera() }
+        quickButton("camera.fill", label: "Take a Picture", id: "newPhoto") { startCamera() }
     }
 
-    /// In a card color (deep enough for a white symbol), as easy to spot as New Coin.
-    private func quickButton(_ icon: String, label: String, id: String, color: Int, action: @escaping () -> Void) -> some View {
+    /// A symbol on the glass dock, beside New Coin.
+    private func quickButton(_ icon: String, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(
-                    LinearGradient(colors: [AccentPalette.cardColors(color).top, AccentPalette.cardColors(color).bottom],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: Circle()
-                )
-                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                .foregroundStyle(.primary)
+                .frame(width: 52, height: 52)
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
@@ -1073,12 +1085,11 @@ struct PurseView: View {
         Button { typingNote = true } label: {
             Label("New Coin", systemImage: "plus")
                 .font(.headline)
-                .foregroundStyle(.white)
+                // Black with white text in light mode, white with black text in dark mode.
+                .foregroundStyle(Color(.systemBackground))
                 .padding(.horizontal, 24)
-                .frame(minHeight: 56)
-                // The deep indigo of the cards: white text reads clearly in light and dark.
-                .background(AccentPalette.cardColors(0).top, in: Capsule())
-                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                .frame(minHeight: 52)
+                .background(Color.primary, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())

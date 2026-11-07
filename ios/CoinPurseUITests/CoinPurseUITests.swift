@@ -323,17 +323,21 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(serverCoinCount(), start - 1, "the server still has the swiped coin")
         XCTAssertFalse((serverCoins() ?? []).contains { $0["title"] as? String == "Grocery list" })
 
-        // The trash can (it asks first) also offers Undo.
-        let email = showCard("Email Jim back").frame
-        origin.withOffset(CGVector(dx: email.maxX - 28, dy: email.midY)).tap()
-        XCTAssertTrue(app.alerts.buttons["Delete"].waitForExistence(timeout: 5), "the trash can did not ask first")
+        // The cards have no trash can.
+        XCTAssertTrue(showCard("Email Jim back").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Delete Email Jim back"].exists, "a card still has a trash can")
+        // Delete inside the coin (it asks first) also offers Undo.
+        tapCard("Email Jim back")
+        XCTAssertTrue(app.otherElements["openCoin"].waitForExistence(timeout: 5))
+        app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(app.alerts.buttons["Delete"].waitForExistence(timeout: 5), "Delete did not ask first")
         app.alerts.buttons["Delete"].tap()
         XCTAssertTrue(card("Email Jim back").waitForNonExistence(timeout: 5))
-        XCTAssertTrue(undo.waitForExistence(timeout: 3), "no Undo after the trash can")
+        XCTAssertTrue(undo.waitForExistence(timeout: 3), "no Undo after Delete")
         undo.tap()
-        XCTAssertTrue(card("Email Jim back").waitForExistence(timeout: 5), "Undo did not bring back the trashed coin")
+        XCTAssertTrue(card("Email Jim back").waitForExistence(timeout: 5), "Undo did not bring back the deleted coin")
         sleep(7)
-        XCTAssertEqual(serverCoinCount(), start - 1, "Undo after the trash can still deleted the coin")
+        XCTAssertEqual(serverCoinCount(), start - 1, "Undo after Delete still deleted the coin")
 
         // Pulled down, a spinner shows the purse is refreshing.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
@@ -495,16 +499,14 @@ final class CoinPurseUITests: XCTestCase {
         // Hidden with the editor's switch this time: the card at the bottom
         // still shows its window as usual.
         // (At the largest text sizes the bottom card is not built until scrolled to.)
-        // 6. Without Face ID, a hidden coin cannot be deleted: not with its trash
-        // can, not with a swipe. (Face ID says no for this launch.)
+        // 6. Without Face ID, a hidden coin cannot be deleted with a swipe.
+        // (Face ID says no for this launch.)
         app.terminate()
         app.launchArguments = ["-uiTestNoLock", "-uiTestRevealNo"]
         app.launch()
         openPurse()
         XCTAssertTrue(showCard("Tailgate tickets").waitForExistence(timeout: 15))
         sleep(2)
-        app.buttons["Delete Tailgate tickets"].firstMatch.tap()
-        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "a hidden coin asked to delete without Face ID")
         let hidden = showCard("Tailgate tickets").frame
         let grab = origin.withOffset(CGVector(dx: hidden.maxX - 70, dy: hidden.midY))
         grab.press(forDuration: 0.05, thenDragTo: grab.withOffset(CGVector(dx: -330, dy: 0)),
@@ -1518,15 +1520,18 @@ final class CoinPurseUITests: XCTestCase {
         sleep(2)
         XCTAssertEqual(titles().last, farName, "Rearrange did not move the coin to the front")
 
-        // 7. The trash can on a card mid-stack: asks, then the coin is gone everywhere.
+        // 7. Delete inside a coin from mid-stack: asks, then the coin is gone everywhere.
         scrollDown(4)
-        let victim = cards.allElementsBoundByIndex.first { $0.frame.minY > account.frame.maxY + 8 && $0.frame.maxY < bar.frame.minY - 8 }!
+        // Not the top one: the "N earlier" marker sits over it.
+        let showing = cards.allElementsBoundByIndex.filter { $0.frame.minY > account.frame.maxY + 8 && $0.frame.maxY < bar.frame.minY - 8 }
+        let victim = showing.dropFirst().first ?? showing[0]
         let victimName = victim.label
         let vf = victim.frame
-        // The trash can sits in the middle of the strip that shows (31 points down at normal text).
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: vf.maxX - 28, dy: vf.midY)).tap()
-        let confirm = app.alerts.buttons["Delete"].exists ? app.alerts.buttons["Delete"] : app.buttons.matching(identifier: "Delete").firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the trash can did not ask first")
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: vf.midX, dy: vf.midY)).tap()
+        XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(victimName) did not open")
+        app.buttons["Delete"].firstMatch.tap()
+        let confirm = app.alerts.buttons["Delete"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Delete did not ask first")
         confirm.tap()
         XCTAssertTrue(card(victimName).waitForNonExistence(timeout: 10), "\(victimName) is still in the purse")
         // Deleted on the phone once the Undo moment passes.

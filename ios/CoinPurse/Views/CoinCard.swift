@@ -20,11 +20,10 @@ struct CoinCardView: View {
     var height: CGFloat?
     /// Hidden with Face ID and not shown yet: the note line and window are covered.
     var veiled = false
-    var onDelete: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
-            CoinCardHeader(coin: coin, onDelete: onDelete, veiled: veiled)
+            CoinCardHeader(coin: coin, veiled: veiled)
             CoinFace(coin: coin, veiled: veiled)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .padding(.horizontal, 10)
@@ -37,11 +36,11 @@ struct CoinCardView: View {
     }
 }
 
-/// The top of a card: title and a short line under it, little symbols for
-/// what the coin holds, and its trash can.
+/// The top of a card: a glass symbol for what the coin holds, its title and
+/// a short line under it, and how many pictures it has. (Delete is a swipe,
+/// a VoiceOver action, or the button inside the coin.)
 struct CoinCardHeader: View {
     let coin: Coin
-    var onDelete: (() -> Void)?
     /// Hidden with Face ID and not shown yet: the second line says so instead
     /// of showing the start of the note.
     var veiled = false
@@ -49,55 +48,42 @@ struct CoinCardHeader: View {
     /// (pin time, pictures, date) instead of repeating it.
     var isOpen = false
     @ScaledMetric(relativeTo: .headline) private var height: CGFloat = CardMetrics.header
-    @ScaledMetric(relativeTo: .headline) private var emblem: CGFloat = 26
+    @ScaledMetric(relativeTo: .headline) private var glyph: CGFloat = 36
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 10) {
-            // Every card carries a silver coin, like a pass carries its logo.
-            // At the largest text sizes the title gets that room instead.
+            // At the largest text sizes the title gets this room instead.
             if !typeSize.isAccessibilitySize {
-                CoinEmblem(size: emblem)
+                CoinGlyph(coin: coin, size: min(glyph, 44), veiled: veiled)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
-                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
                     // Open, the whole name shows, even at the largest text sizes.
                     .lineLimit(isOpen ? (typeSize.isAccessibilitySize ? 2 : 3) : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
                     .accessibilityIdentifier("coinTitle")
                 Text(veiled ? lockedSubtitle : subtitle)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(isOpen ? nil : 1)
                     .fixedSize(horizontal: false, vertical: isOpen)
             }
             Spacer(minLength: 4)
-            if !typeSize.isAccessibilitySize { contents }
-            // Beside the trash can: this coin asks for Face ID to open.
+            // Open, the line under the title says this instead.
+            if !typeSize.isAccessibilitySize && !isOpen { contents }
+            // This coin asks for Face ID to open.
             if coin.hidden {
                 Image(systemName: "faceid")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(.white)
                     .accessibilityLabel("Needs Face ID")
             }
-            if let onDelete {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 34, height: 34)
-                        .background(.white.opacity(0.16), in: Circle())
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Delete \(coin.title)")
-            }
         }
         .foregroundStyle(.white)
         .padding(.leading, 14)
-        .padding(.trailing, onDelete == nil ? 16 : 6)
+        .padding(.trailing, 16)
         .padding(.vertical, isOpen ? 8 : 0)
         // In the stack every top is the same height; open, it grows with its text
         // and claims all of that height (the picture or map takes what is left).
@@ -105,17 +91,23 @@ struct CoinCardHeader: View {
         .fixedSize(horizontal: false, vertical: isOpen)
     }
 
-    /// Small symbols: more than one picture, a map pin, a note.
+    /// Small glass chips: how many pictures, and a map pin when the symbol
+    /// on the left is about something else.
     @ViewBuilder private var contents: some View {
         HStack(spacing: 6) {
             if coin.pictures.count > 1 {
                 Label("\(coin.pictures.count)", systemImage: "photo.on.rectangle")
                     .accessibilityLabel("\(coin.pictures.count) pictures")
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .cardGlass(Capsule())
             }
-            if coin.pin != nil {
+            if coin.pin != nil && !coin.pictures.isEmpty {
                 Image(systemName: "mappin")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: 12, weight: .heavy))
                     .accessibilityLabel("Has a map pin")
+                    .frame(width: 24, height: 24)
+                    .cardGlass(Circle())
             }
         }
         .font(.caption.weight(.bold))
@@ -164,9 +156,9 @@ struct PileCard: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                CoinEmblem(size: 22)
+                CoinGlyph(coin: coin, size: 28, veiled: veiled)
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
-                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .font(.system(.headline, design: .rounded).weight(.semibold))
                     .lineLimit(1)
                     .accessibilityIdentifier("pileTitle")
                 Spacer(minLength: 0)
@@ -189,29 +181,56 @@ struct PileCard: View {
     }
 }
 
-/// A small silver ¢ coin, drawn crisply at any size.
-struct CoinEmblem: View {
+/// What a coin holds, on a small pane of glass: a tiny copy of its first
+/// picture, else a symbol for a map pin, a list or a note.
+struct CoinGlyph: View {
+    let coin: Coin
     let size: CGFloat
+    /// Hidden with Face ID and not shown yet: a symbol, never the picture.
+    var veiled = false
+
+    private var symbol: String {
+        if let first = coin.pictures.first { return first.isVideo ? "video.fill" : "photo" }
+        if coin.pin != nil { return "mappin.and.ellipse" }
+        return coin.notes.contains("\n") ? "list.bullet" : "text.alignleft"
+    }
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(LinearGradient(colors: [Color(white: 0.97), Color(white: 0.72), Color(white: 0.88)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-            Circle()
-                .strokeBorder(LinearGradient(colors: [.white, Color(white: 0.55)], startPoint: .top, endPoint: .bottom),
-                              lineWidth: max(1, size * 0.07))
-            Circle()
-                .strokeBorder(Color(white: 0.6).opacity(0.6), lineWidth: 0.6)
-                .padding(size * 0.14)
-            Text("¢")
-                .font(.system(size: size * 0.56, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color(white: 0.3))
-                .offset(y: -size * 0.02)
+        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+        Group {
+            if let first = coin.pictures.first, !veiled {
+                CachedImage(picture: first, contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(shape)
+                    // The same glass edge as the symbols.
+                    .overlay {
+                        shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.6), .white.opacity(0.15)],
+                                                          startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                    }
+            } else {
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.44, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: size, height: size)
+                    .cardGlass(shape)
+            }
         }
-        .frame(width: size, height: size)
-        .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
         .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Glass on a card: a clear tint of white with a bright edge on top, light
+    /// enough to draw on every card in a big purse (real Liquid Glass is kept
+    /// for the buttons that float over the purse).
+    func cardGlass<S: InsettableShape>(_ shape: S) -> some View {
+        background {
+            shape.fill(.white.opacity(0.17))
+                .overlay {
+                    shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.06)],
+                                                      startPoint: .top, endPoint: .bottom), lineWidth: 0.8)
+                }
+        }
     }
 }
 
@@ -294,8 +313,8 @@ struct NoteFace: View {
     }
 }
 
-/// The card itself: the coin's color as a rich gradient with a soft sheen,
-/// a hairline edge and a shadow, like a pass in Wallet.
+/// The card itself: the coin's color as a rich gradient with a soft shine
+/// on top, a glass edge and a shadow, like a pass in Wallet.
 struct CardSurface: ViewModifier {
     let accent: Int
     @Environment(\.colorScheme) private var scheme
@@ -303,16 +322,22 @@ struct CardSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                ZStack {
-                    // Deep enough everywhere for white text (no light sheen over the title).
+                ZStack(alignment: .top) {
+                    // Deep enough everywhere for white text.
                     LinearGradient(colors: [AccentPalette.cardColors(accent).top, AccentPalette.cardColors(accent).bottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
+                    // A soft shine along the top, like light on glass. Faint enough
+                    // that the title stays easy to read.
+                    LinearGradient(colors: [.white.opacity(0.14), .white.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: CardMetrics.header)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous))
             .overlay {
+                // A glass edge: bright along the top, fading down the sides.
                 RoundedRectangle(cornerRadius: CardMetrics.corner, style: .continuous)
-                    .strokeBorder(.white.opacity(0.16), lineWidth: 1)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.38), .white.opacity(0.1)],
+                                                 startPoint: .top, endPoint: .bottom), lineWidth: 1)
             }
             .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.18), radius: 14, y: 8)
     }
