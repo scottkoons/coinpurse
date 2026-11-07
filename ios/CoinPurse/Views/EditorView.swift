@@ -96,15 +96,15 @@ struct EditorView: View {
                     .id("saveError")
                 }
                 // The title and notes always first, then the picture (for Pin your
-                // spot, the map comes in between).
+                // spot, the map comes in between). Color, the least important, is last.
                 detailsSection
                 if startsWithPin { pinSection }
                 pictureSection
+                if !startsWithPin { pinSection }
+                hideSection
                 Section("Color") {
                     AccentPicker(accent: $accent)
                 }
-                if !startsWithPin { pinSection }
-                hideSection
             }
             .onChange(of: error) { _, message in
                 guard let message else { return }
@@ -305,30 +305,30 @@ struct EditorView: View {
 
     private var mainPicture: some View {
         VStack(spacing: 12) {
-            Group {
-                if let stagedMain {
-                    Image(uiImage: stagedMain.image).resizable().scaledToFit()
-                        .overlay { if stagedMain.video != nil { PlayBadge() } }
-                } else if let first = existing?.pictures.first, first.isPrimary {
-                    CachedImage(picture: first)
-                        .overlay { if first.isVideo { PlayBadge() } }
-                } else {
-                    VStack(spacing: 6) {
-                        Image(systemName: "photo.badge.plus")
-                            .font(.title)
-                            .accessibilityHidden(true)
-                        Text("No picture yet")
-                            .font(.subheadline)
-                    }
-                    // Secondary, not tertiary: readable in dark mode too.
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 90)
-                }
-            }
-            .frame(maxHeight: 180)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
             if hasMain {
+                Group {
+                    if let stagedMain {
+                        Image(uiImage: stagedMain.image).resizable().scaledToFit()
+                            .overlay { if stagedMain.video != nil { PlayBadge() } }
+                    } else if let first = existing?.pictures.first, first.isPrimary {
+                        CachedImage(picture: first)
+                            .overlay { if first.isVideo { PlayBadge() } }
+                    } else {
+                        VStack(spacing: 6) {
+                            Image(systemName: "photo.badge.plus")
+                                .font(.title)
+                                .accessibilityHidden(true)
+                            Text("No picture yet")
+                                .font(.subheadline)
+                        }
+                        // Secondary, not tertiary: readable in dark mode too.
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 90)
+                    }
+                }
+                .frame(maxHeight: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
                 // Every picture in one row, right under the first, with + to add one.
                 extras
                 HStack(spacing: 18) {
@@ -359,9 +359,22 @@ struct EditorView: View {
                     Text("Add another picture")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
-                }
-                PictureSourceButtons(room: Config.maxExtraPictures + 1 - pictureCount) { data, video in
-                    stage(data, video: video, asMain: false)
+                    addButtons
+                } else {
+                    // No picture yet: the empty picture box and its buttons are one.
+                    VStack(spacing: 12) {
+                        Text("Add a picture")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        addButtons
+                    }
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 6)
+                    .frame(maxWidth: .infinity)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.secondary.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    }
                 }
             } else {
                 Text("A coin holds up to \(Config.maxExtraPictures + 1) pictures.")
@@ -371,6 +384,13 @@ struct EditorView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
+    }
+
+    /// Camera, Paste, Photos and Files; each adds a picture, never replacing the first.
+    private var addButtons: some View {
+        PictureSourceButtons(room: Config.maxExtraPictures + 1 - pictureCount) { data, video in
+            stage(data, video: video, asMain: false)
+        }
     }
 
     /// Pictures in the coin, counting ones not saved yet.

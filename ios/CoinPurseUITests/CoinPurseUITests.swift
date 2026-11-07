@@ -1417,14 +1417,19 @@ final class CoinPurseUITests: XCTestCase {
         scrollDown(8)
         let cards = app.descendants(matching: .any).matching(identifier: "stackCard")
         let bar = app.buttons["newCoin"], account = app.buttons["Settings"]
+        // The "N earlier" marker sits over the top card; a tap there goes back to the top.
+        let marker = app.buttons["earlierCoins"]
+        let markerFrame = marker.exists ? marker.frame : .null
         let onScreen = (0..<cards.count).filter { i in
             let c = cards.element(boundBy: i)
             return c.exists && c.frame.minY > account.frame.maxY && c.frame.maxY < bar.frame.minY
+                && !c.frame.intersects(markerFrame)
         }.count
         var checked = 0
         for i in 0..<cards.count where checked < 6 {
             let c = cards.element(boundBy: i)
-            guard c.exists, c.frame.minY > account.frame.maxY, c.frame.maxY < bar.frame.minY else { continue }
+            guard c.exists, c.frame.minY > account.frame.maxY, c.frame.maxY < bar.frame.minY,
+                  !c.frame.intersects(markerFrame) else { continue }
             let name = c.label
             tapAt(c)
             XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(name) did not open")
@@ -1440,7 +1445,9 @@ final class CoinPurseUITests: XCTestCase {
         print("LARGE deep cards checked: \(checked)")
 
         // 3. The coins waiting at the bottom of an open coin are the next ones, in order.
-        let deep = cards.allElementsBoundByIndex.first { $0.frame.minY > account.frame.maxY + 40 && $0.frame.maxY < bar.frame.minY }!
+        let deep = cards.allElementsBoundByIndex.first {
+            $0.frame.minY > account.frame.maxY + 40 && $0.frame.maxY < bar.frame.minY && !$0.frame.intersects(markerFrame)
+        }!
         let deepName = deep.label
         tapAt(deep)
         XCTAssertTrue(openCoin.waitForExistence(timeout: 5))

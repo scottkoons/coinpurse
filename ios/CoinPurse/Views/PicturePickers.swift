@@ -30,8 +30,9 @@ enum PictureLoader {
     }
 }
 
-/// Camera, Paste, Photos and Files as big tiles, two by two. Paste is Apple's
-/// secure paste control, so there is no "Allow Paste" prompt.
+/// Camera, Paste, Photos and Files as round buttons in a row, like the buttons
+/// under an open coin. Paste is Apple's secure paste control, so there is no
+/// "Allow Paste" prompt.
 struct PictureSourceButtons: View {
     /// How many more pictures fit (a PDF gives one per page, up to this).
     var room = Config.maxExtraPictures + 1
@@ -54,41 +55,64 @@ struct PictureSourceButtons: View {
         return UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
-    // Apple's secure Paste control: one tap, no "Allow Paste" prompt. The UIKit
-    // one can be any size, so it is a tile like the others (iOS dims it until
+    /// A round button with its name under it (beside it at the largest text
+    /// sizes, where the circle is 44 points instead of 52). Nonisolated: the
+    /// Photos picker builds its label off the main actor.
+    private nonisolated static func source<Round: View>(_ title: String, large: Bool,
+                                                         @ViewBuilder _ round: () -> Round) -> some View {
+        let layout = large ? AnyLayout(HStackLayout(spacing: 14)) : AnyLayout(VStackLayout(spacing: 6))
+        let circle: CGFloat = large ? 44 : 52
+        return layout {
+            round()
+                .frame(width: circle, height: circle)
+            Text(title)
+                .font(large ? .body.weight(.semibold) : .caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                // Each button already says its name.
+                .accessibilityHidden(true)
+            if large { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity)
+        // The whole column takes the tap, not just the circle.
+        .contentShape(Rectangle())
+    }
+
+    /// A symbol in a circle: gray, or dark for the camera (like New Coin).
+    private nonisolated static func icon(_ name: String, dark: Bool = false) -> some View {
+        Image(systemName: name)
+            .font(.title3.weight(.medium))
+            .foregroundStyle(dark ? Color(.systemBackground) : Color.primary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(dark ? Color.primary : Color(uiColor: .sourceFill), in: Circle())
+            .accessibilityHidden(true)
+    }
+
+    // Apple's secure Paste control: one tap, no "Allow Paste" prompt. It is a
+    // round UIKit button, the name under it like the others (iOS dims it until
     // the clipboard holds a picture).
     private var paste: some View {
-        PasteTile { providers in
-            Task { await deliver(await PictureLoader.data(from: providers)) }
+        Self.source("Paste", large: typeSize.isAccessibilitySize) {
+            PasteCircle { providers in
+                Task { await deliver(await PictureLoader.data(from: providers)) }
+            }
+            .clipShape(Circle())
         }
-        .frame(maxWidth: .infinity, minHeight: 58, maxHeight: 58)
     }
 
-    /// A big colored tile: easy to see, easy to hit.
-    private nonisolated static func tile(_ title: String, _ icon: String, color: Int) -> some View {
-        let colors = AccentPalette.cardColors(color)
-        return Label(title, systemImage: icon)
-            .labelStyle(.titleAndIcon)
-            .font(.body.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 58)
-            .padding(.horizontal, 8)
-            .background(LinearGradient(colors: [colors.top, colors.bottom], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
-    /// The camera: first and teal, like the camera button in the purse.
+    /// The camera: first and dark, like New Coin in the purse.
     private var camera: some View {
-        Button { showCamera = true } label: { Self.tile("Camera", "camera.fill", color: 1) }
+        Button { showCamera = true } label: { Self.source("Camera", large: typeSize.isAccessibilitySize) { Self.icon("camera.fill", dark: true) } }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Camera")
     }
 
     private var photos: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) { Self.tile("Photos", "photo.on.rectangle", color: 2) }
+        let large = typeSize.isAccessibilitySize
+        return PhotosPicker(selection: $photoItem, matching: .images) {
+            Self.source("Photos", large: large) { Self.icon("photo.on.rectangle") }
+        }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Photos")
     }
@@ -105,7 +129,7 @@ struct PictureSourceButtons: View {
             }
             #endif
             showFiles = true
-        } label: { Self.tile("Files", "folder.fill", color: 4) }
+        } label: { Self.source("Files", large: typeSize.isAccessibilitySize) { Self.icon("folder.fill") } }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Files")
             .accessibilityIdentifier("pickFile")
@@ -113,26 +137,14 @@ struct PictureSourceButtons: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // Two by two, the camera first: Camera and Paste, then Photos and Files.
-            // At the largest text sizes, one per line.
-            if typeSize.isAccessibilitySize {
-                VStack(spacing: 10) {
-                    if Self.hasCamera { camera }
-                    paste
-                    photos
-                    files
-                }
-            } else {
-                Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-                    GridRow {
-                        if Self.hasCamera { camera }
-                        paste
-                    }
-                    GridRow {
-                        photos
-                        files
-                    }
-                }
+            // In a row, the camera first. At the largest text sizes, one per line.
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .top, spacing: 0))
+            layout {
+                if Self.hasCamera { camera }
+                paste
+                photos
+                files
             }
 
             if loading { ProgressView() }
@@ -302,16 +314,16 @@ struct CameraPicker: UIViewControllerRepresentable {
 
 /// Apple's secure Paste control (UIPasteControl) as a big indigo tile: a paste
 /// with one tap and no "Allow Paste" prompt, sized like the tiles beside it.
-private struct PasteTile: UIViewRepresentable {
+private struct PasteCircle: UIViewRepresentable {
     let onPaste: ([NSItemProvider]) -> Void
 
     func makeUIView(context: Context) -> UIPasteControl {
         let look = UIPasteControl.Configuration()
-        look.displayMode = .iconAndLabel
-        look.cornerStyle = .fixed
-        look.cornerRadius = 16
-        look.baseBackgroundColor = UIColor(AccentPalette.cardColors(0).top)
-        look.baseForegroundColor = .white
+        look.displayMode = .iconOnly
+        look.cornerStyle = .capsule
+        // Opaque, like the other circles (iOS will not paste from a faint control).
+        look.baseBackgroundColor = .sourceFill
+        look.baseForegroundColor = .label
         let control = UIPasteControl(configuration: look)
         control.target = context.coordinator
         return control
@@ -322,7 +334,7 @@ private struct PasteTile: UIViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIPasteControl, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 160, height: proposal.height ?? 58)
+        CGSize(width: proposal.width ?? 52, height: proposal.height ?? 52)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(onPaste: onPaste) }
@@ -340,4 +352,11 @@ private struct PasteTile: UIViewRepresentable {
             onPaste(itemProviders)
         }
     }
+}
+
+
+extension UIColor {
+    /// The gray of the round picture buttons: opaque, and lighter than a form
+    /// row in light mode, darker in dark mode.
+    nonisolated static let sourceFill = UIColor { $0.userInterfaceStyle == .dark ? .systemGray4 : .systemGray5 }
 }
