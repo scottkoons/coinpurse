@@ -72,6 +72,21 @@ nonisolated struct LocalStore: Sendable {
         try Self.edit(id) { $0.hidden = hidden }
     }
 
+    func setFolder(id: String, _ folder: String?) async throws -> Coin {
+        try Self.edit(id) { $0.folder = folder }
+    }
+
+    /// Every coin in folder `name` goes in `new` instead (nil: in no folder).
+    func renameFolder(_ name: String, to new: String?) async throws -> [Coin] {
+        try Self.change { coins in
+            for i in coins.indices where coins[i].folder == name {
+                coins[i].folder = new
+                coins[i].updatedAt = Self.now
+            }
+            return coins
+        }
+    }
+
     /// The coin and its pictures, gone from the phone.
     func deleteCoin(id: String) async throws {
         let removed: Coin? = try Self.change { coins in

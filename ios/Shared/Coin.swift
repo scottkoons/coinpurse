@@ -26,9 +26,12 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
     var archived = false
     /// Hidden with Face ID: its notes and pictures show only after Face ID.
     var hidden = false
+    /// The Archive folder it goes in (nil for none). Kept while the coin is back
+    /// in the purse, so archiving it again puts it back in the same folder.
+    var folder: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, notes, accent, imageUrl, imagePath, videoPath, attachments, pin, createdAt, updatedAt, archived, hidden
+        case id, title, notes, accent, imageUrl, imagePath, videoPath, attachments, pin, createdAt, updatedAt, archived, hidden, folder
     }
 
     /// A new coin made on this iPhone.
@@ -59,6 +62,13 @@ nonisolated struct Coin: Codable, Hashable, Identifiable {
         updatedAt = try? c.decode(Double.self, forKey: .updatedAt)
         archived = (try? c.decode(Bool.self, forKey: .archived)) ?? false
         hidden = (try? c.decode(Bool.self, forKey: .hidden)) ?? false
+        folder = Coin.folderName(try? c.decode(String.self, forKey: .folder))
+    }
+
+    /// A folder name as kept: trimmed and not too long; nil when blank.
+    static func folderName(_ name: String?) -> String? {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        return String(name.prefix(40))
     }
 
     /// Main picture first, then the extras, as the viewer shows them.

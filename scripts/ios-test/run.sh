@@ -41,6 +41,7 @@ SUITES=(
   "testStress:TEST_RUNNER_STRESS=1:seed_design.py"
   "testSwipeToDelete:TEST_RUNNER_SWIPE=1:seed_design.py"
   "testArchiveAndHide:TEST_RUNNER_ARCHIVE=1:seed_design.py"
+  "testArchiveFolders:TEST_RUNNER_FOLDERS=1:seed_design.py"
   "testQuickCapture:TEST_RUNNER_QUICK2=1:seed_design.py"
   "testDragFilm:TEST_RUNNER_DRAGFILM=1:seed_design.py"
   "testOpenCloseFilm:TEST_RUNNER_OPENCLOSE=1:seed_design.py"

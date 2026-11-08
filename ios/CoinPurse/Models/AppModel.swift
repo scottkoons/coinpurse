@@ -2,6 +2,12 @@ import LocalAuthentication
 import SwiftUI
 import UIKit
 
+/// A folder in the archive, and how many archived coins are in it.
+struct ArchiveFolder: Hashable {
+    let name: String
+    let count: Int
+}
+
 /// All app state: the coins in the purse, kept on this iPhone.
 @Observable
 final class AppModel {
@@ -521,6 +527,70 @@ final class AppModel {
                     coins[j].hidden = !hidden
                     changes += 1
                 }
+                await handle(error, from: mine)
+            }
+        }
+    }
+
+    // MARK: Archive folders
+
+    /// Folders in the archive, A to Z, each with how many archived coins it holds.
+    /// A folder is only a name on its coins: it is there while one holds it.
+    var folders: [ArchiveFolder] {
+        var counts: [String: Int] = [:]
+        for coin in coins where coin.archived {
+            if let folder = coin.folder { counts[folder, default: 0] += 1 }
+        }
+        return counts.map { ArchiveFolder(name: $0.key, count: $0.value) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// A typed folder name as it will be kept: an existing folder's own spelling
+    /// when it is one ("home lights" is "Home lights"); nil when blank.
+    func folderName(for typed: String) -> String? {
+        guard let name = Coin.folderName(typed) else { return nil }
+        let known = Set(coins.compactMap(\.folder))
+        return known.first { $0.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame } ?? name
+    }
+
+    /// Puts a coin in a folder (nil: in none). The change shows at once and is
+    /// saved; a failure puts it back.
+    func moveToFolder(_ id: String, _ folder: String?) {
+        guard let i = coins.firstIndex(where: { $0.id == id }), coins[i].folder != folder else { return }
+        let before = coins[i].folder
+        coins[i].folder = folder
+        changes += 1
+        let mine = session
+        Task {
+            do {
+                let saved = try await guarded(id) { try await self.store.setFolder(id: id, folder) }
+                guard session == mine, coin(id)?.folder == folder else { return }
+                upsert(saved)
+            } catch {
+                guard session == mine else { return }
+                if let j = coins.firstIndex(where: { $0.id == id }), coins[j].folder == folder {
+                    coins[j].folder = before
+                    changes += 1
+                }
+                await handle(error, from: mine)
+            }
+        }
+    }
+
+    /// A folder's new name; with nil the folder is removed and its coins stay
+    /// in the archive, in no folder.
+    func renameFolder(_ name: String, to new: String?) {
+        guard name != new, coins.contains(where: { $0.folder == name }) else { return }
+        for i in coins.indices where coins[i].folder == name { coins[i].folder = new }
+        changes += 1
+        let mine = session
+        Task {
+            do {
+                _ = try await store.renameFolder(name, to: new)
+            } catch {
+                guard session == mine else { return }
+                // Show what is really kept.
+                await refresh()
                 await handle(error, from: mine)
             }
         }

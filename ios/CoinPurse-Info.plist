@@ -3,6 +3,20 @@
 <plist version="1.0">
 <dict>
 	<!-- No encryption of its own (no network use): exempt from export paperwork. -->
+	<!-- A coin dragged onto a folder in the Archive (only inside the app). -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.yetignome.coinpurse.coin</string>
+			<key>UTTypeDescription</key>
+			<string>Coin Purse coin</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<!-- Press and hold the app icon. -->
