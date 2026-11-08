@@ -42,7 +42,7 @@
 			<key>UIApplicationShortcutItemType</key>
 			<string>addPicture</string>
 			<key>UIApplicationShortcutItemTitle</key>
-			<string>Add Picture</string>
+			<string>Take Picture</string>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
 			<string>camera.fill</string>
 		</dict>

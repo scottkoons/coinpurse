@@ -6,12 +6,14 @@ import UIKit
 /// Siri, Shortcuts, Spotlight or the Action Button. Each one just asks the
 /// purse to open the right screen once it has loaded.
 enum QuickAction: Equatable {
-    case addPicture, voiceNote, pinSpot
+    /// takePicture opens the camera at once (the app icon's quick action);
+    /// addPicture opens the editor to paste, pick or snap one (Siri).
+    case addPicture, takePicture, voiceNote, pinSpot
     case openCoin(String)
 
     init?(shortcutType: String) {
         switch shortcutType {
-        case "addPicture": self = .addPicture
+        case "addPicture": self = .takePicture
         case "voiceNote": self = .voiceNote
         case "pinSpot": self = .pinSpot
         default: return nil

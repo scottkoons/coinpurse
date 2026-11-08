@@ -2184,7 +2184,7 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor
     func testQuickActions() throws {
         guard ProcessInfo.processInfo.environment["QUICK"] == "1" else { throw XCTSkip("Set QUICK=1 to run") }
-        for (action, check) in [("pinSpot", "Pin your spot"), ("voiceNote", "Voice note"), ("addPicture", "New coin")] {
+        for (action, check) in [("pinSpot", "Pin your spot"), ("voiceNote", "Voice note"), ("addPicture", "camera")] {
             app = XCUIApplication()
             // Simulated speech: the simulator's microphone is unreliable when several run at once.
             app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestQuickAction", action, "-uiTestPin", "38.834,-104.821",
@@ -2192,7 +2192,14 @@ final class CoinPurseUITests: XCTestCase {
             app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
             app.launch()
             openPurse()
-            XCTAssertTrue(app.staticTexts[check].waitForExistence(timeout: 15), "\(action) did not open \(check)")
+            if check == "camera" {
+                // Take Picture opens the camera at once, with no editor first.
+                let shutter = app.buttons.matching(NSPredicate(format: "identifier == 'PhotoCapture' OR label == 'Take Picture'")).firstMatch
+                XCTAssertTrue(shutter.waitForExistence(timeout: 15), "addPicture did not open the camera")
+                XCTAssertFalse(app.staticTexts["New coin"].exists, "addPicture opened the editor instead of the camera")
+            } else {
+                XCTAssertTrue(app.staticTexts[check].waitForExistence(timeout: 15), "\(action) did not open \(check)")
+            }
             snap("q-\(action)")
             app.terminate()
         }

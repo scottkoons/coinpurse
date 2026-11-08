@@ -905,6 +905,7 @@ struct PurseView: View {
         closeSheets()
         switch action {
         case .addPicture: addingPicture = true
+        case .takePicture: startCamera()
         case .voiceNote: recordingVoice = true
         case .pinSpot: addingPin = true
         case .openCoin: break
