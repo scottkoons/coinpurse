@@ -40,10 +40,21 @@ final class AppModel {
 
     /// The coins in the purse, in order (archived ones are kept out of it).
     var purse: [Coin] { coins.filter { !$0.archived } }
-    /// Archived coins, by title.
+    /// Archived coins in the order they were arranged, top first. One not
+    /// placed yet goes on top.
     var archive: [Coin] {
-        coins.filter(\.archived).sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        let rank = Dictionary(layout.coins.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return coins.filter(\.archived).sorted { a, b in
+            switch (rank[a.id], rank[b.id]) {
+            case let (x?, y?): return x < y
+            case (nil, .some): return true
+            case (.some, nil): return false
+            case (nil, nil): return a.title.localizedStandardCompare(b.title) == .orderedAscending
+            }
+        }
     }
+    /// The Archive's order and its folders (empty ones too), as kept on the phone.
+    private var layout = ArchiveLayout()
 
     /// Where the coins and pictures are kept: on this iPhone.
     private let store = LocalStore()
@@ -70,6 +81,7 @@ final class AppModel {
         #endif
         Self.removeOldCopies()
         await refresh()
+        loadLayout()
         phase = .ready
         scheduleSpotlight()
         // Off the main thread: it lists every picture file.
@@ -292,6 +304,11 @@ final class AppModel {
         dismissSaved()
         guard let coin = coin(id), !coin.archived else { return }
         setArchived(id, true)
+        // On top of the Archive, and its folder (kept from before) is listed.
+        layout.coins.removeAll { $0 == id }
+        layout.coins.insert(id, at: 0)
+        if let folder = coin.folder, !layout.folders.contains(folder) { layout.folders.insert(folder, at: 0) }
+        saveLayout()
         undoable = coin
         undoArchives = true
         startUndoTimer()
@@ -534,23 +551,77 @@ final class AppModel {
 
     // MARK: Archive folders
 
-    /// Folders in the archive, A to Z, each with how many archived coins it holds.
-    /// A folder is only a name on its coins: it is there while one holds it.
+    /// Folders in the archive in the order they were arranged, each with how
+    /// many archived coins it holds. A folder stays, empty or not, until it is
+    /// removed.
     var folders: [ArchiveFolder] {
         var counts: [String: Int] = [:]
         for coin in coins where coin.archived {
             if let folder = coin.folder { counts[folder, default: 0] += 1 }
         }
-        return counts.map { ArchiveFolder(name: $0.key, count: $0.value) }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        // A coin's folder not listed (yet): after the others, A to Z.
+        let listed = Set(layout.folders)
+        let more = counts.keys.filter { !listed.contains($0) }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        return (layout.folders + more).map { ArchiveFolder(name: $0, count: counts[$0] ?? 0) }
     }
 
     /// A typed folder name as it will be kept: an existing folder's own spelling
     /// when it is one ("home lights" is "Home lights"); nil when blank.
     func folderName(for typed: String) -> String? {
         guard let name = Coin.folderName(typed) else { return nil }
-        let known = Set(coins.compactMap(\.folder))
+        let known = Set(coins.compactMap(\.folder)).union(layout.folders)
         return known.first { $0.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame } ?? name
+    }
+
+    /// A new, empty folder on top of the others (nothing changes when there is
+    /// one by that name already).
+    func addFolder(_ typed: String) {
+        guard let name = folderName(for: typed), !layout.folders.contains(name) else { return }
+        layout.folders.insert(name, at: 0)
+        saveLayout()
+    }
+
+    /// Moves an archived coin to the place of another (dragged in the Archive):
+    /// below it when it came from above, above it when it came from below.
+    func moveArchived(_ id: String, to target: String) {
+        var order = archive.map(\.id)
+        guard id != target, let from = order.firstIndex(of: id), let to = order.firstIndex(of: target) else { return }
+        order.remove(at: from)
+        order.insert(id, at: to)
+        layout.coins = order
+        saveLayout()
+    }
+
+    /// Moves a folder to the place of another, the same way.
+    func moveFolder(_ name: String, to target: String) {
+        var order = folders.map(\.name)
+        guard name != target, let from = order.firstIndex(of: name), let to = order.firstIndex(of: target) else { return }
+        order.remove(at: from)
+        order.insert(name, at: to)
+        layout.folders = order
+        saveLayout()
+    }
+
+    /// The Archive's order (on the phone, beside the coins). Read once at the
+    /// start; the first time, it is the order the Archive used to show, A to Z.
+    private func loadLayout() {
+        let archived = coins.filter(\.archived)
+        if var saved = store.archiveLayout() {
+            let ids = Set(archived.map(\.id))
+            saved.coins = saved.coins.filter { ids.contains($0) }
+            layout = saved
+        } else {
+            layout = ArchiveLayout(
+                coins: archived.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }.map(\.id),
+                folders: Set(archived.compactMap(\.folder)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            )
+            saveLayout()
+        }
+    }
+
+    private func saveLayout() {
+        do { try store.saveArchiveLayout(layout) } catch { show(error.localizedDescription) }
     }
 
     /// Puts a coin in a folder (nil: in none). The change shows at once and is
@@ -560,6 +631,13 @@ final class AppModel {
         let before = coins[i].folder
         coins[i].folder = folder
         changes += 1
+        // On top of the folder it goes in (or of the Archive, out of one).
+        if let folder, !layout.folders.contains(folder) { layout.folders.insert(folder, at: 0) }
+        if coins[i].archived {
+            layout.coins.removeAll { $0 == id }
+            layout.coins.insert(id, at: 0)
+        }
+        saveLayout()
         let mine = session
         Task {
             do {
@@ -580,7 +658,13 @@ final class AppModel {
     /// A folder's new name; with nil the folder is removed and its coins stay
     /// in the archive, in no folder.
     func renameFolder(_ name: String, to new: String?) {
-        guard name != new, coins.contains(where: { $0.folder == name }) else { return }
+        guard name != new else { return }
+        if let i = layout.folders.firstIndex(of: name) {
+            // Renamed to another folder's name: the two become that one.
+            if let new, !layout.folders.contains(new) { layout.folders[i] = new } else { layout.folders.remove(at: i) }
+            saveLayout()
+        }
+        guard coins.contains(where: { $0.folder == name }) else { return }
         for i in coins.indices where coins[i].folder == name { coins[i].folder = new }
         changes += 1
         let mine = session

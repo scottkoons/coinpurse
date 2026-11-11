@@ -109,6 +109,31 @@ nonisolated struct LocalStore: Sendable {
         }
     }
 
+    // MARK: Archive order and folders
+
+    /// How the Archive is arranged; nil before it was ever saved (a purse from
+    /// an older version, or a new one).
+    func archiveLayout() -> ArchiveLayout? {
+        try? Self.coordinated(writing: false, file: Self.archiveFile) { url -> ArchiveLayout? in
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode(ArchiveLayout.self, from: data)
+        }
+    }
+
+    /// Only this app writes it (not Share to Coin Purse), so it is simply replaced.
+    func saveArchiveLayout(_ layout: ArchiveLayout) throws {
+        try Self.coordinated(writing: true, file: Self.archiveFile) { url in
+            do {
+                try JSONEncoder().encode(layout)
+                    .write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            } catch {
+                throw PurseError.failed("Could not save on this iPhone. Is its storage full?")
+            }
+        }
+    }
+
+    private static var archiveFile: URL { folder.appendingPathComponent("archive.json") }
+
     // MARK: Pictures
 
     /// The coin's first picture (the one on its card), new or in place of the
@@ -289,11 +314,10 @@ nonisolated struct LocalStore: Sendable {
         }
     }
 
-    private static func coordinated<T>(writing: Bool, _ body: (URL) throws -> T) throws -> T {
+    private static func coordinated<T>(writing: Bool, file: URL = coinsFile, _ body: (URL) throws -> T) throws -> T {
         var outcome: Result<T, Error> = .failure(PurseError.failed("Could not open the purse on this iPhone."))
         var coordination: NSError?
         let coordinator = NSFileCoordinator()
-        let file = coinsFile
         if writing {
             coordinator.coordinate(writingItemAt: file, options: .forMerging, error: &coordination) { url in
                 outcome = Result { try body(url) }
@@ -408,6 +432,13 @@ nonisolated enum TestMirror {
     }
 }
 #endif
+
+/// The Archive's own order, kept beside the coins: archived coins top first
+/// (a coin's folder is on the coin), and every folder, empty ones too.
+nonisolated struct ArchiveLayout: Codable, Equatable, Sendable {
+    var coins: [String] = []
+    var folders: [String] = []
+}
 
 /// What can go wrong keeping the purse on the phone.
 nonisolated enum PurseError: LocalizedError {

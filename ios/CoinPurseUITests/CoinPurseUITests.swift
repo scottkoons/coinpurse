@@ -517,6 +517,166 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    /// The Archive in your own order: new archived coins on top, a coin
+    /// dragged up or down to a new place (in the Archive and in a folder), New
+    /// Folder at the top (an empty folder that stays), folders dragged to a
+    /// new place, and all of it the same after the app is closed and opened.
+    @MainActor
+    func testArchiveOrder() throws {
+        guard ProcessInfo.processInfo.environment["ORDER"] == "1" else { throw XCTSkip("Set ORDER=1 to run") }
+        app = XCUIApplication()
+        app.launchArguments += ["-uiTestReset", "-uiTestNoLock", "-uiTestRevealOK"]
+        app.launchEnvironment["COINPURSE_BASE_URL"] = Self.baseURL
+        app.launch()
+        openPurse()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+        func row(_ title: String) -> XCUIElement {
+            app.buttons.matching(identifier: "archivedCoin").matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        }
+        func folderRow(_ name: String) -> XCUIElement {
+            app.buttons.matching(identifier: "archiveFolder").matching(NSPredicate(format: "label BEGINSWITH %@", name + ",")).firstMatch
+        }
+        /// The coins shown, top first, by title.
+        func coinOrder(_ titles: [String]) -> [String] {
+            app.buttons.matching(identifier: "archivedCoin").allElementsBoundByIndex
+                .sorted { $0.frame.minY < $1.frame.minY }
+                .compactMap { element in titles.first { element.label.hasPrefix($0) } }
+        }
+        func folderOrder() -> [String] {
+            app.buttons.matching(identifier: "archiveFolder").allElementsBoundByIndex
+                .sorted { $0.frame.minY < $1.frame.minY }
+                .map { String($0.label.prefix { $0 != "," }) }
+        }
+        func archive(_ title: String) {
+            tapCard(title)
+            XCTAssertTrue(openCoin.waitForExistence(timeout: 5), "\(title) did not open")
+            app.buttons["archiveCoin"].tap()
+            XCTAssertTrue(card(title).waitForNonExistence(timeout: 5), "\(title) was not archived")
+            sleep(1)
+        }
+        /// Press until the coin lifts, then move at once (held until the menu
+        /// opens, a move toward the menu picks from it instead, as everywhere on iOS).
+        func drag(_ element: XCUIElement, onto target: XCUIElement) {
+            element.press(forDuration: 0.6, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.8)
+            sleep(1)
+            // A context menu left open by the long press would cover the list.
+            if app.buttons["Unarchive"].exists || app.buttons["Rename…"].exists {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+                sleep(1)
+            }
+        }
+        func newFolder(_ name: String) {
+            let button = app.buttons["newFolder"]
+            XCTAssertTrue(button.waitForExistence(timeout: 5), "no New Folder button at the top of the Archive")
+            button.tap()
+            let alert = app.alerts.firstMatch
+            XCTAssertTrue(alert.waitForExistence(timeout: 5), "New Folder did not ask for a name")
+            alert.textFields.firstMatch.tap()
+            alert.textFields.firstMatch.typeText(name)
+            alert.buttons["Create"].tap()
+            XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
+        }
+        let three = ["Garage code", "Coffee gift card", "Return label"]
+
+        // 1. New archived coins go on top: the last one archived is first.
+        for title in three { archive(title) }
+        app.buttons["archive"].tap()
+        XCTAssertTrue(row("Garage code").waitForExistence(timeout: 5), "the archive is empty")
+        XCTAssertEqual(coinOrder(three), ["Return label", "Coffee gift card", "Garage code"], "new archived coins are not on top")
+        snap("o01-newest-on-top")
+
+        // 2. Press, hold and drag the bottom coin to the top.
+        drag(row("Garage code"), onto: row("Return label"))
+        XCTAssertEqual(coinOrder(three), ["Garage code", "Return label", "Coffee gift card"], "dragging a coin up did not move it")
+        // And one down.
+        drag(row("Return label"), onto: row("Coffee gift card"))
+        XCTAssertEqual(coinOrder(three), ["Garage code", "Coffee gift card", "Return label"], "dragging a coin down did not move it")
+        snap("o02-dragged")
+
+        // 3. New Folder: an empty folder, shown at once; another goes above it.
+        newFolder("Travel")
+        XCTAssertTrue(folderRow("Travel").waitForExistence(timeout: 5), "the new folder did not show")
+        XCTAssertEqual(folderRow("Travel").label, "Travel, 0 coins")
+        newFolder("Home")
+        XCTAssertTrue(folderRow("Home").waitForExistence(timeout: 5))
+        XCTAssertEqual(folderOrder(), ["Home", "Travel"], "a new folder did not go on top")
+        snap("o03-new-folders")
+
+        // 4. Drag a folder to a new place.
+        drag(folderRow("Travel"), onto: folderRow("Home"))
+        XCTAssertEqual(folderOrder(), ["Travel", "Home"], "dragging a folder did not move it")
+
+        // 5. Coins dragged into the empty folder; inside, dragged to a new place.
+        drag(row("Return label"), onto: folderRow("Travel"))
+        expectation(for: NSPredicate(format: "label == 'Travel, 1 coin'"), evaluatedWith: folderRow("Travel"))
+        waitForExpectations(timeout: 5)
+        drag(row("Garage code"), onto: folderRow("Travel"))
+        expectation(for: NSPredicate(format: "label == 'Travel, 2 coins'"), evaluatedWith: folderRow("Travel"))
+        waitForExpectations(timeout: 5)
+        XCTAssertEqual(coinOrder(three), ["Coffee gift card"], "coins in a folder still show in the main list")
+        folderRow("Travel").tap()
+        XCTAssertTrue(app.navigationBars["Travel"].waitForExistence(timeout: 5), "the folder did not open")
+        XCTAssertTrue(row("Garage code").waitForExistence(timeout: 5))
+        // The last one dropped in is on top.
+        XCTAssertEqual(coinOrder(three), ["Garage code", "Return label"])
+        drag(row("Return label"), onto: row("Garage code"))
+        XCTAssertEqual(coinOrder(three), ["Return label", "Garage code"], "dragging a coin in a folder did not move it")
+        snap("o04-inside-folder")
+        // Its coins taken out, the folder stays, empty.
+        for title in ["Return label", "Garage code"] {
+            row(title).press(forDuration: 1.2)
+            let remove = app.buttons["Remove from Folder"]
+            XCTAssertTrue(remove.waitForExistence(timeout: 5), "no Remove from Folder")
+            remove.tap()
+            XCTAssertTrue(row(title).waitForNonExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.navigationBars["Travel"].exists, "the emptied folder closed")
+        XCTAssertTrue(app.staticTexts["No coins in this folder"].waitForExistence(timeout: 5), "no note in the empty folder")
+        snap("o05-empty-folder")
+        app.navigationBars["Travel"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(folderRow("Travel").waitForExistence(timeout: 5), "an emptied folder went away")
+        XCTAssertEqual(folderRow("Travel").label, "Travel, 0 coins")
+        // Out of a folder, a coin goes on top.
+        XCTAssertEqual(coinOrder(three), ["Garage code", "Return label", "Coffee gift card"])
+        // Back in the folder for the next step.
+        drag(row("Return label"), onto: folderRow("Home"))
+        expectation(for: NSPredicate(format: "label == 'Home, 1 coin'"), evaluatedWith: folderRow("Home"))
+        waitForExpectations(timeout: 5)
+        drag(row("Coffee gift card"), onto: row("Garage code"))
+        XCTAssertEqual(coinOrder(three), ["Coffee gift card", "Garage code"])
+        app.navigationBars["Archive"].buttons["Done"].firstMatch.tap()
+        sleep(2)
+
+        // 6. Closed and opened again: the same order, and the empty folder is still there.
+        app.terminate()
+        app.launchArguments = ["-uiTestNoLock", "-uiTestRevealOK"]
+        app.launch()
+        openPurse()
+        XCTAssertTrue(card("Parking spot").waitForExistence(timeout: 15))
+        sleep(1)
+        app.buttons["archive"].tap()
+        XCTAssertTrue(row("Garage code").waitForExistence(timeout: 5), "the archive is empty after opening again")
+        XCTAssertEqual(coinOrder(three), ["Coffee gift card", "Garage code"], "the coins' order was not kept")
+        XCTAssertEqual(folderOrder(), ["Travel", "Home"], "the folders' order was not kept")
+        XCTAssertEqual(folderRow("Travel").label, "Travel, 0 coins", "the empty folder was not kept")
+        XCTAssertEqual(folderRow("Home").label, "Home, 1 coin")
+        snap("o06-after-reopen")
+
+        // 7. Press and hold still has its menu, and a removed empty folder goes.
+        row("Garage code").press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["Unarchive"].waitForExistence(timeout: 5), "no menu on a press and hold")
+        XCTAssertTrue(app.buttons["Delete"].exists && app.buttons["New Folder…"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
+        sleep(1)
+        folderRow("Travel").press(forDuration: 1.2)
+        let removeFolder = app.buttons["Remove Folder"]
+        XCTAssertTrue(removeFolder.waitForExistence(timeout: 5))
+        removeFolder.tap()
+        XCTAssertTrue(folderRow("Travel").waitForNonExistence(timeout: 5), "the empty folder was not removed")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
     /// The archive and Hide with Face ID: archive by swipe and from an open
     /// coin, Undo, the archive list, Unarchive, search under In Archive, and a
     /// hidden coin covered until Face ID, each checked on the phone
@@ -677,6 +837,12 @@ final class CoinPurseUITests: XCTestCase {
         let hiddenRow = app.buttons.matching(identifier: "archivedCoin")
             .matching(NSPredicate(format: "label CONTAINS 'Tailgate tickets'")).firstMatch
         XCTAssertTrue(hiddenRow.waitForExistence(timeout: 5), "the hidden coin is not in the archive")
+        // Under its title, the Face ID symbol and "Face ID", never the words
+        // of a picture ("Image(provider: …)").
+        XCTAssertTrue(hiddenRow.label.contains("Face ID"), "a hidden archived coin does not say Face ID: \(hiddenRow.label)")
+        XCTAssertFalse(hiddenRow.label.contains("Image("), "a hidden archived coin shows the picture as words: \(hiddenRow.label)")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'ImageProvider'")).firstMatch.exists)
+        snap("a05c-hidden-in-archive")
         // Press and hold for its menu, then Delete.
         hiddenRow.press(forDuration: 1.2)
         let menuDelete = app.buttons.matching(NSPredicate(format: "label == 'Delete'")).firstMatch

@@ -8,7 +8,8 @@ enum ArchiveRoute: Hashable {
     case coin(String)
 }
 
-/// A coin dragged onto a folder in the Archive. Only this app accepts it.
+/// A coin dragged in the Archive, to a new place or onto a folder. Only this
+/// app accepts it.
 nonisolated struct DraggedCoin: Codable, Transferable {
     let id: String
     static var transferRepresentation: some TransferRepresentation {
@@ -16,8 +17,30 @@ nonisolated struct DraggedCoin: Codable, Transferable {
     }
 }
 
+/// A folder dragged in the Archive, to a new place. Only this app accepts it.
+nonisolated struct DraggedFolder: Codable, Transferable {
+    let name: String
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .coinPurseFolder)
+    }
+}
+
 extension UTType {
     nonisolated static let coinPurseCoin = UTType(exportedAs: "com.yetignome.coinpurse.coin")
+    nonisolated static let coinPurseFolder = UTType(exportedAs: "com.yetignome.coinpurse.folder")
+}
+
+/// What is being dragged in the Archive now, so the rows it passes over know
+/// at once (without reading the drag) whether to make room for it.
+@Observable
+final class ArchiveDrag {
+    enum Item: Equatable {
+        case coin(String)
+        case folder(String)
+    }
+    var item: Item?
+
+    var coin: String? { if case .coin(let id)? = item { id } else { nil } }
 }
 
 /// What an archived coin's row can ask the Archive to do.
@@ -48,7 +71,10 @@ struct ArchiveView: View {
     @State private var naming: Coin?
     /// The folder being renamed.
     @State private var renaming: String?
+    /// The New Folder button's name alert is up.
+    @State private var creatingFolder = false
     @State private var typedName = ""
+    @State private var drag = ArchiveDrag()
     @Namespace private var cards
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
@@ -92,12 +118,21 @@ struct ArchiveView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if trimmed.isEmpty {
+                        NewFolderButton {
+                            typedName = ""
+                            creatingFolder = true
+                        }
+                        .padding(.top, 12)
+                    }
                     if !shownFolders.isEmpty {
                         ArchiveGroup(title: "Folders") {
-                            ForEach(shownFolders, id: \.name) { folder in
-                                if folder.name != shownFolders.first?.name { RowDivider() }
+                            ForEach(Array(shownFolders.enumerated()), id: \.element.name) { i, folder in
+                                if i > 0 { RowDivider() }
                                 ArchiveFolderRow(
                                     folder: folder,
+                                    above: i > 0 ? shownFolders[i - 1].name : nil,
+                                    below: i + 1 < shownFolders.count ? shownFolders[i + 1].name : nil,
                                     onRename: {
                                         typedName = folder.name
                                         renaming = folder.name
@@ -117,7 +152,7 @@ struct ArchiveView: View {
                 .padding(.bottom, 24)
             }
             .overlay {
-                if model.archive.isEmpty {
+                if model.archive.isEmpty && model.folders.isEmpty {
                     ContentUnavailableView(
                         "Nothing archived",
                         systemImage: "archivebox",
@@ -145,6 +180,7 @@ struct ArchiveView: View {
             }
             .safeAreaInset(edge: .bottom) { UndoBar().padding(.bottom, 8) }
         }
+        .environment(drag)
         // On the whole stack, so they also show over a folder.
         .alert(
             "Are you sure you want to delete?",
@@ -173,6 +209,16 @@ struct ArchiveView: View {
             .disabled(Coin.folderName(typedName) == nil)
         } message: { coin in
             Text("“\(coin.title.isEmpty ? "Untitled" : coin.title)” goes in it.")
+        }
+        .alert("New Folder", isPresented: $creatingFolder) {
+            TextField("Folder name", text: $typedName)
+                .textInputAutocapitalization(.words)
+                .accessibilityIdentifier("folderName")
+            Button("Cancel", role: .cancel) {}
+            Button("Create") { withAnimation { model.addFolder(typedName) } }
+                .disabled(Coin.folderName(typedName) == nil)
+        } message: {
+            Text("Drag coins onto it to put them in it.")
         }
         .alert(
             "Rename Folder",
@@ -287,11 +333,34 @@ struct ArchiveRowStyle: ButtonStyle {
     }
 }
 
+/// At the top of the Archive: a folder, empty, ready for coins.
+struct NewFolderButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("New Folder", systemImage: "folder.badge.plus")
+                .font(.body.weight(.semibold))
+                .padding(.horizontal, 18)
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
+        }
+        .foregroundStyle(Color.accentColor)
+        .glassCapsule()
+        .accessibilityIdentifier("newFolder")
+    }
+}
+
 /// One folder in the Archive: tap to open it, drop a coin on it to put the
-/// coin in it, or press and hold to rename or remove it.
+/// coin in it, press and hold to rename or remove it, or press, hold and drag
+/// it up or down to a new place.
 struct ArchiveFolderRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(ArchiveDrag.self) private var drag
     let folder: ArchiveFolder
+    /// The folders before and after it, for VoiceOver's Move up and Move down.
+    let above: String?
+    let below: String?
     let onRename: () -> Void
     let onRemove: () -> Void
     /// A dragged coin is over it.
@@ -324,19 +393,95 @@ struct ArchiveFolderRow: View {
         .accessibilityLabel("\(folder.name), \(folder.count) \(folder.count == 1 ? "coin" : "coins")")
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("archiveFolder")
-        .dropDestination(for: DraggedCoin.self) { items, _ in
-            guard let id = items.first?.id else { return false }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            withAnimation { model.moveToFolder(id, folder.name) }
-            return true
-        } isTargeted: { targeted = $0 }
+        .onDrop(of: [.coinPurseCoin, .coinPurseFolder],
+                delegate: FolderDrop(folder: folder.name, model: model, drag: drag, targeted: $targeted))
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onDrag {
+            drag.item = .folder(folder.name)
+            let provider = NSItemProvider()
+            provider.register(DraggedFolder(name: folder.name))
+            return provider
+        }
         .contextMenu {
             Button("Rename…", systemImage: "pencil", action: onRename)
             Button("Remove Folder", systemImage: "folder.badge.minus", action: onRemove)
         }
         .accessibilityAction(named: "Rename") { onRename() }
         .accessibilityAction(named: "Remove Folder") { onRemove() }
+        .accessibilityActions {
+            if let above {
+                Button("Move up") { withAnimation { model.moveFolder(folder.name, to: above) } }
+            }
+            if let below {
+                Button("Move down") { withAnimation { model.moveFolder(folder.name, to: below) } }
+            }
+        }
+    }
+}
+
+/// Over a folder: a dragged coin lights it up and, let go, goes in it; a
+/// dragged folder takes its place at once.
+struct FolderDrop: DropDelegate {
+    let folder: String
+    let model: AppModel
+    let drag: ArchiveDrag
+    @Binding var targeted: Bool
+
+    func validateDrop(info: DropInfo) -> Bool {
+        drag.item != nil && info.hasItemsConforming(to: [.coinPurseCoin, .coinPurseFolder])
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard validateDrop(info: info) else { return }
+        switch drag.item {
+        case .coin?:
+            targeted = true
+        case .folder(let name)? where name != folder:
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.snappy(duration: 0.25)) { model.moveFolder(name, to: folder) }
+        default:
+            break
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func dropExited(info: DropInfo) { targeted = false }
+
+    func performDrop(info: DropInfo) -> Bool {
+        targeted = false
+        defer { drag.item = nil }
+        if let id = drag.coin {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation { model.moveToFolder(id, folder) }
+        }
+        return true
+    }
+}
+
+/// Over another coin: a dragged coin takes its place at once (the others make
+/// room), and stays there when let go.
+struct CoinPlaceDrop: DropDelegate {
+    let target: String
+    let model: AppModel
+    let drag: ArchiveDrag
+
+    func validateDrop(info: DropInfo) -> Bool {
+        drag.coin != nil && info.hasItemsConforming(to: [.coinPurseCoin])
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard validateDrop(info: info), let id = drag.coin, id != target else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.snappy(duration: 0.25)) { model.moveArchived(id, to: target) }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        drag.item = nil
+        return true
     }
 }
 
@@ -364,7 +509,15 @@ struct ArchiveFolderView: View {
             .padding(.bottom, 24)
         }
         .overlay {
-            if !q.isEmpty && shown.isEmpty { ContentUnavailableView.search(text: query) }
+            if !q.isEmpty && shown.isEmpty {
+                ContentUnavailableView.search(text: query)
+            } else if inFolder.isEmpty {
+                ContentUnavailableView(
+                    "No coins in this folder",
+                    systemImage: "folder",
+                    description: Text("In the Archive, drag a coin onto this folder, or press and hold a coin and choose this folder.")
+                )
+            }
         }
         .background(PurseBackground().ignoresSafeArea())
         .searchable(text: $query, prompt: "Search \(name)")
@@ -374,9 +527,9 @@ struct ArchiveFolderView: View {
             ToolbarItem(placement: .confirmationAction) { Button("Done", action: actions.close) }
         }
         .safeAreaInset(edge: .bottom) { UndoBar().padding(.bottom, 8) }
-        // Its last coin left (moved, unarchived or deleted): back to the Archive.
-        .onChange(of: inFolder.isEmpty) { _, empty in
-            if empty { actions.leaveFolder(name) }
+        // The folder was removed or renamed: back to the Archive.
+        .onChange(of: model.folders.contains { $0.name == name }) { _, there in
+            if !there { actions.leaveFolder(name) }
         }
     }
 }
@@ -387,18 +540,28 @@ struct ArchivedCoinRows: View {
     let actions: ArchiveActions
 
     var body: some View {
-        ForEach(coins) { coin in
-            if coin.id != coins.first?.id { RowDivider() }
-            ArchivedCoinRow(coin: coin, actions: actions)
+        ForEach(Array(coins.enumerated()), id: \.element.id) { i, coin in
+            if i > 0 { RowDivider() }
+            ArchivedCoinRow(
+                coin: coin,
+                above: i > 0 ? coins[i - 1].id : nil,
+                below: i + 1 < coins.count ? coins[i + 1].id : nil,
+                actions: actions
+            )
         }
     }
 }
 
 /// An archived coin: tap to open it, press and hold for its menu (Move to
-/// Folder, Unarchive, Delete), or drag it onto a folder.
+/// Folder, Unarchive, Delete), or press, hold and drag it up or down to a new
+/// place, or onto a folder.
 struct ArchivedCoinRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(ArchiveDrag.self) private var drag
     let coin: Coin
+    /// The coins shown before and after it, for VoiceOver's Move up and Move down.
+    let above: String?
+    let below: String?
     let actions: ArchiveActions
 
     var body: some View {
@@ -410,7 +573,13 @@ struct ArchivedCoinRow: View {
         .accessibilityIdentifier("archivedCoin")
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .draggable(DraggedCoin(id: coin.id))
+        .onDrag {
+            drag.item = .coin(coin.id)
+            let provider = NSItemProvider()
+            provider.register(DraggedCoin(id: coin.id))
+            return provider
+        }
+        .onDrop(of: [.coinPurseCoin], delegate: CoinPlaceDrop(target: coin.id, model: model, drag: drag))
         .contextMenu {
             Section("Move to Folder") {
                 ForEach(model.folders, id: \.name) { folder in
@@ -434,6 +603,14 @@ struct ArchivedCoinRow: View {
         }
         .accessibilityAction(named: "Unarchive") { model.unarchive(coin.id) }
         .accessibilityAction(named: "Delete") { actions.delete(coin) }
+        .accessibilityActions {
+            if let above {
+                Button("Move up") { withAnimation { model.moveArchived(coin.id, to: above) } }
+            }
+            if let below {
+                Button("Move down") { withAnimation { model.moveArchived(coin.id, to: below) } }
+            }
+        }
     }
 }
 
@@ -454,10 +631,18 @@ struct ArchiveRow: View {
                 Text(coin.title.isEmpty ? "Untitled" : coin.title)
                     .font(.body.weight(.semibold))
                     .lineLimit(2)
-                Text(veiled ? "\(Image(systemName: "faceid")) Face ID" : preview)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                // Two Texts: in one with `veiled ? … : preview`, the picture
+                // became plain words ("Image(provider: …)").
+                Group {
+                    if veiled {
+                        Text("\(Image(systemName: "faceid")) Face ID")
+                    } else {
+                        Text(preview)
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
             Spacer(minLength: 0)
         }
