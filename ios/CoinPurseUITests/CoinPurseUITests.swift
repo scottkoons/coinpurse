@@ -518,7 +518,9 @@ final class CoinPurseUITests: XCTestCase {
     }
 
     /// The Archive in your own order: new archived coins on top, a coin
-    /// dragged up or down to a new place (in the Archive and in a folder), New
+    /// dragged up or down to a new place by its handle (in the Archive and in
+    /// a folder), into a folder (by its handle, or press, hold and drag) and
+    /// out of one, New
     /// Folder at the top (an empty folder that stays), folders dragged to a
     /// new place, and all of it the same after the app is closed and opened.
     @MainActor
@@ -566,6 +568,18 @@ final class CoinPurseUITests: XCTestCase {
                 sleep(1)
             }
         }
+        /// Drags a row by its handle (the ≡ at its right end): it moves at
+        /// once, no waiting. `at` is how far down the target to let go (0 top, 1 bottom).
+        /// A row's handle: 44 points wide, 6 in from the list's right edge (16 in from the screen's).
+        func handle(_ element: XCUIElement) -> XCUICoordinate {
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: app.frame.width - 16 - 6 - 22, dy: element.frame.midY))
+        }
+        func move(_ element: XCUIElement, onto target: XCUIElement, at: CGFloat = 0.5) {
+            handle(element).press(forDuration: 0.15, thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: at)),
+                         withVelocity: .slow, thenHoldForDuration: 0.5)
+            sleep(1)
+        }
         func newFolder(_ name: String) {
             let button = app.buttons["newFolder"]
             XCTAssertTrue(button.waitForExistence(timeout: 5), "no New Folder button at the top of the Archive")
@@ -586,12 +600,16 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertEqual(coinOrder(three), ["Return label", "Coffee gift card", "Garage code"], "new archived coins are not on top")
         snap("o01-newest-on-top")
 
-        // 2. Press, hold and drag the bottom coin to the top.
-        drag(row("Garage code"), onto: row("Return label"))
+        // 2. By its handle, the bottom coin to the top, and one down.
+        move(row("Garage code"), onto: row("Return label"), at: 0.3)
         XCTAssertEqual(coinOrder(three), ["Garage code", "Return label", "Coffee gift card"], "dragging a coin up did not move it")
-        // And one down.
-        drag(row("Return label"), onto: row("Coffee gift card"))
+        move(row("Return label"), onto: row("Coffee gift card"), at: 0.8)
         XCTAssertEqual(coinOrder(three), ["Garage code", "Coffee gift card", "Return label"], "dragging a coin down did not move it")
+        // Past two coins at once.
+        move(row("Return label"), onto: row("Garage code"), at: 0.3)
+        XCTAssertEqual(coinOrder(three), ["Return label", "Garage code", "Coffee gift card"], "dragging past two coins did not move it")
+        move(row("Return label"), onto: row("Coffee gift card"), at: 0.8)
+        XCTAssertEqual(coinOrder(three), ["Garage code", "Coffee gift card", "Return label"], "dragging down past two coins did not move it")
         snap("o02-dragged")
 
         // 3. New Folder: an empty folder, shown at once; another goes above it.
@@ -604,11 +622,11 @@ final class CoinPurseUITests: XCTestCase {
         snap("o03-new-folders")
 
         // 4. Drag a folder to a new place.
-        drag(folderRow("Travel"), onto: folderRow("Home"))
+        move(folderRow("Travel"), onto: folderRow("Home"), at: 0.3)
         XCTAssertEqual(folderOrder(), ["Travel", "Home"], "dragging a folder did not move it")
 
         // 5. Coins dragged into the empty folder; inside, dragged to a new place.
-        drag(row("Return label"), onto: folderRow("Travel"))
+        move(row("Return label"), onto: folderRow("Travel"))
         expectation(for: NSPredicate(format: "label == 'Travel, 1 coin'"), evaluatedWith: folderRow("Travel"))
         waitForExpectations(timeout: 5)
         drag(row("Garage code"), onto: folderRow("Travel"))
@@ -620,17 +638,19 @@ final class CoinPurseUITests: XCTestCase {
         XCTAssertTrue(row("Garage code").waitForExistence(timeout: 5))
         // The last one dropped in is on top.
         XCTAssertEqual(coinOrder(three), ["Garage code", "Return label"])
-        drag(row("Return label"), onto: row("Garage code"))
+        move(row("Return label"), onto: row("Garage code"), at: 0.3)
         XCTAssertEqual(coinOrder(three), ["Return label", "Garage code"], "dragging a coin in a folder did not move it")
         snap("o04-inside-folder")
-        // Its coins taken out, the folder stays, empty.
-        for title in ["Return label", "Garage code"] {
-            row(title).press(forDuration: 1.2)
-            let remove = app.buttons["Remove from Folder"]
-            XCTAssertTrue(remove.waitForExistence(timeout: 5), "no Remove from Folder")
-            remove.tap()
-            XCTAssertTrue(row(title).waitForNonExistence(timeout: 5))
-        }
+        // Its coins taken out (one dragged down onto "Take out of Travel", one
+        // from its menu), the folder stays, empty.
+        handle(row("Return label")).press(forDuration: 0.15, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)),
+                           withVelocity: .slow, thenHoldForDuration: 0.5)
+        XCTAssertTrue(row("Return label").waitForNonExistence(timeout: 5), "dragging a coin onto Take out did not take it out")
+        row("Garage code").press(forDuration: 1.2)
+        let remove = app.buttons["Remove from Folder"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "no Remove from Folder")
+        remove.tap()
+        XCTAssertTrue(row("Garage code").waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.navigationBars["Travel"].exists, "the emptied folder closed")
         XCTAssertTrue(app.staticTexts["No coins in this folder"].waitForExistence(timeout: 5), "no note in the empty folder")
         snap("o05-empty-folder")
@@ -643,7 +663,7 @@ final class CoinPurseUITests: XCTestCase {
         drag(row("Return label"), onto: folderRow("Home"))
         expectation(for: NSPredicate(format: "label == 'Home, 1 coin'"), evaluatedWith: folderRow("Home"))
         waitForExpectations(timeout: 5)
-        drag(row("Coffee gift card"), onto: row("Garage code"))
+        move(row("Coffee gift card"), onto: row("Garage code"), at: 0.3)
         XCTAssertEqual(coinOrder(three), ["Coffee gift card", "Garage code"])
         app.navigationBars["Archive"].buttons["Done"].firstMatch.tap()
         sleep(2)
