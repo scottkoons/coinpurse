@@ -1181,7 +1181,7 @@ final class CoinPurseUITests: XCTestCase {
             // Tap where the card is, even while the last coin is still closing.
             let name = names[n % names.count]
             let f = card(name).frame
-            if f.midY > app.buttons["newCoin"].frame.minY - 8 {
+            if f.midY > app.buttons["newCoin"].frame.minY - 30 {
                 // Under the add bar (large text): bring it up first, never tap the bar.
                 tapCard(name)
             } else {
@@ -2630,7 +2630,8 @@ final class CoinPurseUITests: XCTestCase {
         }
         XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
         let bar = app.buttons["newCoin"]
-        for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 8 {
+        // Well clear of it: the button takes touches a little beyond its edge.
+        for _ in 0..<4 where bar.exists && c.frame.midY > bar.frame.minY - 30 {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
         }
