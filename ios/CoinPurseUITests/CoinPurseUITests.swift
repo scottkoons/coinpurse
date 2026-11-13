@@ -444,7 +444,9 @@ final class CoinPurseUITests: XCTestCase {
         if app.buttons["New Folder…"].exists {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
             sleep(1)
-            let handle = coffee.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
+            // 44 points wide, 6 in from the list's right edge (16 in from the screen's).
+            let handle = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: app.frame.width - 16 - 6 - 22, dy: coffee.frame.midY))
             handle.press(forDuration: 0.2, thenDragTo: folder.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
                          withVelocity: .slow, thenHoldForDuration: 0.5)
             sleep(1)
