@@ -350,7 +350,11 @@ nonisolated struct LocalStore: Sendable {
         // bad entry never empties the purse.
         let kept = url.deletingLastPathComponent()
             .appendingPathComponent("coins-damaged-\(Int(Date().timeIntervalSince1970)).json")
-        try? FileManager.default.copyItem(at: url, to: kept)
+        // Only once that copy is safely kept is the purse repaired.
+        guard (try? FileManager.default.copyItem(at: url, to: kept)) != nil
+                || FileManager.default.fileExists(atPath: kept.path) else {
+            throw PurseError.failed("Could not open the purse on this iPhone. Is its storage full?")
+        }
         let readable = (try? JSONDecoder().decode([Readable].self, from: data))?.compactMap(\.coin) ?? []
         try write(readable, to: url)
         return readable
