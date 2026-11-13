@@ -64,6 +64,9 @@ struct PictureSourceButtons: View {
         let circle: CGFloat = large ? 44 : 52
         return layout {
             round()
+                // The circle keeps its size at every text size, so its symbol
+                // does too (larger, it would spill out of the circle).
+                .dynamicTypeSize(...DynamicTypeSize.large)
                 .frame(width: circle, height: circle)
             Text(title)
                 .font(large ? .body.weight(.semibold) : .caption.weight(.semibold))
@@ -92,12 +95,22 @@ struct PictureSourceButtons: View {
     // Apple's secure Paste control: one tap, no "Allow Paste" prompt. It is a
     // round UIKit button, the name under it like the others (iOS dims it until
     // the clipboard holds a picture).
-    private var paste: some View {
-        Self.source("Paste", large: typeSize.isAccessibilitySize) {
-            PasteCircle { providers in
-                Task { await deliver(await PictureLoader.data(from: providers)) }
+    @ViewBuilder private var paste: some View {
+        let onPaste: ([NSItemProvider]) -> Void = { providers in
+            Task { await deliver(await PictureLoader.data(from: providers)) }
+        }
+        if typeSize.isAccessibilitySize {
+            // A row, like the others at these sizes. Only Apple's control can
+            // paste, so here it is the whole row, with its own "Paste": a tap
+            // anywhere on it (or VoiceOver's, in its middle) pastes.
+            PasteCircle(withLabel: true, onPaste: onPaste)
+                .frame(maxWidth: .infinity)
+                .frame(height: 60)
+        } else {
+            Self.source("Paste", large: false) {
+                PasteCircle(onPaste: onPaste)
+                    .clipShape(Circle())
             }
-            .clipShape(Circle())
         }
     }
 
@@ -312,19 +325,25 @@ struct CameraPicker: UIViewControllerRepresentable {
     }
 }
 
-/// Apple's secure Paste control (UIPasteControl) as a big indigo tile: a paste
-/// with one tap and no "Allow Paste" prompt, sized like the tiles beside it.
+/// Apple's secure Paste control (UIPasteControl) as a round gray button like
+/// the ones beside it: a paste with one tap and no "Allow Paste" prompt.
 private struct PasteCircle: UIViewRepresentable {
+    /// With its "Paste" beside the symbol (a whole row, at the largest text sizes).
+    var withLabel = false
     let onPaste: ([NSItemProvider]) -> Void
 
     func makeUIView(context: Context) -> UIPasteControl {
         let look = UIPasteControl.Configuration()
-        look.displayMode = .iconOnly
+        look.displayMode = withLabel ? .iconAndLabel : .iconOnly
         look.cornerStyle = .capsule
         // Opaque, like the other circles (iOS will not paste from a faint control).
         look.baseBackgroundColor = .sourceFill
         look.baseForegroundColor = .label
         let control = UIPasteControl(configuration: look)
+        // Its size is fixed, so its text size is capped: iOS neither draws nor
+        // runs a Paste control it cannot show whole (Paste would do nothing at
+        // the largest text sizes).
+        control.maximumContentSizeCategory = withLabel ? .accessibilityMedium : .large
         control.target = context.coordinator
         return control
     }

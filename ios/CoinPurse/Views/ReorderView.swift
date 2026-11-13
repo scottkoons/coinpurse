@@ -36,7 +36,7 @@ struct ReorderView: View {
                                 .opacity(isFront ? 0 : 1)
                                 .disabled(isFront)
                                 .accessibilityHidden(isFront)
-                                .accessibilityLabel("Move \(coin.title) to the front")
+                                .accessibilityLabel("Move \(coin.title.isEmpty ? "Untitled" : coin.title) to the front")
                             }
                         }
                     }
@@ -67,6 +67,12 @@ struct ReorderView: View {
             }
         }
         .onAppear { ids = model.purse.map(\.id) }
+        // A coin deleted or archived while this is open leaves the list
+        // (rather than staying as a blank row with a handle).
+        .onChange(of: model.purse.map(\.id)) { _, now in
+            let still = Set(now)
+            ids.removeAll { !still.contains($0) }
+        }
     }
 
     private func moveToFront(_ id: String) {

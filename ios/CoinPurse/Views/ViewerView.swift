@@ -35,38 +35,18 @@ struct ViewerView: View {
     private var coin: Coin? { model.coin(coinId) }
     private var pictures: [Picture] { coin?.pictures ?? [] }
     private var current: Picture? { pictures.indices.contains(index) ? pictures[index] : nil }
-    private var notes: String { coin?.notes.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if pictures.isEmpty, !notes.isEmpty {
-                // A text coin (like a voice note): the words, big and easy to read.
-                ScrollView {
-                    Text(LinkedText.make(notes))
-                        .font(.title2.weight(.medium))
-                        .lineSpacing(6)
-                        .foregroundStyle(.white)
-                        .tint(Color.accentColor)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(24)
-                        .accessibilityIdentifier("noteText")
-                }
-            } else if pictures.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("No picture yet").foregroundStyle(.secondary)
-                    Button("Add a picture") { adding = true }
-                }
-            } else {
+            if !pictures.isEmpty {
                 TabView(selection: $index) {
                     ForEach(Array(pictures.enumerated()), id: \.element.key) { i, picture in
                         Group {
                             if picture.isVideo, let url = model.videoURL(for: picture) {
                                 VideoPage(url: url, showing: i == index)
                             } else if let img = images[picture.key] {
-                                ZoomableImage(image: img) { dismiss() }
+                                ZoomableImage(image: img, label: "Picture \(i + 1) of \(pictures.count)") { dismiss() }
                             } else if failed.contains(picture.key) {
                                 VStack(spacing: 12) {
                                     Image(systemName: "photo.badge.exclamationmark").font(.largeTitle)
@@ -97,7 +77,9 @@ struct ViewerView: View {
         .onChange(of: pictures.count) { _, count in
             if index >= count { index = max(0, count - 1) }
         }
-        .onChange(of: coin == nil) { _, gone in if gone { dismiss() } }
+        // Opened from a picture: with the coin, or every picture, gone
+        // meanwhile, there is nothing left to show here.
+        .onChange(of: coin == nil || pictures.isEmpty) { _, gone in if gone { dismiss() } }
         // Bright for codes, back to normal for anything else or when leaving.
         .onChange(of: index) { _, _ in checkBrightness() }
         .onChange(of: images.count) { _, _ in checkBrightness() }

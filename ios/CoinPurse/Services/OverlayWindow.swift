@@ -26,6 +26,8 @@ final class OverlayWindow {
             .first(where: { $0.activationState != .unattached }) else { return }
         let host = UIHostingController(rootView: AnyView(content))
         host.view.backgroundColor = .clear
+        // The lock screen: VoiceOver stays on it and never reads the purse below.
+        host.view.accessibilityViewIsModal = !passesTouches
         let window = PassThroughWindow(windowScene: scene)
         window.windowLevel = level
         window.passesTouches = passesTouches

@@ -184,6 +184,9 @@ struct CoinDetailView: View {
                     .padding(.vertical, 8)
                     .frame(minHeight: 40)
                     .glassCapsule()
+                    // A full-size place to tap, around the same capsule.
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)

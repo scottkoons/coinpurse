@@ -34,7 +34,7 @@ final class ArchiveDrag {
     }
     /// Where rows and the finger are measured: the list's own space, so they
     /// agree even while the Archive slides up or a folder slides in.
-    static let space = "archiveDrag"
+    nonisolated static let space = "archiveDrag"
 
     /// The row being moved by its handle.
     private(set) var moving: Item?
@@ -137,10 +137,13 @@ struct DragHandle: View {
     let item: ArchiveDrag.Item
     let order: [ArchiveDrag.Item]
     let folders: [String]
+    /// True while a finger is on the handle. It goes back to false however the
+    /// touch ends, also when iOS cancels it (a call, a banner), which a drag's
+    /// own end never hears about.
+    @GestureState private var touching = false
 
     var body: some View {
         Image(systemName: "line.3.horizontal")
-            .accessibilityHidden(true)
             .font(.body.weight(.semibold))
             .foregroundStyle(.tertiary)
             .frame(width: 44, height: 44)
@@ -149,14 +152,19 @@ struct DragHandle: View {
             // Before the list can scroll: the row moves, the list stays.
             .highPriorityGesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named(ArchiveDrag.space))
+                    .updating($touching) { _, touching, _ in touching = true }
                     .onChanged { value in
                         if drag.moving == nil {
                             drag.begin(item, at: value.startLocation.y, order: order, folders: folders)
                         }
                         drag.move(to: value.location.y, model: model)
                     }
-                    .onEnded { _ in drag.end(model: model) }
             )
+            .onChange(of: touching) { _, now in
+                if !now, drag.moving == item { drag.end(model: model) }
+            }
+            // The row went away mid-move (its folder closed): put it down.
+            .onDisappear { if drag.moving == item { drag.end(model: model) } }
             .accessibilityHidden(true)
     }
 }
@@ -443,6 +451,12 @@ struct ArchiveView: View {
             )
             .toolbar(.hidden, for: .navigationBar)
             .background(PurseBackground().ignoresSafeArea())
+        } else {
+            // The coin went away while open (deleted from full screen, say):
+            // back to the list rather than a blank page.
+            PurseBackground().ignoresSafeArea()
+                .toolbar(.hidden, for: .navigationBar)
+                .onAppear { closeCoin() }
         }
     }
 

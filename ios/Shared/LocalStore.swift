@@ -7,14 +7,19 @@ import Foundation
 nonisolated struct LocalStore: Sendable {
     static let appGroup = "group.com.yetignome.coinpurse"
 
-    /// Where the purse lives (shared with the Share extension).
-    static var folder: URL {
+    /// Where the purse lives (shared with the Share extension). Found and
+    /// made once: every picture drawn asks for it.
+    static let folder: URL = {
         let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let folder = base.appendingPathComponent("Purse", isDirectory: true)
+        makeFolders(in: folder)
+        return folder
+    }()
+
+    private static func makeFolders(in folder: URL) {
         try? FileManager.default.createDirectory(at: folder.appendingPathComponent("Pictures", isDirectory: true),
                                                  withIntermediateDirectories: true)
-        return folder
     }
 
     private static var coinsFile: URL { folder.appendingPathComponent("coins.json") }
@@ -77,13 +82,12 @@ nonisolated struct LocalStore: Sendable {
     }
 
     /// Every coin in folder `name` goes in `new` instead (nil: in no folder).
-    func renameFolder(_ name: String, to new: String?) async throws -> [Coin] {
+    func renameFolder(_ name: String, to new: String?) async throws {
         try Self.change { coins in
             for i in coins.indices where coins[i].folder == name {
                 coins[i].folder = new
                 coins[i].updatedAt = Self.now
             }
-            return coins
         }
     }
 
@@ -252,10 +256,11 @@ nonisolated struct LocalStore: Sendable {
         }
     }
 
-    // MARK: Adding whole coins
+    #if DEBUG
+    // MARK: UI tests
 
-    /// Saves a picture brought from somewhere else and says where it is, for a
-    /// coin about to be added with `add(_:)`.
+    /// Saves a picture brought from the test server and says where it is, for
+    /// a coin about to be added with `add(_:)`.
     func keepPicture(_ jpeg: Data) throws -> String { try Self.savePicture(jpeg) }
 
     /// Coins that arrive whole (a UI test's sample purse): in their order,
@@ -267,10 +272,10 @@ nonisolated struct LocalStore: Sendable {
         }
     }
 
-    #if DEBUG
     /// UI tests start with an empty purse.
     static func removeAll() {
         try? FileManager.default.removeItem(at: folder)
+        makeFolders(in: folder)
     }
     #endif
 
@@ -339,15 +344,26 @@ nonisolated struct LocalStore: Sendable {
         do { data = try Data(contentsOf: url) } catch {
             throw PurseError.failed("Could not open the purse on this iPhone. Try again in a moment.")
         }
-        do {
-            return try JSONDecoder().decode([Coin].self, from: data)
-        } catch {
-            // Damaged: kept to one side (never deleted), and the purse starts over.
-            let kept = url.deletingLastPathComponent()
-                .appendingPathComponent("coins-damaged-\(Int(Date().timeIntervalSince1970)).json")
-            try? FileManager.default.moveItem(at: url, to: kept)
-            return []
+        if let coins = try? JSONDecoder().decode([Coin].self, from: data) { return coins }
+        // Damaged: a copy is kept to one side (never deleted). Every coin that
+        // can still be read stays; only a coin that cannot is left out, so one
+        // bad entry never empties the purse.
+        let kept = url.deletingLastPathComponent()
+            .appendingPathComponent("coins-damaged-\(Int(Date().timeIntervalSince1970)).json")
+        // Only once that copy is safely kept is the purse repaired.
+        guard (try? FileManager.default.copyItem(at: url, to: kept)) != nil
+                || FileManager.default.fileExists(atPath: kept.path) else {
+            throw PurseError.failed("Could not open the purse on this iPhone. Is its storage full?")
         }
+        let readable = (try? JSONDecoder().decode([Readable].self, from: data))?.compactMap(\.coin) ?? []
+        try write(readable, to: url)
+        return readable
+    }
+
+    /// One entry of a damaged purse: its coin, or nil when it cannot be read.
+    private struct Readable: Decodable {
+        let coin: Coin?
+        init(from decoder: Decoder) throws { coin = try? Coin(from: decoder) }
     }
 
     private static func write(_ coins: [Coin], to url: URL) throws {

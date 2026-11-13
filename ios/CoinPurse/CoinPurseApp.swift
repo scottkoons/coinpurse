@@ -48,7 +48,17 @@ struct CoinPurseApp: App {
                     lock.scenePhaseChanged(phase, ready: model.phase == .ready)
                     // Leaving the app ends the Undo moment for a swiped-away coin.
                     if phase == .background {
-                        Task { await model.finishUndoable() }
+                        // Time to finish it even if iOS suspends the app right away.
+                        let app = UIApplication.shared
+                        var finishing = UIBackgroundTaskIdentifier.invalid
+                        finishing = app.beginBackgroundTask(withName: "Finish delete") {
+                            app.endBackgroundTask(finishing)
+                            finishing = .invalid
+                        }
+                        Task {
+                            await model.finishUndoable()
+                            if finishing != .invalid { app.endBackgroundTask(finishing) }
+                        }
                         // Hidden coins are covered again until the next Face ID.
                         model.hideRevealed()
                     }

@@ -20,6 +20,10 @@ final class AppLock {
     }
     private var backgroundedAt: Date?
     private var authenticating = false
+    /// Face ID is asked for by itself only once each time the lock engages
+    /// (at launch, or back after a while away). After a Cancel the lock
+    /// screen's button asks, so the prompt never keeps coming back.
+    private var promptDue = false
 
     init() {
         enabled = UserDefaults.standard.object(forKey: Self.key) as? Bool ?? true
@@ -27,6 +31,7 @@ final class AppLock {
         if ProcessInfo.processInfo.arguments.contains("-uiTestNoLock") { enabled = false }
         #endif
         isLocked = enabled && Self.canLock
+        promptDue = isLocked
     }
 
     /// False when the phone has no passcode (nothing to unlock with).
@@ -45,23 +50,29 @@ final class AppLock {
         }
     }
 
-    /// Only a purse that has opened is ever locked.
+    /// Face ID is asked for only once the purse has opened. A lock set at
+    /// launch stays on while it loads (the purse is not shown until then).
     func scenePhaseChanged(_ phase: ScenePhase, ready: Bool) {
         guard ready else {
-            isLocked = false
             backgroundedAt = nil
             return
         }
         switch phase {
         case .background:
             backgroundedAt = Date()
+            // Coming back to a locked purse asks again.
+            if isLocked { promptDue = true }
         case .active:
             if let since = backgroundedAt, enabled, Self.canLock,
                Date().timeIntervalSince(since) > Self.grace {
                 isLocked = true
+                promptDue = true
             }
             backgroundedAt = nil
-            if isLocked { Task { await unlock() } }
+            if isLocked, promptDue {
+                promptDue = false
+                Task { await unlock() }
+            }
         default:
             break
         }
