@@ -72,8 +72,11 @@ struct PurseView: View {
     /// 0 at the top of the purse, 1 once it is rolled down past a card or two:
     /// how far the rolodex look (top cards tilting back) has come in.
     @State private var rolled: CGFloat = 0
-    /// Cards on screen now, to count the earlier coins rolled away above.
-    @State private var onScreen: Set<String> = []
+    /// Cards on screen now, to count the earlier coins rolled away above: each
+    /// with the stack's layering (`stackVersion`) it was seen in. Layering the
+    /// stack again rebuilds every card without the old ones ever saying they
+    /// left, so only what the current cards say counts.
+    @State private var onScreen: [String: Int] = [:]
     /// Scrolled by hand since the purse opened; until then it stays on the coin in front.
     @State private var scrolledByHand = false
     /// Bumped after the order of the purse changes, so every card is layered
@@ -246,7 +249,7 @@ struct PurseView: View {
 
     /// How many coins are rolled away above the first card on screen.
     private var earlierCount: Int {
-        visibleCoins.firstIndex { onScreen.contains($0.id) } ?? 0
+        visibleCoins.firstIndex { onScreen[$0.id] == stackVersion } ?? 0
     }
 
     /// "12 earlier": coins rolled away above, like the back of a rolodex. A tap
@@ -490,8 +493,12 @@ struct PurseView: View {
                         .offset(y: t * 24)
                         .brightness(-Double(t) * 0.22)
                 }
-                .onScrollVisibilityChange(threshold: 0.5) { shown in
-                    if shown { onScreen.insert(coin.id) } else { onScreen.remove(coin.id) }
+                .onScrollVisibilityChange(threshold: 0.5) { [version = stackVersion] shown in
+                    if shown {
+                        onScreen[coin.id] = version
+                    } else if onScreen[coin.id] == version {
+                        onScreen[coin.id] = nil
+                    }
                 }
             }
         }
