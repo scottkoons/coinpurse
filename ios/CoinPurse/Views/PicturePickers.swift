@@ -64,6 +64,9 @@ struct PictureSourceButtons: View {
         let circle: CGFloat = large ? 44 : 52
         return layout {
             round()
+                // The circle keeps its size at every text size, so its symbol
+                // does too (larger, it would spill out of the circle).
+                .dynamicTypeSize(...DynamicTypeSize.large)
                 .frame(width: circle, height: circle)
             Text(title)
                 .font(large ? .body.weight(.semibold) : .caption.weight(.semibold))
@@ -325,6 +328,10 @@ private struct PasteCircle: UIViewRepresentable {
         look.baseBackgroundColor = .sourceFill
         look.baseForegroundColor = .label
         let control = UIPasteControl(configuration: look)
+        // Its circle keeps its size at every text size. A larger symbol would
+        // not fit, and iOS neither draws nor runs a Paste control it cannot
+        // show whole (Paste would do nothing at the largest text sizes).
+        control.maximumContentSizeCategory = .large
         control.target = context.coordinator
         return control
     }
