@@ -438,6 +438,18 @@ final class CoinPurseUITests: XCTestCase {
         coffee.press(forDuration: 1.0, thenDragTo: folder, withVelocity: .slow, thenHoldForDuration: 0.8)
         sleep(1)
         snap("f01b-after-drag")
+        // On a small iPhone the simulated hold opens the coin's menu right over
+        // the folder, so the drag lands on the menu. Close it and move the coin
+        // by its handle (the ≡ at the end of the row) instead.
+        if app.buttons["New Folder…"].exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+            sleep(1)
+            let handle = coffee.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
+            handle.press(forDuration: 0.2, thenDragTo: folder.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
+                         withVelocity: .slow, thenHoldForDuration: 0.5)
+            sleep(1)
+            snap("f01c-after-handle-drag")
+        }
         let two = NSPredicate(format: "label == 'Home, 2 coins'")
         expectation(for: two, evaluatedWith: folder)
         waitForExpectations(timeout: 5)
