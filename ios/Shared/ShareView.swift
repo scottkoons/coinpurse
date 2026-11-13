@@ -152,7 +152,8 @@ struct ShareView: View {
                     Text("Add to a Coin").tag(Target.existing)
                 }
                 .pickerStyle(.segmented)
-                .disabled(coins.isEmpty)
+                // Once some pictures went in, Save finishes the same coin.
+                .disabled(coins.isEmpty || uploaded > 0)
                 .accessibilityIdentifier("shareTarget")
             }
             switch target {
@@ -245,6 +246,11 @@ struct ShareView: View {
             }
             onDone()
         } catch {
+            // A new coin none of whose pictures could be saved is taken away
+            // again (Save makes it anew), so Cancel never leaves an empty coin.
+            if target == .new, uploaded == 0, !input.images.isEmpty {
+                try? await store.deleteCoin(id: draftId)
+            }
             self.error = error.localizedDescription + " Tap Save to try again."
         }
     }

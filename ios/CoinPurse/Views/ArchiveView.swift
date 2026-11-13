@@ -34,7 +34,7 @@ final class ArchiveDrag {
     }
     /// Where rows and the finger are measured: the list's own space, so they
     /// agree even while the Archive slides up or a folder slides in.
-    static let space = "archiveDrag"
+    nonisolated static let space = "archiveDrag"
 
     /// The row being moved by its handle.
     private(set) var moving: Item?

@@ -6,9 +6,17 @@ nonisolated enum ImageProcessing {
     /// a small version (never the full 12 to 48 MP photo). Used by the Share
     /// extension, which iOS stops if it uses much memory.
     static func uploadData(fromFile data: Data) -> Data? {
+        uploadData(from: CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary))
+    }
+
+    /// The same, read from the file where it is (never loaded whole into memory).
+    static func uploadData(fromFileAt url: URL) -> Data? {
+        uploadData(from: CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary))
+    }
+
+    private static func uploadData(from source: CGImageSource?) -> Data? {
         autoreleasepool {
-            guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary)
-            else { return nil }
+            guard let source else { return nil }
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 // Upright, like the camera intended.
@@ -25,8 +33,18 @@ nonisolated enum ImageProcessing {
     /// Each page of a PDF (up to `limit`), drawn on white at the same width as a
     /// picture, as upload-ready JPEG: a ticket or boarding pass becomes pictures.
     static func pdfPages(_ data: Data, limit: Int) -> [Data] {
-        guard limit > 0, let provider = CGDataProvider(data: data as CFData),
-              let document = CGPDFDocument(provider), document.numberOfPages > 0 else { return [] }
+        guard let provider = CGDataProvider(data: data as CFData), let document = CGPDFDocument(provider) else { return [] }
+        return pdfPages(document, limit: limit)
+    }
+
+    /// The same, read from the file where it is.
+    static func pdfPages(fileAt url: URL, limit: Int) -> [Data] {
+        guard let document = CGPDFDocument(url as CFURL) else { return [] }
+        return pdfPages(document, limit: limit)
+    }
+
+    private static func pdfPages(_ document: CGPDFDocument, limit: Int) -> [Data] {
+        guard limit > 0, document.numberOfPages > 0 else { return [] }
         var pages: [Data] = []
         for number in 1...document.numberOfPages where pages.count < limit {
             guard let page = document.page(at: number) else { continue }

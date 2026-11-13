@@ -10,6 +10,7 @@ struct CoinRef: Identifiable, Hashable { let id: String }
 struct PurseView: View {
     @Environment(AppModel.self) private var model
     @Environment(QuickActions.self) private var quick
+    @Environment(AppLock.self) private var lock
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cards
     /// How much of each tucked-in card shows; grows with larger text.
@@ -151,6 +152,21 @@ struct PurseView: View {
         .overlay { if savingSnap != nil || savingVideo { SavingSnap(image: savingSnap).transition(.opacity) } }
         .onChange(of: model.purse.map(\.id)) { _, ids in
             if let id = openId, !ids.contains(id) { openId = nil }
+            // A lifted card whose coin left the purse meanwhile (archived,
+            // deleted or changed elsewhere) can never be let go: put it down,
+            // or the purse would stay unable to scroll.
+            if let id = moving, !ids.contains(id) {
+                var now = Transaction()
+                now.disablesAnimations = true
+                withTransaction(now) {
+                    moving = nil
+                    moveTarget = nil
+                    moveOffset = 0
+                    raised = false
+                    openReady = false
+                    settling = false
+                }
+            }
             // Once the cards have slid into their new places, layer them again.
             Task {
                 try? await Task.sleep(for: .milliseconds(500))
@@ -160,6 +176,7 @@ struct PurseView: View {
         }
         // From the icon menu, Siri, Shortcuts or the Action Button.
         .onChange(of: quick.pending, initial: true) { _, _ in runQuickAction() }
+        .onChange(of: lock.isLocked) { _, _ in runQuickAction() }
         .onAppear {
             #if DEBUG
             if let test = UserDefaults.standard.string(forKey: "uiTestQuickAction") {
@@ -274,7 +291,7 @@ struct PurseView: View {
                 ProgressView()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, minHeight: screenHeight - 220)
-            } else if model.purse.isEmpty {
+            } else if model.purse.isEmpty && !(searching && !trimmedQuery.isEmpty) {
                 emptyState
                     .frame(minHeight: screenHeight - 220)
             } else if visibleCoins.isEmpty {
@@ -428,7 +445,11 @@ struct PurseView: View {
                             .modifier(HoldToMove(enabled: !searching,
                                                  began: { y in liftCard(coin, at: i, fingerY: y) },
                                                  changed: { y in dragCard(coin.id, at: i, count: coins.count, fingerY: y) },
-                                                 ended: { finishMove(coin.id, at: i) }))
+                                                 ended: { released in
+                                                     // Interrupted (a call, a system sheet): put it down, never open it.
+                                                     if !released { openReady = false }
+                                                     finishMove(coin.id, at: i)
+                                                 }))
                             .offset(x: swipeId == coin.id ? swipeX : 0)
                             .opacity(moving == coin.id ? 0 : 1)
                             // Back from an open coin: solid the whole way into its place
@@ -449,7 +470,7 @@ struct PurseView: View {
                 // To VoiceOver, each card is one button exactly the size of what
                 // you can see (the card itself reaches down behind the next one).
                 .accessibilityHidden(true)
-                .overlay(alignment: .top) { cardForVoiceOver(coin, at: i, height: isLast ? lastCardHeight : peek) }
+                .overlay(alignment: .top) { cardForVoiceOver(coin, height: isLast ? lastCardHeight : peek) }
                 .zIndex(Double(i))
                 // Moving a card: the others make room for it.
                 .offset(y: moving == coin.id ? 0 : makeRoom(at: i, in: coins))
@@ -492,22 +513,29 @@ struct PurseView: View {
 
     /// To VoiceOver, one button per card, exactly the size of what shows, with
     /// actions for everything a finger can do to it.
-    private func cardForVoiceOver(_ coin: Coin, at i: Int, height: CGFloat) -> some View {
-        Color.clear
+    private func cardForVoiceOver(_ coin: Coin, height: CGFloat) -> some View {
+        let name = coin.title.isEmpty ? "Untitled" : coin.title
+        return Color.clear
             .frame(height: height)
             .accessibilityElement()
-            .accessibilityLabel(coin.title)
+            .accessibilityLabel(name)
             .accessibilityValue(model.isVeiled(coin) ? "Hidden" : "")
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("stackCard")
             .accessibilityAction { openCoin(coin.id) }
             .accessibilityAction(named: "Move to front") { model.move(coin.id, to: model.purse.count) }
-            .accessibilityAction(named: "Move up") { model.move(coin.id, to: max(0, i - 1)) }
-            .accessibilityAction(named: "Move down") { model.move(coin.id, to: i + 1) }
+            .accessibilityAction(named: "Move up") { step(coin.id, by: -1) }
+            .accessibilityAction(named: "Move down") { step(coin.id, by: 1) }
             .accessibilityAction(named: "Archive") {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { model.archive(coin.id) }
             }
             .accessibilityAction(named: "Delete") { askToDelete(coin) }
+    }
+
+    /// One place up or down in the whole purse (a search shows only some of it).
+    private func step(_ id: String, by places: Int) {
+        guard let at = model.purse.firstIndex(where: { $0.id == id }) else { return }
+        model.move(id, to: max(0, at + places))
     }
 
     /// The last card shows whole.
@@ -576,7 +604,10 @@ struct PurseView: View {
         Button(action: action) {
             VStack(spacing: 3) {
                 Image(systemName: icon).font(.title3)
+                // The largest text sizes shrink it to fit, rather than cut it off.
                 Text(title).font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 18)
@@ -877,7 +908,9 @@ struct PurseView: View {
     }
 
     private func runQuickAction() {
-        guard let action = quick.pending else { return }
+        // Never behind the lock: a voice note would start listening, or the
+        // camera open, before Face ID. It runs once the purse is unlocked.
+        guard let action = quick.pending, !lock.isLocked else { return }
         if case .openCoin(let id) = action {
             // Wait for the purse to load; a coin that no longer exists is dropped.
             guard model.coinsLoaded || model.coin(id) != nil else { return }
@@ -1154,7 +1187,11 @@ struct PurseView: View {
         case nil:
             return
         }
-        guard let jpeg else { return }
+        guard let jpeg else {
+            // A photo that could not be made into a picture (a video says so above).
+            if case .photo = shot { model.show("That picture could not be saved") }
+            return
+        }
         let id = UUID().uuidString.lowercased()
         do {
             try await model.quickSave(picture: jpeg, video: video, id: id)
@@ -1347,12 +1384,13 @@ private struct PullTracker: ViewModifier {
 
 /// Touch and hold, then drag: iOS's own long press, which reports where the
 /// finger goes after it is recognized and, unlike a SwiftUI drag, never stops
-/// the purse from scrolling. Ends (or is cancelled) always call `ended`.
+/// the purse from scrolling. Ends (or is cancelled) always call `ended`,
+/// with false when the touch was interrupted rather than let go.
 private struct HoldToMove: ViewModifier {
     let enabled: Bool
     let began: (CGFloat) -> Void
     let changed: (CGFloat) -> Void
-    let ended: () -> Void
+    let ended: (Bool) -> Void
 
     func body(content: Content) -> some View {
         if enabled {
@@ -1427,7 +1465,7 @@ private struct ScrollStarted: ViewModifier {
 private struct HoldRecognizer: UIGestureRecognizerRepresentable {
     let began: (CGFloat) -> Void
     let changed: (CGFloat) -> Void
-    let ended: () -> Void
+    let ended: (Bool) -> Void
 
     func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
         let hold = UILongPressGestureRecognizer()
@@ -1440,7 +1478,8 @@ private struct HoldRecognizer: UIGestureRecognizerRepresentable {
         switch recognizer.state {
         case .began: began(y)
         case .changed: changed(y)
-        case .ended, .cancelled, .failed: ended()
+        case .ended: ended(true)
+        case .cancelled, .failed: ended(false)
         default: break
         }
     }

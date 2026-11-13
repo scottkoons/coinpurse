@@ -80,8 +80,9 @@ final class AppModel {
         }
         #endif
         Self.removeOldCopies()
-        await refresh()
-        loadLayout()
+        let read = await refresh()
+        // A purse that could not be read must not cost the Archive its order.
+        loadLayout(prune: read)
         phase = .ready
         scheduleSpotlight()
         // Off the main thread: it lists every picture file.
@@ -137,24 +138,29 @@ final class AppModel {
 
     // MARK: Coins
 
-    /// Reads the purse kept on this phone (Share to Coin Purse may have added to it).
-    func refresh() async {
+    /// Reads the purse kept on this phone (Share to Coin Purse may have added
+    /// to it). False when it could not be read.
+    @discardableResult
+    func refresh() async -> Bool {
         let mine = session
+        var read = false
         for attempt in 0..<3 {
             let changesBefore = changes
             do {
                 let list = try await store.coins()
-                guard session == mine else { return }
+                guard session == mine else { return false }
                 // A save, delete or move finished meanwhile, so this list may
                 // be older than what shows: read again rather than undo it.
                 if changes != changesBefore, attempt < 2 { continue }
                 coins = list.filter { !deleting.contains($0.id) }
+                read = true
             } catch {
                 show(error.localizedDescription)
             }
             break
         }
         if session == mine { coinsLoaded = true }
+        return read
     }
 
     func coin(_ id: String) -> Coin? { coins.first { $0.id == id } }
@@ -605,13 +611,16 @@ final class AppModel {
 
     /// The Archive's order (on the phone, beside the coins). Read once at the
     /// start; the first time, it is the order the Archive used to show, A to Z.
-    private func loadLayout() {
+    private func loadLayout(prune: Bool) {
         let archived = coins.filter(\.archived)
         if var saved = store.archiveLayout() {
-            let ids = Set(archived.map(\.id))
-            saved.coins = saved.coins.filter { ids.contains($0) }
+            // Coins no longer archived (or gone) leave its order.
+            if prune {
+                let ids = Set(archived.map(\.id))
+                saved.coins = saved.coins.filter { ids.contains($0) }
+            }
             layout = saved
-        } else {
+        } else if prune {
             layout = ArchiveLayout(
                 coins: archived.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }.map(\.id),
                 folders: Set(archived.compactMap(\.folder)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
@@ -670,7 +679,7 @@ final class AppModel {
         let mine = session
         Task {
             do {
-                _ = try await store.renameFolder(name, to: new)
+                try await store.renameFolder(name, to: new)
             } catch {
                 guard session == mine else { return }
                 // Show what is really kept.
@@ -685,6 +694,8 @@ final class AppModel {
         defer { deleting.remove(coin.id) }
         do {
             try await store.deleteCoin(id: coin.id)
+            // A refresh that read the purse before the delete must read it again.
+            changes += 1
         } catch PurseError.gone {
             // Already gone.
         } catch {

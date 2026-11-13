@@ -320,6 +320,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Coin Purse uses the camera when you choose to take a picture or a video for a coin.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Coin Purse uses Face ID to keep your purse locked.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Coin Purse uses your location only when you pin a spot on a coin, to remember a place like where you parked.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Coin Purse saves a picture to your photo library only when you choose Save Image.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Coin Purse listens only while you record a voice note, to turn your words into text, or a video with the camera.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Coin Purse turns your voice notes into text with Apple speech recognition. The recording is not saved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -361,6 +362,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Coin Purse uses the camera when you choose to take a picture or a video for a coin.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Coin Purse uses Face ID to keep your purse locked.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Coin Purse uses your location only when you pin a spot on a coin, to remember a place like where you parked.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Coin Purse saves a picture to your photo library only when you choose Save Image.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Coin Purse listens only while you record a voice note, to turn your words into text, or a video with the camera.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Coin Purse turns your voice notes into text with Apple speech recognition. The recording is not saved.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
