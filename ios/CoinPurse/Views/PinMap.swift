@@ -96,18 +96,38 @@ final class MapSnapshots {
     /// iOS empties this by itself when memory runs low.
     private let cache = NSCache<NSString, UIImage>()
     private let folder: URL = {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let folder = caches.appendingPathComponent("maps", isDirectory: true)
+        let folder = MapSnapshots.folder
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }()
 
+    nonisolated private static var folder: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("maps", isDirectory: true)
+    }
+
     private func file(_ key: String) -> URL {
-        folder.appendingPathComponent((key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? key) + ".png")
+        folder.appendingPathComponent(Self.fileName(key) + ".png")
+    }
+
+    nonisolated private static func fileName(_ key: String) -> String {
+        key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? key
     }
 
     private func key(_ pin: Pin, _ size: CGSize, _ dark: Bool) -> String {
-        "\(pin.lat),\(pin.lng),\(Int(size.width))x\(Int(size.height)),\(dark)"
+        Self.spot(pin) + "\(Int(size.width))x\(Int(size.height)),\(dark)"
+    }
+
+    nonisolated private static func spot(_ pin: Pin) -> String { "\(pin.lat),\(pin.lng)," }
+
+    /// Maps of spots no coin is pinned to any more (a coin deleted, a pin
+    /// moved or removed) are taken off the phone: they show where it was.
+    nonisolated static func removeUnused(keeping pins: [Pin]) {
+        let spots = pins.map { fileName(spot($0)) }
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        for name in files where !spots.contains(where: { name.hasPrefix($0) }) {
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(name))
+        }
     }
 
     func cached(for pin: Pin, size: CGSize, dark: Bool) -> UIImage? {

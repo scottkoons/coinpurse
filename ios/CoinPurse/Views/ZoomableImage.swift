@@ -6,6 +6,8 @@ import VisionKit
 /// A single tap on the empty space around the picture calls `onTapOutside`.
 struct ZoomableImage: UIViewRepresentable {
     let image: UIImage
+    /// What VoiceOver says it is ("Picture 2 of 3").
+    var label = "Picture"
     var onTapOutside: () -> Void = {}
 
     func makeUIView(context: Context) -> ZoomScrollView {
@@ -14,6 +16,7 @@ struct ZoomableImage: UIViewRepresentable {
 
     func updateUIView(_ view: ZoomScrollView, context: Context) {
         view.onTapOutside = onTapOutside
+        view.accessibilityLabel = label
         view.display(image)
     }
 }
@@ -43,6 +46,9 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         imageView.contentMode = .scaleAspectFit
         imageView.isUserInteractionEnabled = true
         addSubview(imageView)
+        // To VoiceOver, one picture; the scrub gesture closes it, like the tap outside.
+        isAccessibilityElement = true
+        accessibilityTraits = .image
         if ImageAnalyzer.isSupported {
             liveText.preferredInteractionTypes = .automatic
             // Links, phone numbers and emails in the picture stay tappable and
@@ -75,6 +81,11 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func accessibilityPerformEscape() -> Bool {
+        onTapOutside()
+        return true
+    }
 
     func display(_ image: UIImage) {
         guard image !== shown else { return }

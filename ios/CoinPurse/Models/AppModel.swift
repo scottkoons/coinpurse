@@ -86,7 +86,12 @@ final class AppModel {
         phase = .ready
         scheduleSpotlight()
         // Off the main thread: it lists every picture file.
-        Task.detached(priority: .background) { await LocalStore().removeUnusedFiles() }
+        let pins = coins.compactMap(\.pin)
+        Task.detached(priority: .background) {
+            await LocalStore().removeUnusedFiles()
+            // Only from a purse read cleanly (otherwise every pin looks gone).
+            if read { MapSnapshots.removeUnused(keeping: pins) }
+        }
     }
 
     /// Left by versions that kept coins on a server: a copy of the purse and

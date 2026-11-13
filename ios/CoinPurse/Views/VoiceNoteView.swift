@@ -26,6 +26,12 @@ struct VoiceNoteView: View {
     }
     @State private var confirmingDiscard = false
 
+    /// Words that would be lost: the note being reviewed, or those heard so far.
+    private var hasWords: Bool {
+        let words = capture.state == .finished ? text : capture.transcript
+        return !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -59,8 +65,8 @@ struct VoiceNoteView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        // A finished note is not thrown away without asking.
-                        if capture.state == .finished, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Words, finished or still being said, are not thrown away without asking.
+                        if hasWords {
                             confirmingDiscard = true
                         } else {
                             capture.cancel()
@@ -89,7 +95,7 @@ struct VoiceNoteView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(saving || capture.state == .finished)
+        .interactiveDismissDisabled(saving || capture.state == .finished || hasWords)
         // However listening ended (Done, a phone call, Siri, or recognition
         // stopping by itself), the review starts with every word heard.
         .onChange(of: capture.state) { _, state in

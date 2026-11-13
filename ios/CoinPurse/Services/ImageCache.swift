@@ -11,6 +11,9 @@ actor ImageCache {
 
     init() {
         memory.countLimit = 120
+        // Counted by the memory a drawn picture takes (about 8 MB for a
+        // 1200 x 1600 photo), so a big purse never holds a gigabyte of them.
+        memory.totalCostLimit = 150 * 1024 * 1024
     }
 
     /// A picture already in memory, right away (no waiting), so a card that is
@@ -19,17 +22,29 @@ actor ImageCache {
         memory.object(forKey: key as NSString)
     }
 
-    /// Reads it from its file (off the main thread, as this is an actor).
+    /// Reads it from its file and decodes it (off the main thread, as this
+    /// is an actor), so drawing it the first time never stalls scrolling.
     func image(key: String, url: URL) -> UIImage? {
         if let img = memory.object(forKey: key as NSString) { return img }
-        guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return nil }
-        memory.setObject(img, forKey: key as NSString)
+        guard let data = try? Data(contentsOf: url), let img = Self.ready(data) else { return nil }
+        keep(img, key: key)
         return img
     }
 
     /// A picture just saved, so it shows at once.
     func store(_ data: Data, key: String) {
-        if let img = UIImage(data: data) { memory.setObject(img, forKey: key as NSString) }
+        if let img = Self.ready(data) { keep(img, key: key) }
+    }
+
+    private static func ready(_ data: Data) -> UIImage? {
+        guard let img = UIImage(data: data) else { return nil }
+        return img.preparingForDisplay() ?? img
+    }
+
+    private func keep(_ img: UIImage, key: String) {
+        let cost = img.cgImage.map { $0.bytesPerRow * $0.height }
+            ?? Int(img.size.width * img.scale * img.size.height * img.scale * 4)
+        memory.setObject(img, forKey: key as NSString, cost: cost)
     }
 
     func removeAll() {
