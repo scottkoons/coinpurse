@@ -291,7 +291,13 @@ final class CoinPurseUITests: XCTestCase {
         swipe("Coffee gift card", by: -120)
         XCTAssertTrue(delete.waitForExistence(timeout: 3), "a short swipe did not show Delete")
         snap("w01-swiped-open")
-        tapCard("Parking spot")
+        // Another card already on screen: scrolling to one would close the
+        // swiped card by itself, before the tap.
+        let shown = app.descendants(matching: .any).matching(identifier: "stackCard").allElementsBoundByIndex.first {
+            $0.label != "Coffee gift card" && $0.frame.minY > app.buttons["Settings"].frame.maxY + 8
+                && $0.frame.midY < app.buttons["newCoin"].frame.minY - 30
+        }
+        if let shown { shown.tap() } else { tapCard("Parking spot") }
         sleep(1)
         XCTAssertFalse(openCoin.exists, "a tap that closes a swiped card opened a coin")
         XCTAssertFalse(delete.exists, "a tap did not close the swiped card")
@@ -2622,11 +2628,25 @@ final class CoinPurseUITests: XCTestCase {
     @MainActor @discardableResult
     private func showCard(_ name: String) -> XCUIElement {
         let c = card(name)
-        // Rolled away above (only cards near the screen are built): roll the
-        // purse back with the "earlier" marker, as a person would.
-        if !c.waitForExistence(timeout: 3), app.buttons["earlierCoins"].exists {
-            app.buttons["earlierCoins"].tap()
-            sleep(1)
+        // Only cards near the screen are built. Not there: roll the purse back a
+        // card or so at a time, as a person would (at the largest text sizes a
+        // card in the middle is neither near the front nor near the top), then,
+        // from the top, forward again.
+        if !c.waitForExistence(timeout: 3) {
+            let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            let earlier = app.buttons["earlierCoins"]
+            for _ in 0..<6 where !c.exists && earlier.exists {
+                high.press(forDuration: 0.05, thenDragTo: low)
+            }
+            // Far up a big purse: straight to the top with the "earlier" marker.
+            if !c.exists, earlier.exists {
+                earlier.tap()
+                sleep(1)
+            }
+            for _ in 0..<15 where !c.exists {
+                low.press(forDuration: 0.05, thenDragTo: high)
+            }
         }
         XCTAssertTrue(c.waitForExistence(timeout: 10), "no card named \(name)")
         let bar = app.buttons["newCoin"]
